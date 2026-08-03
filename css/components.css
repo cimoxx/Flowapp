@@ -1,1 +1,6 @@
-
+.btn-primary {
+    @apply w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-lg transition-colors;
+}
+.badge {
+    @apply px-2 py-1 text-xs font-medium rounded-full;
+}
