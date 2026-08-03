@@ -4,56 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Flow V20 Online</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/48/safe.png">
     
-    <!-- Tailwind & Lucide & Chart.js -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Modulárne CSS -->
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/layout.css">
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white transition-colors duration-200">
 
-<div id="app" class="max-w-md mx-auto min-h-screen flex flex-col pb-24 app-container shadow-2xl">
-    <!-- HLAVIČKA -->
-    <header id="main-header" class="p-5 border-b sticky top-0 z-20 app-container"></header>
+<div id="app" class="max-w-md mx-auto min-h-screen flex flex-col pb-24 app-container shadow-2xl bg-white dark:bg-slate-950">
+    <header id="main-header" class="p-5 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md"></header>
 
-    <!-- OBRAZOVKY -->
     <main id="screen-home" class="p-4 flex-1"></main>
     <main id="screen-analytics" class="p-4 flex-1 hidden space-y-4"></main>
     <main id="screen-burnrate" class="p-4 flex-1 hidden space-y-4"></main>
 
-    <!-- SPODNÁ NAVIGÁCIA -->
-    <nav id="main-navbar" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-nav grid grid-cols-5 items-center h-16 px-2 z-30"></nav>
+    <nav id="main-navbar" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-nav grid grid-cols-5 items-center h-16 px-2 z-30 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg"></nav>
 </div>
 
-<!-- MODALY -->
 <div id="modal-container"></div>
 <div id="settings-screen" class="fixed inset-0 bg-white dark:bg-slate-900 z-50 hidden p-6 max-w-md mx-auto overflow-y-auto pb-24"></div>
 
-<!-- Modulárny JavaScript (v správnom poradí načítania) -->
 <script src="js/core/utils.js"></script>
 <script src="js/core/state.js"></script>
 <script src="js/services/api.js"></script>
-
 <script src="js/components/header.js"></script>
 <script src="js/components/navbar.js"></script>
 <script src="js/components/swipe.js"></script>
-
 <script src="js/screens/home.js"></script>
 <script src="js/screens/analytics.js"></script>
 <script src="js/screens/burnrate.js"></script>
 <script src="js/screens/settings.js"></script>
-
 <script src="js/modals/transaction.js"></script>
 <script src="js/modals/changelog.js"></script>
-
 <script src="js/app.js"></script>
 </body>
 </html>
