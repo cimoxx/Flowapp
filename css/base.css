@@ -6,7 +6,11 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 /* Skrytie scrollbaru pre čistý vzhľad */
-::-webkit-scrollbar {
-    width: 0px;
-    background: transparent;
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
 }
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
