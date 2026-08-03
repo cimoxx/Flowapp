@@ -1,1 +1,6 @@
-
+:root {
+    --color-primary: #3b82f6;
+    --color-success: #22c55e;
+    --color-danger: #ef4444;
+    --nav-height: 4rem;
+}
