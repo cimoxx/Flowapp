@@ -678,7 +678,6 @@ input, select, textarea {
     box-shadow: 0 6px 18px rgba(16,185,129,0.14);
 }
 
-/* FÁZA 4 */
 .template-chip {
     display: inline-flex;
     align-items: center;
@@ -697,32 +696,6 @@ input, select, textarea {
     box-shadow: var(--shadow-soft);
 }
 .template-chip:active { transform: scale(0.97); }
-
-.bulk-actions-card {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 12px;
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    background: rgba(245, 158, 11, 0.08);
-}
-.bulk-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 36px;
-    padding: 8px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(245,158,11,0.2);
-    background: var(--bg-card);
-    color: var(--text-main);
-    font-size: 10px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.bulk-btn:active { transform: scale(0.97); }
 
 .settings-section {
     margin-bottom: 22px;
