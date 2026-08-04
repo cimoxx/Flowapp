@@ -62,7 +62,6 @@
                 <button id="clear-cat-filter" onclick="resetCategoryFilter()" class="hidden text-[11px] font-extrabold text-amber-500 uppercase tracking-wider">Zrušiť filter X</button>
             </div>
 
-            <!-- SEARCH -->
             <div class="search-wrap">
                 <div class="search-box">
                     <i data-lucide="search" class="search-icon w-4 h-4"></i>
@@ -109,6 +108,9 @@
             <div id="chart-months-container" class="flex gap-1 overflow-x-auto no-scrollbar py-1 border-t border-slate-100 dark:border-slate-800/80 pt-1.5"></div>
         </div>
 
+        <!-- NOVÉ SUMMARY KARTY -->
+        <div id="analytics-summary-cards" class="grid grid-cols-2 gap-2"></div>
+
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
@@ -117,6 +119,7 @@
                     <option value="bar">Stĺpcový</option>
                 </select>
             </div>
+
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Úroveň Dát</label>
                 <select id="chart-level-mode" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
@@ -124,14 +127,21 @@
                     <option value="sub">Podkategórie</option>
                 </select>
             </div>
-            <div>
+
+            <div class="col-span-2 sm:col-span-1">
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Dáta</label>
-                <select id="chart-data-mode" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
+                <div class="segmented-chips">
+                    <button type="button" id="chart-data-expense" onclick="setAnalyticsDataMode('chart','expense')" class="seg-chip active">Výdavky</button>
+                    <button type="button" id="chart-data-income" onclick="setAnalyticsDataMode('chart','income')" class="seg-chip">Príjmy</button>
+                    <button type="button" id="chart-data-balance" onclick="setAnalyticsDataMode('chart','balance')" class="seg-chip">Bilancia</button>
+                </div>
+                <select id="chart-data-mode" onchange="updateAnalytics()" class="hidden">
                     <option value="expense">Výdavky</option>
                     <option value="income">Príjmy</option>
                     <option value="balance">Bilancia</option>
                 </select>
             </div>
+
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Osoba</label>
                 <select id="chart-user-filter" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
@@ -177,6 +187,9 @@
             <div id="burn-months-container" class="flex gap-1 overflow-x-auto no-scrollbar py-1 border-t border-slate-100 dark:border-slate-800/80 pt-1.5"></div>
         </div>
 
+        <!-- NOVÉ SUMMARY KARTY -->
+        <div id="burn-insight-cards" class="grid grid-cols-2 gap-2"></div>
+
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
@@ -185,6 +198,7 @@
                     <option value="doughnut">Koláčový</option>
                 </select>
             </div>
+
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Úroveň Dát</label>
                 <select id="burn-level-mode" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
@@ -192,14 +206,21 @@
                     <option value="sub">Podkategórie</option>
                 </select>
             </div>
-            <div>
+
+            <div class="col-span-2 sm:col-span-1">
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Dáta</label>
-                <select id="burn-data-mode" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
+                <div class="segmented-chips">
+                    <button type="button" id="burn-data-expense" onclick="setAnalyticsDataMode('burn','expense')" class="seg-chip active">Výdavky</button>
+                    <button type="button" id="burn-data-income" onclick="setAnalyticsDataMode('burn','income')" class="seg-chip">Príjmy</button>
+                    <button type="button" id="burn-data-balance" onclick="setAnalyticsDataMode('burn','balance')" class="seg-chip">Bilancia</button>
+                </div>
+                <select id="burn-data-mode" onchange="updateBurnRateTab()" class="hidden">
                     <option value="expense">Výdavky</option>
                     <option value="income">Príjmy</option>
                     <option value="balance">Bilancia</option>
                 </select>
             </div>
+
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Osoba</label>
                 <select id="burn-user-filter" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
@@ -333,8 +354,19 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.26.0</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.27.0</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Pridané sumárne karty do analytiky s prehľadom celkovej sumy, top kategórie, počtu transakcií a priemeru na transakciu.</li>
+                    <li>Rozšírený Burn Rate prehľad o porovnanie s predošlým obdobím, odhad do konca mesiaca a dni zostávajúce do konca mesiaca.</li>
+                    <li>Najčastejšie prepínače typu dát boli presunuté do rýchlych chipov pre pohodlnejšie ovládanie na mobile.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.26.0</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
                     <li>Pridané vyhľadávanie v transakciách podľa poznámky, kategórie, podkategórie, osoby a sumy.</li>
