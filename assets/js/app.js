@@ -15,6 +15,7 @@
     processRecurringPayments();
     renderList();
     renderSwipeHint();
+    renderQuickTemplates();
 
     if (pendingCatSync) {
         syncCategories('push');
