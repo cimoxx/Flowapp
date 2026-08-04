@@ -23,6 +23,22 @@ function resetCategoryFilter() {
     renderList();
 }
 
+function setSearchQuery(value) {
+    transactionSearchQuery = String(value || '').trim().toLowerCase();
+    const clearBtn = document.getElementById('clear-search-btn');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !transactionSearchQuery);
+    renderList();
+}
+
+function clearSearch() {
+    transactionSearchQuery = '';
+    const input = document.getElementById('transaction-search');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('clear-search-btn');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    renderList();
+}
+
 function toggleProcessed(id) {
     const item = db.find(x => String(x.id) === String(id));
     if (item) {
@@ -47,6 +63,21 @@ function updateTotals(currentListData) {
     document.getElementById('display-balance').innerText = total.toFixed(2) + ' €';
 }
 
+function setModalMeta(isEdit = false) {
+    const title = document.getElementById('modal-title');
+    const subtitle = document.getElementById('modal-subtitle');
+
+    if (!title || !subtitle) return;
+
+    if (isEdit) {
+        title.innerText = 'Upraviť transakciu';
+        subtitle.innerText = 'Zmeň údaje existujúcej položky a ulož aktualizovaný záznam.';
+    } else {
+        title.innerText = 'Nová transakcia';
+        subtitle.innerText = 'Rýchle pridanie novej položky do prehľadu.';
+    }
+}
+
 function openModal(id = null) {
     const overlay = document.getElementById('modal-overlay');
     const amountInput = document.getElementById('f-amount');
@@ -55,6 +86,8 @@ function openModal(id = null) {
     overlay.classList.remove('hidden');
 
     if (id) {
+        setModalMeta(true);
+
         const i = db.find(x => String(x.id) === String(id));
         if (!i) return;
 
@@ -79,15 +112,20 @@ function openModal(id = null) {
 
         document.getElementById('del-btn').classList.remove('hidden');
     } else {
+        setModalMeta(false);
+
         document.getElementById('entry-form').reset();
         entryIdInput.value = "";
-        document.getElementById('f-date').value = getTodayStr();
+
+        const rememberedDate = localStorage.getItem('f_last_date_v20') || getTodayStr();
+        document.getElementById('f-date').value = rememberedDate;
+
         document.getElementById('f-recurring').checked = false;
         document.getElementById('f-frequency').value = 'monthly';
         toggleRecurringOptions();
 
         setUser(localStorage.getItem('f_last_user') || 'Lukáš');
-        setType('expense');
+        setType(localStorage.getItem('f_last_type_v20') || 'expense');
 
         renderCatGrid();
 
@@ -103,6 +141,7 @@ function openModal(id = null) {
                 selectSub(lastSub);
             }
         }
+
         document.getElementById('del-btn').classList.add('hidden');
     }
 
@@ -118,8 +157,9 @@ function handleSave(e) {
     let existingId = document.getElementById('entry-id').value;
     let id = existingId || 'ID-' + Date.now();
 
-    const cleanDate = getCleanDateStr(document.getElementById('f-date').value);
-    const fullDateWithTime = buildDateWithCurrentTime(document.getElementById('f-date').value);
+    const dateVal = document.getElementById('f-date').value;
+    const cleanDate = getCleanDateStr(dateVal);
+    const fullDateWithTime = buildDateWithCurrentTime(dateVal);
 
     let currentProcessed = false;
     const localRecord = db.find(x => String(x.id) === String(id));
@@ -146,6 +186,9 @@ function handleSave(e) {
 
     if (selectedCat) localStorage.setItem('f_last_cat', selectedCat);
     if (selectedSub) localStorage.setItem('f_last_sub', selectedSub);
+    localStorage.setItem('f_last_user', curUser);
+    localStorage.setItem('f_last_type_v20', curType);
+    localStorage.setItem('f_last_date_v20', cleanDate);
 
     const idx = db.findIndex(x => String(x.id) === String(id));
     if (idx > -1) {
@@ -174,6 +217,10 @@ function handleDelete(idToDelete = null) {
     const id = idToDelete || document.getElementById('entry-id').value;
     if (id && confirm('Zmazať transakciu?')) {
         const deletedItem = db.find(x => String(x.id) === String(id));
+        if (!deletedItem) return;
+
+        lastDeletedEntry = { ...deletedItem };
+        lastDeletedSyncSnapshot = [...syncQueue];
 
         syncQueue.push({ id: id, action: 'delete' });
         db = db.filter(x => String(x.id) !== String(id));
@@ -187,9 +234,36 @@ function handleDelete(idToDelete = null) {
         showToast({
             type: 'warning',
             title: 'Transakcia zmazaná',
-            text: deletedItem ? `${deletedItem.category}${deletedItem.sub ? ' / ' + deletedItem.sub : ''}` : ''
+            text: `${deletedItem.category}${deletedItem.sub ? ' / ' + deletedItem.sub : ''}`,
+            duration: 5000,
+            action: {
+                label: 'Späť',
+                onClick: undoDelete
+            }
         });
     }
+}
+
+function undoDelete() {
+    if (!lastDeletedEntry) return;
+
+    db.push({ ...lastDeletedEntry });
+    syncQueue = [...lastDeletedSyncSnapshot, { ...lastDeletedEntry, action: 'save' }];
+
+    saveData(false);
+    renderList();
+    updateAnalytics();
+    updateBurnRateTab();
+    processSyncQueue();
+
+    showToast({
+        type: 'success',
+        title: 'Transakcia obnovená',
+        text: `${lastDeletedEntry.category}${lastDeletedEntry.sub ? ' / ' + lastDeletedEntry.sub : ''}`
+    });
+
+    lastDeletedEntry = null;
+    lastDeletedSyncSnapshot = null;
 }
 
 function handleSwipeStart(e, id) {
@@ -325,6 +399,21 @@ function getFilteredData() {
     });
 }
 
+function matchesSearch(item) {
+    if (!transactionSearchQuery) return true;
+
+    const haystack = [
+        item.category || '',
+        item.sub || '',
+        item.note || '',
+        item.user || '',
+        String(item.amount || ''),
+        item.type || ''
+    ].join(' ').toLowerCase();
+
+    return haystack.includes(transactionSearchQuery);
+}
+
 function renderSummary(sums, currentFiltered) {
     const container = document.getElementById('category-summary');
     if (!container) return;
@@ -435,6 +524,10 @@ function renderActiveFilterSummary() {
         chips.push(`<span class="filter-summary-chip"><strong>Podkategória:</strong> ${window.activeSubFilter}</span>`);
     }
 
+    if (transactionSearchQuery) {
+        chips.push(`<span class="filter-summary-chip"><strong>Hľadanie:</strong> ${transactionSearchQuery}</span>`);
+    }
+
     if (chips.length === 0) {
         el.classList.add('hidden');
         el.innerHTML = '';
@@ -490,6 +583,8 @@ function renderList() {
         currentFiltered = currentFiltered.filter(d => !d.processed);
     }
 
+    currentFiltered = currentFiltered.filter(matchesSearch);
+
     const sums = {};
     currentFiltered.forEach(item => {
         if (item.type === 'expense') {
@@ -527,16 +622,21 @@ function renderList() {
     });
 
     if (Object.keys(grouped).length === 0) {
+        const isSearching = !!transactionSearchQuery;
         list.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">
-                    <i data-lucide="receipt-text" class="w-6 h-6"></i>
+                    <i data-lucide="${isSearching ? 'search-x' : 'receipt-text'}" class="w-6 h-6"></i>
                 </div>
-                <div class="empty-state-title">Žiadne transakcie</div>
-                <div class="empty-state-text">Pre aktuálny výber filtrov zatiaľ nemáš žiadne položky. Skús zmeniť mesiac, status alebo pridať novú transakciu.</div>
-                <button type="button" onclick="openModal()" class="empty-state-action">
-                    <i data-lucide="plus" class="w-4 h-4"></i>
-                    Pridať transakciu
+                <div class="empty-state-title">${isSearching ? 'Nič sa nenašlo' : 'Žiadne transakcie'}</div>
+                <div class="empty-state-text">
+                    ${isSearching
+                        ? 'Skús zmeniť hľadaný výraz alebo upraviť aktívne filtre. Pre aktuálny dopyt sa nenašli žiadne záznamy.'
+                        : 'Pre aktuálny výber filtrov zatiaľ nemáš žiadne položky. Skús zmeniť mesiac, status alebo pridať novú transakciu.'}
+                </div>
+                <button type="button" onclick="${isSearching ? 'clearSearch()' : 'openModal()'}" class="empty-state-action">
+                    <i data-lucide="${isSearching ? 'rotate-ccw' : 'plus'}" class="w-4 h-4"></i>
+                    ${isSearching ? 'Vyčistiť hľadanie' : 'Pridať transakciu'}
                 </button>
             </div>
         `;
@@ -575,7 +675,7 @@ function renderList() {
                                     <span class="truncate">${item.category}</span>
                                     ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${item.sub}</span>` : ''}
                                 </div>
-                                <div class="tx-note">${item.note ? item.note : '&nbsp;'}</div>
+                                <div class="tx-note">${item.note ? item.note : `${item.user || '—'} · ${item.type === 'income' ? 'Príjem' : 'Výdavok'}`}</div>
                             </div>
 
                             <div class="tx-meta">
