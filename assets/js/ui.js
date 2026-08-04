@@ -54,6 +54,7 @@ function showScreen(s) {
         activeSettingsCat = null;
         closeCatDetail();
         renderManageCats();
+        lucide.createIcons();
     } else if (s === 'analytics') {
         renderPresets();
         renderChartMonthChips();
@@ -116,6 +117,108 @@ function showToast({ type = 'success', title = '', text = '', duration = 2600, a
     }, duration);
 
     toastTimeouts.push(timeout);
+}
+
+/* FÁZA 4 */
+function exportData() {
+    const payload = {
+        db,
+        categories,
+        chartPresets,
+        quickTemplates,
+        exportedAt: new Date().toISOString(),
+        version: 'v2.28.0'
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `flow-v20-backup-${getTodayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    showToast({
+        type: 'success',
+        title: 'Export dokončený',
+        text: 'Záloha bola uložená do JSON súboru.'
+    });
+}
+
+function importData(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const parsed = JSON.parse(e.target.result);
+
+            if (Array.isArray(parsed.db)) db = parsed.db;
+            if (Array.isArray(parsed.categories)) categories = parsed.categories;
+            if (Array.isArray(parsed.chartPresets)) chartPresets = parsed.chartPresets;
+            if (Array.isArray(parsed.quickTemplates)) quickTemplates = parsed.quickTemplates;
+
+            localStorage.setItem('f_db_v20', JSON.stringify(db));
+            localStorage.setItem('f_cats_v20', JSON.stringify(categories));
+            localStorage.setItem('f_chart_presets_v20', JSON.stringify(chartPresets));
+            localStorage.setItem('f_quick_templates_v20', JSON.stringify(quickTemplates));
+
+            renderCatGrid();
+            renderManageCats();
+            renderList();
+            updateAnalytics();
+            updateBurnRateTab();
+
+            showToast({
+                type: 'success',
+                title: 'Import dokončený',
+                text: 'Dáta boli úspešne načítané.'
+            });
+        } catch (err) {
+            showToast({
+                type: 'error',
+                title: 'Import zlyhal',
+                text: 'Súbor nemá platný formát JSON.'
+            });
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+function resetLocalData() {
+    if (!confirm('Resetovať lokálne dáta? Cloud dáta zostanú zachované, ale lokálny stav a queue sa vymažú.')) return;
+
+    localStorage.removeItem('f_db_v20');
+    localStorage.removeItem('f_sync_q_v20');
+    localStorage.removeItem('f_chart_presets_v20');
+    localStorage.removeItem('f_quick_templates_v20');
+    localStorage.removeItem('f_last_cat');
+    localStorage.removeItem('f_last_sub');
+    localStorage.removeItem('f_last_date_v20');
+    localStorage.removeItem('f_last_type_v20');
+
+    db = [];
+    syncQueue = [];
+    chartPresets = [];
+    quickTemplates = [
+        { id: 'QT-1', label: 'Káva', amount: 2.20, type: 'expense', category: '', sub: '', note: 'Káva' },
+        { id: 'QT-2', label: 'Nákup', amount: 0, type: 'expense', category: '', sub: '', note: 'Nákup' },
+        { id: 'QT-3', label: 'Benzín', amount: 0, type: 'expense', category: '', sub: '', note: 'Benzín' },
+        { id: 'QT-4', label: 'Výplata', amount: 0, type: 'income', category: '', sub: '', note: 'Výplata' }
+    ];
+
+    renderList();
+    updateAnalytics();
+    updateBurnRateTab();
+    updateSyncUI('ok');
+
+    showToast({
+        type: 'warning',
+        title: 'Lokálne dáta resetované',
+        text: 'Aplikácia je vyčistená. Môžeš znova synchronizovať cloud dáta.'
+    });
 }
 
 function dismissToast(toastEl) {
