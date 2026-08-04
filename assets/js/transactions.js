@@ -307,79 +307,6 @@ function undoDelete() {
     lastDeletedSyncSnapshot = null;
 }
 
-function markAllFilteredProcessed() {
-    let items = getCurrentVisibleTransactions();
-    const target = items.filter(i => !i.processed);
-
-    if (target.length === 0) {
-        showToast({ type: 'info', title: 'Nie je čo označiť', text: 'Všetky zobrazené položky už sú zapísané.' });
-        return;
-    }
-
-    target.forEach(item => {
-        item.processed = true;
-        syncQueue.push({ ...item, action: 'save' });
-    });
-
-    saveData(false);
-    renderList();
-    updateAnalytics();
-    updateBurnRateTab();
-    processSyncQueue();
-
-    showToast({
-        type: 'success',
-        title: 'Položky označené',
-        text: `${target.length} transakcií bolo označených ako zapísané.`
-    });
-}
-
-function deleteAllFilteredTransactions() {
-    const items = getCurrentVisibleTransactions();
-    if (items.length === 0) {
-        showToast({ type: 'info', title: 'Nie je čo zmazať', text: 'Pre aktuálny filter neexistujú žiadne položky.' });
-        return;
-    }
-
-    if (!confirm(`Zmazať všetky zobrazené transakcie (${items.length})?`)) return;
-
-    items.forEach(item => {
-        syncQueue.push({ id: item.id, action: 'delete' });
-    });
-
-    db = db.filter(item => !items.some(x => String(x.id) === String(item.id)));
-    saveData(false);
-    renderList();
-    updateAnalytics();
-    updateBurnRateTab();
-    processSyncQueue();
-
-    showToast({
-        type: 'warning',
-        title: 'Filtrované transakcie zmazané',
-        text: `${items.length} položiek bolo odstránených.`
-    });
-}
-
-function getCurrentVisibleTransactions() {
-    let currentFiltered = getFilteredData();
-
-    if (currentStatusFilter === 'unprocessed') {
-        currentFiltered = currentFiltered.filter(d => !d.processed);
-    }
-
-    currentFiltered = currentFiltered.filter(matchesSearch);
-
-    if (activeCategoryFilter) {
-        currentFiltered = currentFiltered.filter(d => d.category === activeCategoryFilter);
-        if (window.activeSubFilter) {
-            currentFiltered = currentFiltered.filter(d => (d.sub ? d.sub : 'Nezaradené') === window.activeSubFilter);
-        }
-    }
-
-    return currentFiltered;
-}
-
 function handleSwipeStart(e, id) {
     const touch = e.touches[0];
     touchStartX = touch.clientX;
@@ -610,33 +537,6 @@ function toggleSubFilter(sub) {
     renderList();
 }
 
-function renderBulkActionsBar(items) {
-    const el = document.getElementById('bulk-actions-bar');
-    if (!el) return;
-
-    if (!items || items.length === 0) {
-        el.classList.add('hidden');
-        el.innerHTML = '';
-        return;
-    }
-
-    el.classList.remove('hidden');
-    el.innerHTML = `
-        <div class="bulk-actions-card">
-            <button type="button" onclick="markAllFilteredProcessed()" class="bulk-btn">
-                <i data-lucide="check-check" class="w-4 h-4"></i> Označiť všetko
-            </button>
-            <button type="button" onclick="deleteAllFilteredTransactions()" class="bulk-btn">
-                <i data-lucide="trash-2" class="w-4 h-4"></i> Zmazať všetko
-            </button>
-            <div class="text-[10px] font-black uppercase tracking-[0.04em] text-slate-500 flex items-center">
-                ${items.length} položiek vo výbere
-            </div>
-        </div>
-    `;
-    lucide.createIcons();
-}
-
 function renderActiveFilterSummary() {
     const el = document.getElementById('active-filter-summary');
     if (!el) return;
@@ -744,7 +644,6 @@ function renderList() {
         }
     }
 
-    renderBulkActionsBar(currentFiltered);
     updateTotals(currentFiltered);
 
     document.getElementById('clear-cat-filter').classList.toggle('hidden', !activeCategoryFilter);
@@ -764,7 +663,6 @@ function renderList() {
     });
 
     if (Object.keys(grouped).length === 0) {
-        renderBulkActionsBar([]);
         const isSearching = !!transactionSearchQuery;
         list.innerHTML = `
             <div class="empty-state">
