@@ -11,18 +11,21 @@ function setUser(u) {
     localStorage.setItem('f_last_user', u);
 
     document.getElementById('u-Lukáš').className =
-        `flex-1 py-1.5 rounded-lg text-[9px] font-black transition-all ${u === 'Lukáš' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
+        `flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all ${u === 'Lukáš' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
 
     document.getElementById('u-Zdenka').className =
-        `flex-1 py-1.5 rounded-lg text-[9px] font-black transition-all ${u === 'Zdenka' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
+        `flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all ${u === 'Zdenka' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
 }
 
 function setType(t) {
     curType = t;
+    localStorage.setItem('f_last_type_v20', t);
+
     document.getElementById('t-ex').className =
-        `flex-1 py-1.5 rounded-lg text-[9px] font-black ${t === 'expense' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400'}`;
+        `flex-1 py-2 rounded-lg text-[10px] font-black ${t === 'expense' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400'}`;
+
     document.getElementById('t-in').className =
-        `flex-1 py-1.5 rounded-lg text-[9px] font-black ${t === 'income' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
+        `flex-1 py-2 rounded-lg text-[10px] font-black ${t === 'income' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
 }
 
 function closeModal() {
@@ -66,8 +69,7 @@ function showScreen(s) {
     }
 }
 
-/* FÁZA 1.1: TOASTS */
-function showToast({ type = 'success', title = '', text = '', duration = 2600 } = {}) {
+function showToast({ type = 'success', title = '', text = '', duration = 2600, action = null } = {}) {
     const container = document.getElementById('toast-container');
     if (!container) return;
 
@@ -86,6 +88,7 @@ function showToast({ type = 'success', title = '', text = '', duration = 2600 } 
             <div class="toast-title">${title}</div>
             ${text ? `<div class="toast-text">${text}</div>` : ''}
         </div>
+        ${action ? `<button type="button" class="toast-action-btn">${action.label}</button>` : ''}
         <button type="button" class="toast-close" onclick="dismissToast(this.closest('.toast'))">
             <i data-lucide="x" class="w-4 h-4"></i>
         </button>
@@ -93,6 +96,16 @@ function showToast({ type = 'success', title = '', text = '', duration = 2600 } 
 
     container.appendChild(toast);
     lucide.createIcons();
+
+    if (action) {
+        const btn = toast.querySelector('.toast-action-btn');
+        if (btn) {
+            btn.addEventListener('click', () => {
+                action.onClick();
+                dismissToast(toast);
+            });
+        }
+    }
 
     requestAnimationFrame(() => {
         toast.classList.add('show');
