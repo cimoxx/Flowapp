@@ -341,17 +341,17 @@ function renderSummary(sums, currentFiltered) {
         if (activeCategoryFilter === null) {
             const isActive = activeCategoryFilter === k;
             html += `
-                <div onclick="toggleFilter('${k}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2 cursor-pointer flex flex-col justify-between shrink-0">
-                    <span class="text-[8px] font-black uppercase text-slate-400 truncate">${k}</span>
-                    <span class="text-xs font-extrabold">${sums[k].toFixed(2)} €</span>
+                <div onclick="toggleFilter('${k}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                    <span class="text-[9px] font-black uppercase text-slate-400 truncate">${k}</span>
+                    <span class="text-[13px] font-extrabold mt-1">${sums[k].toFixed(2)} €</span>
                 </div>
             `;
         } else {
             const isActive = window.activeSubFilter === k;
             html += `
-                <div onclick="toggleSubFilter('${k}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2 cursor-pointer flex flex-col justify-between shrink-0">
-                    <span class="text-[8px] font-black uppercase text-slate-400 truncate">${k}</span>
-                    <span class="text-xs font-extrabold">${sums[k].toFixed(2)} €</span>
+                <div onclick="toggleSubFilter('${k}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                    <span class="text-[9px] font-black uppercase text-slate-400 truncate">${k}</span>
+                    <span class="text-[13px] font-extrabold mt-1">${sums[k].toFixed(2)} €</span>
                 </div>
             `;
         }
@@ -374,9 +374,9 @@ function renderSummary(sums, currentFiltered) {
             sortedSubs.forEach(s => {
                 const isSubActive = window.activeSubFilter === s;
                 html += `
-                    <div onclick="toggleSubFilter('${s}')" class="summary-card ${isSubActive ? 'active-filter' : ''} p-2 cursor-pointer flex flex-col justify-between shrink-0">
-                        <span class="text-[8px] font-black uppercase text-amber-500/80 truncate">${s}</span>
-                        <span class="text-xs font-extrabold">${subSums[s].toFixed(2)} €</span>
+                    <div onclick="toggleSubFilter('${s}')" class="summary-card ${isSubActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                        <span class="text-[9px] font-black uppercase text-amber-500/80 truncate">${s}</span>
+                        <span class="text-[13px] font-extrabold mt-1">${subSums[s].toFixed(2)} €</span>
                     </div>
                 `;
             });
@@ -550,37 +550,39 @@ function renderList() {
         const daySum = dayItems.reduce((acc, curr) => curr.type === 'income' ? acc + parseFloat(curr.amount) : acc - parseFloat(curr.amount), 0);
 
         html += `
-        <div class="day-group mb-3">
-            <div class="flex justify-between items-center px-2 py-1 mb-1 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
+        <div class="day-group mb-4">
+            <div class="flex justify-between items-center px-2 py-1.5 mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
                 <span>${formatDayLabel(dayKey)}</span>
                 <span class="${daySum >= 0 ? 'text-emerald-500' : 'text-slate-400'}">${daySum >= 0 ? '+' : ''}${daySum.toFixed(2)} €</span>
             </div>
-            <div class="space-y-1">
+            <div class="space-y-1.5">
                 ${dayItems.map(item => `
                     <div class="swipe-wrapper" id="wrapper-${item.id}">
                         <div class="swipe-bg" id="bg-${item.id}">
                             <span class="left-action flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> <span id="bg-left-text-${item.id}">Zapísaná</span></span>
                             <span class="right-action flex items-center gap-1.5"><span>Vymazať</span> <i data-lucide="trash-2" class="w-4 h-4"></i></span>
                         </div>
-                        <div class="swipe-content p-4 flex items-center justify-between ${item.processed ? 'processed' : ''}"
+
+                        <div class="swipe-content tx-row p-3.5 flex items-center justify-between ${item.processed ? 'processed' : ''}"
                              id="item-${item.id}"
                              ontouchstart="handleSwipeStart(event, '${item.id}')"
                              ontouchmove="handleSwipeMove(event, '${item.id}')"
                              ontouchend="handleSwipeEnd(event, '${item.id}', ${item.processed})">
 
-                            <div class="flex-1">
-                                <div class="flex justify-between items-center pr-3">
-                                    <span class="font-bold text-xs tracking-tight flex items-center gap-1">
-                                        ${item.isRecurring ? '<i data-lucide="repeat" class="w-3 h-3 text-emerald-500 inline shrink-0"></i>' : ''}
-                                        ${item.category}${item.sub ? ' <span class="text-slate-400 font-medium">/</span> '+item.sub : ''}
-                                    </span>
-                                    <span class="font-extrabold text-xs ${item.type === 'income' ? 'text-emerald-500' : ''}">${parseFloat(item.amount).toFixed(2)}€</span>
+                            <div class="tx-main flex-1 min-w-0">
+                                <div class="tx-title">
+                                    ${item.isRecurring ? '<i data-lucide="repeat" class="w-3.5 h-3.5 text-emerald-500 inline shrink-0"></i>' : ''}
+                                    <span class="truncate">${item.category}</span>
+                                    ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${item.sub}</span>` : ''}
                                 </div>
-                                <div class="text-[8.5px] font-bold text-slate-400 uppercase tracking-wide mt-1">${item.note ? item.note : ''}</div>
+                                <div class="tx-note">${item.note ? item.note : '&nbsp;'}</div>
                             </div>
 
-                            <div onclick="event.stopPropagation(); toggleProcessed('${item.id}')" class="w-7 h-7 rounded-lg flex items-center justify-center border ml-3 cursor-pointer shrink-0 ${item.processed ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-200 dark:border-slate-800 text-slate-300'}">
-                                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                            <div class="tx-meta">
+                                <span class="tx-amount ${item.type === 'income' ? 'income' : 'expense'}">${parseFloat(item.amount).toFixed(2)} €</span>
+                                <div onclick="event.stopPropagation(); toggleProcessed('${item.id}')" class="tx-check ${item.processed ? 'done' : 'pending'}">
+                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                </div>
                             </div>
                         </div>
                     </div>
