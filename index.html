@@ -56,7 +56,14 @@
                 </div>
                 <button id="clear-cat-filter" onclick="resetCategoryFilter()" class="hidden text-[10px] font-extrabold text-amber-500 uppercase tracking-wider">Zrušiť filter X</button>
             </div>
+
+            <!-- NOVÉ: FILTER SUMMARY -->
+            <div id="active-filter-summary" class="hidden"></div>
+
+            <!-- NOVÉ: SWIPE HINT -->
+            <div id="swipe-hint" class="hidden"></div>
         </div>
+
         <div id="transaction-list" class="space-y-4"></div>
     </main>
 
@@ -206,6 +213,9 @@
         <button id="nav-settings" onclick="showScreen('settings')" class="nav-btn flex justify-center p-3"><i data-lucide="settings" class="w-5 h-5"></i></button>
     </nav>
 </div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container" class="fixed inset-x-0 bottom-20 z-[70] px-4 pointer-events-none max-w-md mx-auto"></div>
 
 <!-- MODAL -->
 <div id="modal-overlay" class="fixed inset-0 bg-slate-900/90 z-[40] hidden backdrop-blur-sm flex items-end">
