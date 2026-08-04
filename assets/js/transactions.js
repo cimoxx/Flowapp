@@ -158,8 +158,8 @@ function openModal(id = null) {
         document.getElementById('entry-form').reset();
         entryIdInput.value = "";
 
-        const rememberedDate = localStorage.getItem('f_last_date_v20') || getTodayStr();
-        document.getElementById('f-date').value = rememberedDate;
+        /* VŽDY dnešný dátum pre novú transakciu */
+        document.getElementById('f-date').value = getTodayStr();
 
         document.getElementById('f-recurring').checked = false;
         document.getElementById('f-frequency').value = 'monthly';
@@ -229,7 +229,6 @@ function handleSave(e) {
     if (selectedSub) localStorage.setItem('f_last_sub', selectedSub);
     localStorage.setItem('f_last_user', curUser);
     localStorage.setItem('f_last_type_v20', curType);
-    localStorage.setItem('f_last_date_v20', cleanDate);
 
     const idx = db.findIndex(x => String(x.id) === String(id));
     if (idx > -1) {
