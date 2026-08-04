@@ -1,3 +1,19 @@
+function setAnalyticsDataMode(scope, mode) {
+    if (scope === 'chart') {
+        document.getElementById('chart-data-mode').value = mode;
+        ['expense', 'income', 'balance'].forEach(m => {
+            document.getElementById(`chart-data-${m}`).classList.toggle('active', m === mode);
+        });
+        updateAnalytics();
+    } else if (scope === 'burn') {
+        document.getElementById('burn-data-mode').value = mode;
+        ['expense', 'income', 'balance'].forEach(m => {
+            document.getElementById(`burn-data-${m}`).classList.toggle('active', m === mode);
+        });
+        updateBurnRateTab();
+    }
+}
+
 function toggleChartMonthSelect(monthIdx) {
     if (selectedChartMonths.includes(monthIdx)) {
         selectedChartMonths = selectedChartMonths.filter(m => m !== monthIdx);
@@ -39,10 +55,13 @@ function setChartPeriod(period) {
     updateBurnRateTab();
 }
 
-function getAnalyticsDataForPeriod() {
+function getAnalyticsDataForPeriod(periodOverride = null, monthsOverride = null) {
     const now = new Date();
     const curYear = now.getFullYear();
     const curMonth = now.getMonth();
+
+    const activePeriod = periodOverride || selectedChartPeriod;
+    const activeMonths = monthsOverride || selectedChartMonths;
 
     return db.filter(d => {
         const cleanD = getCleanDateStr(d.date);
@@ -53,27 +72,89 @@ function getAnalyticsDataForPeriod() {
         const itemMonth = parseInt(parts[1]) - 1;
         const itemDate = new Date(itemYear, itemMonth, parseInt(parts[2]));
 
-        if (selectedChartMonths.length > 0) {
-            return selectedChartMonths.includes(itemMonth);
+        if (activeMonths.length > 0) {
+            return activeMonths.includes(itemMonth);
         }
 
-        if (selectedChartPeriod === 'current_month') {
+        if (activePeriod === 'current_month') {
             return itemYear === curYear && itemMonth === curMonth;
-        } else if (selectedChartPeriod === '3m') {
+        } else if (activePeriod === '3m') {
             const cutoff = new Date();
             cutoff.setMonth(now.getMonth() - 3);
             return itemDate >= cutoff;
-        } else if (selectedChartPeriod === '6m') {
+        } else if (activePeriod === '6m') {
             const cutoff = new Date();
             cutoff.setMonth(now.getMonth() - 6);
             return itemDate >= cutoff;
-        } else if (selectedChartPeriod === 'year') {
+        } else if (activePeriod === 'year') {
             return itemYear === curYear;
-        } else if (selectedChartPeriod === 'all') {
+        } else if (activePeriod === 'all') {
             return true;
         }
         return true;
     });
+}
+
+function getPreviousPeriodData() {
+    const now = new Date();
+    const curMonth = now.getMonth();
+
+    if (selectedChartMonths.length > 0) {
+        const prevMonths = selectedChartMonths
+            .map(m => (m - 1 + 12) % 12)
+            .filter((m, idx, arr) => arr.indexOf(m) === idx);
+        return getAnalyticsDataForPeriod(selectedChartPeriod, prevMonths);
+    }
+
+    if (selectedChartPeriod === 'current_month') {
+        return db.filter(d => {
+            const cleanD = getCleanDateStr(d.date);
+            const parts = cleanD.split('-');
+            if (parts.length !== 3) return false;
+            const itemYear = parseInt(parts[0]);
+            const itemMonth = parseInt(parts[1]) - 1;
+
+            const prevMonth = (curMonth - 1 + 12) % 12;
+            const prevYear = curMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
+
+            return itemYear === prevYear && itemMonth === prevMonth;
+        });
+    }
+
+    if (selectedChartPeriod === '3m') {
+        const prevCutoffEnd = new Date();
+        prevCutoffEnd.setMonth(now.getMonth() - 3);
+        const prevCutoffStart = new Date();
+        prevCutoffStart.setMonth(now.getMonth() - 6);
+
+        return db.filter(d => {
+            const itemDate = new Date(getCleanDateStr(d.date));
+            return itemDate >= prevCutoffStart && itemDate < prevCutoffEnd;
+        });
+    }
+
+    if (selectedChartPeriod === '6m') {
+        const prevCutoffEnd = new Date();
+        prevCutoffEnd.setMonth(now.getMonth() - 6);
+        const prevCutoffStart = new Date();
+        prevCutoffStart.setMonth(now.getMonth() - 12);
+
+        return db.filter(d => {
+            const itemDate = new Date(getCleanDateStr(d.date));
+            return itemDate >= prevCutoffStart && itemDate < prevCutoffEnd;
+        });
+    }
+
+    if (selectedChartPeriod === 'year') {
+        const prevYear = now.getFullYear() - 1;
+        return db.filter(d => {
+            const cleanD = getCleanDateStr(d.date);
+            const parts = cleanD.split('-');
+            return parts.length === 3 && parseInt(parts[0]) === prevYear;
+        });
+    }
+
+    return [];
 }
 
 function getDaysCountForPeriod(filteredItems) {
@@ -143,8 +224,13 @@ function applyPreset(id) {
         if (document.getElementById(prefix + 'data-mode')) document.getElementById(prefix + 'data-mode').value = p.data;
         if (document.getElementById(prefix + 'user-filter')) document.getElementById(prefix + 'user-filter').value = p.user;
 
-        if (p.isBurn) updateBurnRateTab();
-        else updateAnalytics();
+        if (p.isBurn) {
+            setAnalyticsDataMode('burn', p.data);
+            updateBurnRateTab();
+        } else {
+            setAnalyticsDataMode('chart', p.data);
+            updateAnalytics();
+        }
 
         showToast({
             type: 'info',
@@ -225,21 +311,15 @@ function filterFromStats(cat, sub = null) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function updateAnalytics() {
-    if (document.getElementById('screen-analytics').classList.contains('hidden')) return;
+function buildAggregateData(filtered, dataMode, levelMode, userFilter) {
+    let working = [...filtered];
 
-    const chartType = document.getElementById('chart-type').value;
-    const levelMode = document.getElementById('chart-level-mode').value;
-    const dataMode = document.getElementById('chart-data-mode').value;
-    const userFilter = document.getElementById('chart-user-filter').value;
-
-    let filtered = getAnalyticsDataForPeriod();
     if (userFilter !== 'all') {
-        filtered = filtered.filter(i => (i.user || 'Lukáš') === userFilter);
+        working = working.filter(i => (i.user || 'Lukáš') === userFilter);
     }
 
     const sums = {};
-    filtered.forEach(item => {
+    working.forEach(item => {
         if (dataMode === 'expense' && item.type !== 'expense') return;
         if (dataMode === 'income' && item.type !== 'income') return;
 
@@ -250,9 +330,67 @@ function updateAnalytics() {
 
         const val = parseFloat(item.amount);
         if (!sums[key]) sums[key] = 0;
+
         if (dataMode === 'balance') sums[key] += item.type === 'income' ? val : -val;
         else sums[key] += val;
     });
+
+    return { working, sums };
+}
+
+function renderAnalyticsSummaryCards(filtered, sums, dataMode) {
+    const container = document.getElementById('analytics-summary-cards');
+    if (!container) return;
+
+    const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
+    const total = Object.values(sums).reduce((a, b) => a + b, 0);
+    const topCategory = labels[0] || '—';
+
+    let transactionCount = filtered.length;
+    if (dataMode === 'expense') transactionCount = filtered.filter(i => i.type === 'expense').length;
+    if (dataMode === 'income') transactionCount = filtered.filter(i => i.type === 'income').length;
+
+    const avg = transactionCount > 0 ? total / transactionCount : 0;
+
+    container.innerHTML = `
+        <div class="summary-insight-card">
+            <div class="summary-insight-label">Celková suma</div>
+            <div class="summary-insight-value">${total.toFixed(2)} €</div>
+            <div class="summary-insight-sub">${dataMode === 'balance' ? 'Výsledná bilancia za zvolené obdobie.' : 'Súčet zvolených dát za aktuálny pohľad.'}</div>
+        </div>
+        <div class="summary-insight-card">
+            <div class="summary-insight-label">Top kategória</div>
+            <div class="summary-insight-value">${topCategory}</div>
+            <div class="summary-insight-sub">${topCategory !== '—' ? `${Math.abs(sums[topCategory]).toFixed(2)} €` : 'Bez dostupných dát.'}</div>
+        </div>
+        <div class="summary-insight-card">
+            <div class="summary-insight-label">Počet transakcií</div>
+            <div class="summary-insight-value">${transactionCount}</div>
+            <div class="summary-insight-sub">Počet záznamov započítaných do grafu.</div>
+        </div>
+        <div class="summary-insight-card">
+            <div class="summary-insight-label">Priemer / transakciu</div>
+            <div class="summary-insight-value">${avg.toFixed(2)} €</div>
+            <div class="summary-insight-sub">Priemerná hodnota jednej položky.</div>
+        </div>
+    `;
+}
+
+function updateAnalytics() {
+    if (document.getElementById('screen-analytics').classList.contains('hidden')) return;
+
+    const chartType = document.getElementById('chart-type').value;
+    const levelMode = document.getElementById('chart-level-mode').value;
+    const dataMode = document.getElementById('chart-data-mode').value;
+    const userFilter = document.getElementById('chart-user-filter').value;
+
+    ['expense', 'income', 'balance'].forEach(m => {
+        const btn = document.getElementById(`chart-data-${m}`);
+        if (btn) btn.classList.toggle('active', m === dataMode);
+    });
+
+    let filtered = getAnalyticsDataForPeriod();
+    const { working, sums } = buildAggregateData(filtered, dataMode, levelMode, userFilter);
 
     const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
     const data = labels.map(k => sums[k]);
@@ -264,12 +402,14 @@ function updateAnalytics() {
     ];
 
     const statsContainer = document.getElementById('chart-stats-summary');
+    const summaryCards = document.getElementById('analytics-summary-cards');
 
     if (labels.length === 0) {
         if (analyticsChartInstance) {
             analyticsChartInstance.destroy();
             analyticsChartInstance = null;
         }
+        if (summaryCards) summaryCards.innerHTML = '';
         statsContainer.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">
@@ -282,6 +422,8 @@ function updateAnalytics() {
         lucide.createIcons();
         return;
     }
+
+    renderAnalyticsSummaryCards(working, sums, dataMode);
 
     const ctx = document.getElementById('analyticsChart').getContext('2d');
     if (analyticsChartInstance) analyticsChartInstance.destroy();
@@ -330,6 +472,41 @@ function updateAnalytics() {
     }
 }
 
+function renderBurnInsightCards(total, previousTotal, forecast, daysLeft) {
+    const container = document.getElementById('burn-insight-cards');
+    if (!container) return;
+
+    const diff = total - previousTotal;
+    const diffPct = previousTotal !== 0 ? ((diff / previousTotal) * 100) : 0;
+
+    let diffClass = 'burn-compare-neutral';
+    if (diff > 0) diffClass = 'burn-compare-negative';
+    if (diff < 0) diffClass = 'burn-compare-positive';
+
+    container.innerHTML = `
+        <div class="summary-insight-card">
+            <div class="summary-insight-label">Porovnanie</div>
+            <div class="summary-insight-value ${diffClass}">${diff >= 0 ? '+' : ''}${diff.toFixed(2)} €</div>
+            <div class="summary-insight-sub">Rozdiel oproti predošlému obdobiu (${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(1)}%).</div>
+        </div>
+        <div class="summary-insight-card">
+            <div class="summary-insight-label">Odhad do konca</div>
+            <div class="summary-insight-value">${forecast.toFixed(2)} €</div>
+            <div class="summary-insight-sub">Predpoklad pri zachovaní aktuálneho tempa čerpania.</div>
+        </div>
+        <div class="summary-insight-card">
+            <div class="summary-insight-label">Zostáva dní</div>
+            <div class="summary-insight-value">${daysLeft}</div>
+            <div class="summary-insight-sub">Počet dní do konca aktuálneho mesiaca.</div>
+        </div>
+        <div class="summary-insight-card">
+            <div class="summary-insight-label">Predošlé obdobie</div>
+            <div class="summary-insight-value">${previousTotal.toFixed(2)} €</div>
+            <div class="summary-insight-sub">Referenčná suma pre porovnanie trendu.</div>
+        </div>
+    `;
+}
+
 function updateBurnRateTab() {
     if (document.getElementById('screen-burnrate').classList.contains('hidden')) return;
 
@@ -338,37 +515,33 @@ function updateBurnRateTab() {
     const dataMode = document.getElementById('burn-data-mode').value;
     const userFilter = document.getElementById('burn-user-filter').value;
 
-    let filtered = getAnalyticsDataForPeriod();
-    if (userFilter !== 'all') {
-        filtered = filtered.filter(i => (i.user || 'Lukáš') === userFilter);
-    }
-
-    const daysCount = getDaysCountForPeriod(filtered);
-    const sums = {};
-
-    filtered.forEach(item => {
-        if (dataMode === 'expense' && item.type !== 'expense') return;
-        if (dataMode === 'income' && item.type !== 'income') return;
-
-        let key = item.category;
-        if (levelMode === 'sub') {
-            key = item.sub ? `${item.category} / ${item.sub}` : `${item.category} / Nezaradené`;
-        }
-
-        const val = parseFloat(item.amount);
-        if (!sums[key]) sums[key] = 0;
-        if (dataMode === 'balance') sums[key] += item.type === 'income' ? val : -val;
-        else sums[key] += val;
+    ['expense', 'income', 'balance'].forEach(m => {
+        const btn = document.getElementById(`burn-data-${m}`);
+        if (btn) btn.classList.toggle('active', m === dataMode);
     });
 
+    let filtered = getAnalyticsDataForPeriod();
+    const previousPeriod = getPreviousPeriodData();
+
+    const { sums } = buildAggregateData(filtered, dataMode, levelMode, userFilter);
+    const previousAggregate = buildAggregateData(previousPeriod, dataMode, levelMode, userFilter);
+
+    const daysCount = getDaysCountForPeriod(filtered);
     const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
     const data = labels.map(k => sums[k]);
     const total = data.reduce((a, b) => a + b, 0);
+    const previousTotal = Object.values(previousAggregate.sums).reduce((a, b) => a + b, 0);
+
     const dailyAvgTotal = total / daysCount;
     const monthlyForecastTotal = dailyAvgTotal * 30.5;
 
+    const now = new Date();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const daysLeft = Math.max(0, endOfMonth.getDate() - now.getDate());
+
     const cardsContainer = document.getElementById('burn-metrics-cards');
     const breakdownContainer = document.getElementById('burn-stats-breakdown');
+    const insightContainer = document.getElementById('burn-insight-cards');
 
     if (labels.length === 0) {
         if (burnRateTabChartInstance) {
@@ -377,6 +550,7 @@ function updateBurnRateTab() {
         }
 
         if (cardsContainer) cardsContainer.innerHTML = '';
+        if (insightContainer) insightContainer.innerHTML = '';
         if (breakdownContainer) {
             breakdownContainer.innerHTML = `
                 <div class="empty-state">
@@ -391,6 +565,8 @@ function updateBurnRateTab() {
         }
         return;
     }
+
+    renderBurnInsightCards(total, previousTotal, monthlyForecastTotal, daysLeft);
 
     if (cardsContainer) {
         cardsContainer.innerHTML = `
