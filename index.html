@@ -19,25 +19,29 @@
 
 <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col pb-24 app-container shadow-2xl">
     <!-- HLAVIČKA -->
-    <header class="p-5 border-b sticky top-0 z-20 app-container">
-        <div class="flex justify-between items-end mb-4">
-            <div class="flex items-center gap-3">
-                <img src="https://img.icons8.com/fluency/48/safe.png" class="w-9 h-9" alt="Flow Icon">
-                <div>
-                    <span id="balance-label" class="text-[9px] font-extrabold uppercase text-emerald-500 tracking-[0.15em]">SPOLU</span>
-                    <div id="display-balance" class="text-3xl font-extrabold">0,00 €</div>
+    <header class="p-5 border-b sticky top-0 z-20 app-container app-header">
+        <div class="flex justify-between items-start mb-4">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="app-brand-icon-wrap">
+                    <img src="https://img.icons8.com/fluency/48/safe.png" class="w-9 h-9" alt="Flow Icon">
+                </div>
+                <div class="min-w-0">
+                    <span id="balance-label" class="text-[10px] font-extrabold uppercase text-emerald-500 tracking-[0.18em]">SPOLU</span>
+                    <div id="display-balance" class="text-[2.15rem] leading-none font-extrabold">0,00 €</div>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <div id="sync-status" onclick="manualSync()" class="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full cursor-pointer">
+            <div class="flex items-center gap-2 shrink-0">
+                <div id="sync-status" onclick="manualSync()" class="sync-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full cursor-pointer">
                     <div id="sync-dot" class="w-2 h-2 bg-emerald-500 rounded-full transition-colors duration-300"></div>
-                    <span id="sync-text" class="text-[9px] font-black text-slate-500 uppercase tracking-tighter">OK</span>
+                    <span id="sync-text" class="text-[10px] font-black uppercase tracking-tight">OK</span>
                 </div>
-                <button type="button" onclick="openChangelogModal()" class="w-7 h-7 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400 hover:text-emerald-500 active:scale-95 transition-all">
-                    <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                <button type="button" onclick="openChangelogModal()" class="utility-icon-btn w-8 h-8 flex items-center justify-center rounded-full active:scale-95 transition-all">
+                    <i data-lucide="info" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
+
+        <div class="header-divider mb-3"></div>
         <div id="category-summary" class="flex flex-col gap-1.5"></div>
     </header>
 
@@ -46,21 +50,19 @@
         <div class="flex flex-col gap-3 mb-4">
             <div class="flex gap-2 items-center">
                 <div id="filter-months-container" class="flex-1 flex gap-1.5 overflow-x-auto no-scrollbar py-1"></div>
-                <select id="filter-year" onchange="renderList()" class="w-20 text-[11px] p-2 outline-none h-[32px]"></select>
+                <select id="filter-year" onchange="renderList()" class="w-[84px] text-[12px] p-2 outline-none h-[36px]"></select>
             </div>
-            <div class="flex items-center justify-between px-1">
+
+            <div class="flex items-center justify-between gap-2 px-1">
                 <div id="ui-toggle" class="toggle-container" onclick="toggleStatusFilter()">
                     <div class="toggle-slider"></div>
                     <div id="opt-unprocessed" class="toggle-option active">Nové</div>
                     <div id="opt-all" class="toggle-option">Všetky</div>
                 </div>
-                <button id="clear-cat-filter" onclick="resetCategoryFilter()" class="hidden text-[10px] font-extrabold text-amber-500 uppercase tracking-wider">Zrušiť filter X</button>
+                <button id="clear-cat-filter" onclick="resetCategoryFilter()" class="hidden text-[11px] font-extrabold text-amber-500 uppercase tracking-wider">Zrušiť filter X</button>
             </div>
 
-            <!-- NOVÉ: FILTER SUMMARY -->
             <div id="active-filter-summary" class="hidden"></div>
-
-            <!-- NOVÉ: SWIPE HINT -->
             <div id="swipe-hint" class="hidden"></div>
         </div>
 
@@ -72,306 +74,4 @@
         <div class="flex justify-between items-center mb-1">
             <h2 class="text-xl font-extrabold">Grafická analýza</h2>
             <button onclick="saveCurrentPreset()" class="text-[10px] font-extrabold bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-xl border border-emerald-500/20 active:scale-95 transition-all flex items-center gap-1">
-                <i data-lucide="bookmark" class="w-3 h-3"></i> Uložiť pohľad
-            </button>
-        </div>
-
-        <div id="presets-container" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5"></div>
-
-        <div class="space-y-1.5">
-            <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie Grafu</label>
-            <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
-                <button type="button" onclick="setChartPeriod('current_month')" id="p-chip-current_month" class="period-chip active">Tento mesiac</button>
-                <button type="button" onclick="setChartPeriod('3m')" id="p-chip-3m" class="period-chip">3 Mesiace</button>
-                <button type="button" onclick="setChartPeriod('6m')" id="p-chip-6m" class="period-chip">6 Mesiacov</button>
-                <button type="button" onclick="setChartPeriod('year')" id="p-chip-year" class="period-chip">Tento rok</button>
-                <button type="button" onclick="setChartPeriod('all')" id="p-chip-all" class="period-chip">Všetko</button>
-            </div>
-            <div id="chart-months-container" class="flex gap-1 overflow-x-auto no-scrollbar py-1 border-t border-slate-100 dark:border-slate-800/80 pt-1.5"></div>
-        </div>
-
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
-            <div>
-                <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
-                <select id="chart-type" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
-                    <option value="doughnut">Koláčový</option>
-                    <option value="bar">Stĺpcový</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Úroveň Dát</label>
-                <select id="chart-level-mode" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
-                    <option value="category">Kategórie</option>
-                    <option value="sub">Podkategórie</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Dáta</label>
-                <select id="chart-data-mode" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
-                    <option value="expense">Výdavky</option>
-                    <option value="income">Príjmy</option>
-                    <option value="balance">Bilancia</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Osoba</label>
-                <select id="chart-user-filter" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
-                    <option value="all">Všetci</option>
-                    <option value="Lukáš">Lukáš</option>
-                    <option value="Zdenka">Zdenka</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="bg-white dark:bg-slate-800/80 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm relative min-h-[300px] flex items-center justify-center">
-            <canvas id="analyticsChart" class="max-h-[320px]"></canvas>
-        </div>
-
-        <div id="chart-stats-summary" class="space-y-3 pt-1"></div>
-    </main>
-
-    <!-- BURN RATE -->
-    <main id="screen-burnrate" class="p-4 flex-1 hidden space-y-4">
-        <div class="flex justify-between items-center mb-1">
-            <div class="flex items-center gap-2">
-                <div class="w-7 h-7 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
-                    <i data-lucide="flame" class="w-4 h-4"></i>
-                </div>
-                <h2 class="text-xl font-extrabold">Burn Rate Analýza</h2>
-            </div>
-            <button onclick="saveCurrentPreset()" class="text-[10px] font-extrabold bg-amber-500/10 text-amber-500 px-3 py-1.5 rounded-xl border border-amber-500/20 active:scale-95 transition-all flex items-center gap-1">
-                <i data-lucide="bookmark" class="w-3 h-3"></i> Uložiť pohľad
-            </button>
-        </div>
-
-        <div id="burn-presets-container" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5"></div>
-
-        <div class="space-y-1.5">
-            <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie Analýzy</label>
-            <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
-                <button type="button" onclick="setChartPeriod('current_month')" id="bp-chip-current_month" class="period-chip active">Tento mesiac</button>
-                <button type="button" onclick="setChartPeriod('3m')" id="bp-chip-3m" class="period-chip">3 Mesiace</button>
-                <button type="button" onclick="setChartPeriod('6m')" id="bp-chip-6m" class="period-chip">6 Mesiacov</button>
-                <button type="button" onclick="setChartPeriod('year')" id="bp-chip-year" class="period-chip">Tento rok</button>
-                <button type="button" onclick="setChartPeriod('all')" id="bp-chip-all" class="period-chip">Všetko</button>
-            </div>
-            <div id="burn-months-container" class="flex gap-1 overflow-x-auto no-scrollbar py-1 border-t border-slate-100 dark:border-slate-800/80 pt-1.5"></div>
-        </div>
-
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
-            <div>
-                <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
-                <select id="burn-chart-type" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
-                    <option value="bar">Stĺpcový</option>
-                    <option value="doughnut">Koláčový</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Úroveň Dát</label>
-                <select id="burn-level-mode" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
-                    <option value="category">Kategórie</option>
-                    <option value="sub">Podkategórie</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Dáta</label>
-                <select id="burn-data-mode" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
-                    <option value="expense">Výdavky</option>
-                    <option value="income">Príjmy</option>
-                    <option value="balance">Bilancia</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-[8px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Osoba</label>
-                <select id="burn-user-filter" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
-                    <option value="all">Všetci</option>
-                    <option value="Lukáš">Lukáš</option>
-                    <option value="Zdenka">Zdenka</option>
-                </select>
-            </div>
-        </div>
-
-        <div id="burn-metrics-cards" class="grid grid-cols-3 gap-2"></div>
-
-        <div class="bg-white dark:bg-slate-800/80 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm relative min-h-[280px] flex items-center justify-center">
-            <canvas id="burnRateTabChart" class="max-h-[300px]"></canvas>
-        </div>
-
-        <div id="burn-stats-breakdown" class="space-y-3 pt-1"></div>
-    </main>
-
-    <!-- NAV -->
-    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-nav grid grid-cols-5 items-center h-16 px-2 z-30">
-        <button id="nav-home" onclick="showScreen('home')" class="nav-btn active flex justify-center p-3"><i data-lucide="layout-grid" class="w-5 h-5"></i></button>
-        <button id="nav-analytics" onclick="showScreen('analytics')" class="nav-btn flex justify-center p-3"><i data-lucide="pie-chart" class="w-5 h-5"></i></button>
-
-        <div class="flex items-center justify-center">
-            <button onclick="openModal()" class="bg-emerald-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg -mt-6 border-4 border-white dark:border-slate-900 active:scale-95 transition-all"><i data-lucide="plus" class="w-7 h-7"></i></button>
-        </div>
-
-        <button id="nav-burnrate" onclick="showScreen('burnrate')" class="nav-btn flex justify-center p-3"><i data-lucide="flame" class="w-5 h-5"></i></button>
-        <button id="nav-settings" onclick="showScreen('settings')" class="nav-btn flex justify-center p-3"><i data-lucide="settings" class="w-5 h-5"></i></button>
-    </nav>
-</div>
-
-<!-- TOAST CONTAINER -->
-<div id="toast-container" class="fixed inset-x-0 bottom-20 z-[70] px-4 pointer-events-none max-w-md mx-auto"></div>
-
-<!-- MODAL -->
-<div id="modal-overlay" class="fixed inset-0 bg-slate-900/90 z-[40] hidden backdrop-blur-sm flex items-end">
-    <div class="bg-white dark:bg-slate-900 w-full max-w-md mx-auto rounded-t-[2.5rem] p-5 shadow-2xl max-h-[92vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-6 sticky top-0 bg-white dark:bg-slate-900 pb-2 z-10">
-            <button type="button" onclick="closeModal()" class="text-slate-400 font-extrabold text-[10px] uppercase tracking-widest">Zavrieť</button>
-            <button type="button" onclick="document.getElementById('save-trigger').click()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-extrabold text-[10px] uppercase shadow-md">Uložiť</button>
-        </div>
-        <form id="entry-form" onsubmit="handleSave(event)" class="space-y-5">
-            <input type="submit" id="save-trigger" class="hidden">
-            <input type="hidden" id="entry-id">
-            <div class="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                <button type="button" onclick="setUser('Lukáš')" id="u-Lukáš" class="flex-1 py-1.5 rounded-lg text-[9px] font-black transition-all">LUKÁŠ</button>
-                <button type="button" onclick="setUser('Zdenka')" id="u-Zdenka" class="flex-1 py-1.5 rounded-lg text-[9px] font-black transition-all">ZDENKA</button>
-            </div>
-            <input type="number" id="f-amount" inputmode="decimal" step="0.01" placeholder="0.00" class="w-full text-center text-5xl font-extrabold py-2 outline-none border-none bg-transparent !p-0" required>
-            <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                <button type="button" id="t-ex" onclick="setType('expense')" class="flex-1 py-1.5 rounded-lg text-[9px] font-black">VÝDAVOK</button>
-                <button type="button" id="t-in" onclick="setType('income')" class="flex-1 py-1.5 rounded-lg text-[9px] font-black">PRÍJEM</button>
-            </div>
-            <div>
-                <label class="text-[9px] font-black text-slate-400 uppercase block mb-2 px-1 tracking-widest">Kategória</label>
-                <div id="cat-grid" class="grid grid-cols-4 gap-1.5"></div>
-            </div>
-            <div id="sub-section" class="hidden">
-                <label class="text-[9px] font-black text-slate-400 uppercase block mb-2 px-1 tracking-widest">Podkategória</label>
-                <div id="sub-grid" class="flex flex-wrap gap-1.5"></div>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-                <input type="text" id="f-note" placeholder="Poznámka..." class="p-3.5 text-xs outline-none">
-                <input type="date" id="f-date" class="p-3.5 text-xs outline-none">
-            </div>
-
-            <div class="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-                <div class="flex justify-between items-center">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="repeat" class="w-4 h-4 text-emerald-500"></i>
-                        <span class="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">Pravidelná platba</span>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="f-recurring" onchange="toggleRecurringOptions()" class="sr-only peer">
-                        <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
-                    </label>
-                </div>
-                <div id="recurring-options" class="hidden space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                    <label class="text-[8px] font-black text-slate-400 uppercase block px-1 tracking-wider">Frekvencia opakovania</label>
-                    <select id="f-frequency" class="w-full p-2.5 text-xs outline-none">
-                        <option value="weekly">Týždenne</option>
-                        <option value="monthly" selected>Mesačne</option>
-                        <option value="quarterly">Štvrťročne</option>
-                        <option value="yearly">Ročne</option>
-                    </select>
-                </div>
-            </div>
-
-            <button type="button" id="del-btn" onclick="handleDelete()" class="w-full text-red-400 text-[10px] font-black uppercase pt-2 hidden">Zmazať transakciu</button>
-        </form>
-    </div>
-</div>
-
-<!-- CHANGELOG -->
-<div id="changelog-modal" class="fixed inset-0 bg-slate-900/90 z-[50] hidden backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 max-h-[85vh] overflow-y-auto">
-        <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div>
-                <span class="text-[9px] font-black uppercase text-emerald-500 tracking-widest">História Zmien</span>
-                <h3 class="text-xl font-extrabold">Changelog</h3>
-            </div>
-            <button type="button" onclick="closeChangelogModal()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-
-        <div class="space-y-4 text-xs">
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[9px]">v2.22.0</span>
-                    <span class="text-[10px] font-bold text-slate-400">Aktuálna</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Automatické generovanie a nahrávanie pravidelných platieb do nového mesiaca pri štarte aplikácie a po synchronizácii.</li>
-                </ul>
-            </div>
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3 opacity-75">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 font-extrabold text-[9px]">v2.21.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Pridaná podpora pre nastavenie pravidelných platieb (týždenne, mesačne, štvrťročne, ročne) priamo v detaile transakcie.</li>
-                    <li>Vizuálne označenie opakovane sa vyskytujúcich platieb ikonou v zozname.</li>
-                </ul>
-            </div>
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3 opacity-75">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 font-extrabold text-[9px]">v2.20.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Doplnené priemerné denné čerpanie a predpoklad mesačného čerpania ku každej hlavnej kategórii v Burn Rate prehľade.</li>
-                </ul>
-            </div>
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3 opacity-75">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 font-extrabold text-[9px]">v2.19.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Dvojúrovňové filtrovanie v prehľade transakcií (hlavné kategórie a po výbere konkrétnej kategórie zobrazenie jej podkategórií).</li>
-                    <li>Zoradenie filtrov vždy podľa sumy od najväčšej.</li>
-                </ul>
-            </div>
-        </div>
-
-        <button type="button" onclick="closeChangelogModal()" class="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-extrabold text-[10px] uppercase rounded-xl mt-2">Zavrieť</button>
-    </div>
-</div>
-
-<!-- SETTINGS -->
-<div id="settings-screen" class="fixed inset-0 bg-white dark:bg-slate-900 z-50 hidden p-6 max-w-md mx-auto overflow-y-auto pb-24">
-    <div id="settings-home">
-        <div class="flex items-center gap-4 mb-6"><button onclick="showScreen('home')" class="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><i data-lucide="arrow-left"></i></button><h2 class="text-xl font-extrabold">Nastavenia</h2></div>
-        <div class="flex gap-2 mb-6">
-            <button onclick="manualSync()" class="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-extrabold text-[9px] uppercase shadow-sm">Sync Dáta</button>
-            <button onclick="syncCategories('pull')" class="flex-1 py-3 bg-slate-800 text-white rounded-xl font-extrabold text-[9px] uppercase shadow-sm">Sync Kategórie</button>
-        </div>
-        <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700">
-            <div class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">Nová kategória</div>
-            <div class="flex gap-2">
-                <input type="text" id="new-cat-name" placeholder="Názov..." class="flex-1 p-3.5 rounded-xl text-sm outline-none">
-                <button onclick="addCategory()" class="bg-emerald-500 text-white px-4 rounded-xl font-extrabold text-[9px] uppercase">Pridať</button>
-            </div>
-        </div>
-        <div id="manage-cats-list" class="space-y-2 mb-8"></div>
-    </div>
-    <div id="settings-cat-detail" class="hidden">
-        <div class="flex items-center gap-4 mb-6">
-            <button onclick="closeCatDetail()" class="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><i data-lucide="arrow-left"></i></button>
-            <h2 id="detail-cat-title" class="text-xl font-extrabold">Podkategórie</h2>
-        </div>
-        <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700">
-            <div class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">Nová podkategória</div>
-            <div class="flex gap-2">
-                <input type="text" id="new-sub-name" placeholder="Názov..." class="flex-1 p-3.5 rounded-xl text-sm outline-none">
-                <button onclick="addSubCategory()" class="bg-emerald-500 text-white px-4 rounded-xl font-extrabold text-[9px] uppercase">Pridať</button>
-            </div>
-        </div>
-        <div id="manage-subs-list" class="space-y-2"></div>
-        <button onclick="deleteActiveCat()" class="w-full mt-10 text-red-400 text-[10px] font-black uppercase tracking-widest py-4 border border-red-100 dark:border-red-900/30 rounded-2xl">Zmazať celú kategóriu</button>
-    </div>
-</div>
-
-<script src="assets/js/config.js"></script>
-<script src="assets/js/utils.js"></script>
-<script src="assets/js/sync.js"></script>
-<script src="assets/js/ui.js"></script>
-<script src="assets/js/categories.js"></script>
-<script src="assets/js/transactions.js"></script>
-<script src="assets/js/analytics.js"></script>
-<script src="assets/js/app.js"></script>
-</body>
-</html>
+                <i data-lucide="bookmark" class="w-3 h-3"></i> U
