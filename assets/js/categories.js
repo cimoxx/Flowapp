@@ -1,3 +1,7 @@
+function getCategoryTransactionCount(catId) {
+    return db.filter(item => item.category === catId).length;
+}
+
 function renderCatGrid() {
     const catGrid = document.getElementById('cat-grid');
     catGrid.innerHTML = categories.map(c => `
@@ -13,10 +17,14 @@ function renderManageCats() {
     document.getElementById('manage-cats-list').innerHTML = categories.map((c, i) => `
         <div class="flex items-center gap-2">
             <div onclick="openCatDetail(${i})" class="flex-1 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm cursor-pointer active:scale-[0.98] transition-all">
-                <div class="font-extrabold text-sm uppercase flex items-center gap-2">
-                    <span>${c.id}</span>
+                <div class="font-extrabold text-sm uppercase flex items-center gap-2 min-w-0">
+                    <i data-lucide="${c.icon || 'layers'}" class="w-4 h-4 shrink-0"></i>
+                    <span class="truncate">${c.id}</span>
                 </div>
-                <div class="text-[9px] text-slate-300 uppercase font-black tracking-tighter">${c.subs ? c.subs.length : 0} subs</div>
+                <div class="text-right">
+                    <div class="text-[9px] text-slate-300 uppercase font-black tracking-tighter">${c.subs ? c.subs.length : 0} subs</div>
+                    <div class="text-[9px] text-slate-400 font-black">${getCategoryTransactionCount(c.id)} tx</div>
+                </div>
             </div>
             <button type="button" onclick="editCategoryName(${i})" class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-emerald-500"><i data-lucide="pencil" class="w-4 h-4"></i></button>
             <div class="flex flex-col gap-1">
@@ -55,7 +63,22 @@ function openCatDetail(index) {
     document.getElementById('settings-home').classList.add('hidden');
     document.getElementById('settings-cat-detail').classList.remove('hidden');
     document.getElementById('detail-cat-title').innerText = categories[index].id;
+    document.getElementById('cat-icon-name').value = categories[index].icon || 'layers';
     renderManageSubs();
+}
+
+function saveCategoryIcon() {
+    if (activeSettingsCat === null) return;
+    const iconName = (document.getElementById('cat-icon-name').value || '').trim() || 'layers';
+    categories[activeSettingsCat].icon = iconName;
+    saveData(true);
+    renderManageCats();
+    renderCatGrid();
+    showToast({
+        type: 'success',
+        title: 'Ikona kategórie uložená',
+        text: categories[activeSettingsCat].id
+    });
 }
 
 function renderManageSubs() {
