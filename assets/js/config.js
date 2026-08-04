@@ -11,7 +11,7 @@ let pendingCatSync = JSON.parse(localStorage.getItem('f_pending_cat_sync_v20')) 
 let chartPresets = JSON.parse(localStorage.getItem('f_chart_presets_v20')) || [];
 let curUser = localStorage.getItem('f_last_user') || 'Lukáš';
 
-let curType = 'expense',
+let curType = localStorage.getItem('f_last_type_v20') || 'expense',
     selectedCat = '',
     selectedSub = '',
     activeCategoryFilter = null,
@@ -33,6 +33,10 @@ let touchStartX = 0;
 let touchStartY = 0;
 let isSwiping = false;
 
-/* FÁZA 1.1 */
 let toastTimeouts = [];
 let hasShownSwipeHint = localStorage.getItem('f_swipe_hint_seen_v20') === 'true';
+
+/* FÁZA 2 */
+let transactionSearchQuery = '';
+let lastDeletedEntry = null;
+let lastDeletedSyncSnapshot = null;
