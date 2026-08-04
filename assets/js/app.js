@@ -14,6 +14,7 @@
     renderCatGrid();
     processRecurringPayments();
     renderList();
+    renderSwipeHint();
 
     if (pendingCatSync) {
         syncCategories('push');
