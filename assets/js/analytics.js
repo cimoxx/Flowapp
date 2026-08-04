@@ -121,6 +121,12 @@ function saveCurrentPreset() {
         chartPresets.push(preset);
         localStorage.setItem('f_chart_presets_v20', JSON.stringify(chartPresets));
         renderPresets();
+
+        showToast({
+            type: 'success',
+            title: 'Pohľad uložený',
+            text: name.trim()
+        });
     }
 }
 
@@ -139,14 +145,27 @@ function applyPreset(id) {
 
         if (p.isBurn) updateBurnRateTab();
         else updateAnalytics();
+
+        showToast({
+            type: 'info',
+            title: 'Pohľad načítaný',
+            text: p.name
+        });
     }
 }
 
 function deletePreset(id, e) {
     if (e) e.stopPropagation();
+    const preset = chartPresets.find(x => x.id === id);
     chartPresets = chartPresets.filter(x => x.id !== id);
     localStorage.setItem('f_chart_presets_v20', JSON.stringify(chartPresets));
     renderPresets();
+
+    showToast({
+        type: 'warning',
+        title: 'Pohľad odstránený',
+        text: preset ? preset.name : ''
+    });
 }
 
 function renderPresets() {
@@ -157,7 +176,16 @@ function renderPresets() {
 
     const relevant = chartPresets.filter(p => !!p.isBurn === isBurn);
     if (relevant.length === 0) {
-        container.innerHTML = '';
+        container.innerHTML = `
+            <div class="empty-state !p-5 w-full">
+                <div class="empty-state-icon !w-11 !h-11 !rounded-2xl">
+                    <i data-lucide="bookmark" class="w-5 h-5"></i>
+                </div>
+                <div class="empty-state-title !text-[13px]">Zatiaľ nemáš uložené pohľady</div>
+                <div class="empty-state-text">Ulož si aktuálne nastavenie filtrov a grafu pre rýchly návrat.</div>
+            </div>
+        `;
+        lucide.createIcons();
         return;
     }
 
@@ -235,6 +263,26 @@ function updateAnalytics() {
         '#06b6d4', '#f97316', '#84cc16', '#64748b', '#d946ef'
     ];
 
+    const statsContainer = document.getElementById('chart-stats-summary');
+
+    if (labels.length === 0) {
+        if (analyticsChartInstance) {
+            analyticsChartInstance.destroy();
+            analyticsChartInstance = null;
+        }
+        statsContainer.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i data-lucide="pie-chart" class="w-6 h-6"></i>
+                </div>
+                <div class="empty-state-title">Žiadne dáta pre graf</div>
+                <div class="empty-state-text">Skús zmeniť obdobie, osobu alebo typ dát. Keď pribudnú transakcie, graf sa zobrazí automaticky.</div>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
     const ctx = document.getElementById('analyticsChart').getContext('2d');
     if (analyticsChartInstance) analyticsChartInstance.destroy();
 
@@ -261,7 +309,6 @@ function updateAnalytics() {
         }
     });
 
-    const statsContainer = document.getElementById('chart-stats-summary');
     if (statsContainer) {
         statsContainer.innerHTML = labels.map((l, idx) => {
             const val = sums[l];
@@ -321,6 +368,30 @@ function updateBurnRateTab() {
     const monthlyForecastTotal = dailyAvgTotal * 30.5;
 
     const cardsContainer = document.getElementById('burn-metrics-cards');
+    const breakdownContainer = document.getElementById('burn-stats-breakdown');
+
+    if (labels.length === 0) {
+        if (burnRateTabChartInstance) {
+            burnRateTabChartInstance.destroy();
+            burnRateTabChartInstance = null;
+        }
+
+        if (cardsContainer) cardsContainer.innerHTML = '';
+        if (breakdownContainer) {
+            breakdownContainer.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i data-lucide="flame" class="w-6 h-6"></i>
+                    </div>
+                    <div class="empty-state-title">Žiadne dáta pre burn rate</div>
+                    <div class="empty-state-text">Pre zvolený výber sa nenašli žiadne transakcie. Skús zmeniť filtre alebo počkaj na nové dáta.</div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+        return;
+    }
+
     if (cardsContainer) {
         cardsContainer.innerHTML = `
             <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-center">
@@ -359,7 +430,6 @@ function updateBurnRateTab() {
         }
     });
 
-    const breakdownContainer = document.getElementById('burn-stats-breakdown');
     if (breakdownContainer) {
         breakdownContainer.innerHTML = labels.map(l => {
             const val = sums[l];
