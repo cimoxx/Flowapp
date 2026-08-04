@@ -62,5 +62,55 @@ function showScreen(s) {
     } else {
         processRecurringPayments();
         renderList();
+        renderSwipeHint();
     }
+}
+
+/* FÁZA 1.1: TOASTS */
+function showToast({ type = 'success', title = '', text = '', duration = 2600 } = {}) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const iconMap = {
+        success: 'check-circle-2',
+        error: 'alert-circle',
+        info: 'info',
+        warning: 'triangle-alert'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <i data-lucide="${iconMap[type] || 'info'}" class="toast-icon"></i>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            ${text ? `<div class="toast-text">${text}</div>` : ''}
+        </div>
+        <button type="button" class="toast-close" onclick="dismissToast(this.closest('.toast'))">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    `;
+
+    container.appendChild(toast);
+    lucide.createIcons();
+
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    const timeout = setTimeout(() => {
+        dismissToast(toast);
+    }, duration);
+
+    toastTimeouts.push(timeout);
+}
+
+function dismissToast(toastEl) {
+    if (!toastEl) return;
+    toastEl.classList.remove('show');
+    setTimeout(() => {
+        if (toastEl && toastEl.parentNode) {
+            toastEl.parentNode.removeChild(toastEl);
+        }
+    }, 250);
 }
