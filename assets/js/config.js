@@ -36,7 +36,14 @@ let isSwiping = false;
 let toastTimeouts = [];
 let hasShownSwipeHint = localStorage.getItem('f_swipe_hint_seen_v20') === 'true';
 
-/* FÁZA 2 */
 let transactionSearchQuery = '';
 let lastDeletedEntry = null;
 let lastDeletedSyncSnapshot = null;
+
+/* FÁZA 4 */
+let quickTemplates = JSON.parse(localStorage.getItem('f_quick_templates_v20')) || [
+    { id: 'QT-1', label: 'Káva', amount: 2.20, type: 'expense', category: '', sub: '', note: 'Káva' },
+    { id: 'QT-2', label: 'Nákup', amount: 0, type: 'expense', category: '', sub: '', note: 'Nákup' },
+    { id: 'QT-3', label: 'Benzín', amount: 0, type: 'expense', category: '', sub: '', note: 'Benzín' },
+    { id: 'QT-4', label: 'Výplata', amount: 0, type: 'income', category: '', sub: '', note: 'Výplata' }
+];
