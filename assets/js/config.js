@@ -32,3 +32,7 @@ let selectedMonths = [new Date().getMonth()];
 let touchStartX = 0;
 let touchStartY = 0;
 let isSwiping = false;
+
+/* FÁZA 1.1 */
+let toastTimeouts = [];
+let hasShownSwipeHint = localStorage.getItem('f_swipe_hint_seen_v20') === 'true';
