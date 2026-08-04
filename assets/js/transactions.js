@@ -33,6 +33,12 @@ function toggleProcessed(id) {
         updateAnalytics();
         updateBurnRateTab();
         processSyncQueue();
+
+        showToast({
+            type: 'success',
+            title: item.processed ? 'Transakcia označená ako zapísaná' : 'Transakcia vrátená medzi nové',
+            text: `${item.category}${item.sub ? ' / ' + item.sub : ''}`
+        });
     }
 }
 
@@ -156,11 +162,19 @@ function handleSave(e) {
     updateAnalytics();
     updateBurnRateTab();
     processSyncQueue();
+
+    showToast({
+        type: 'success',
+        title: existingId ? 'Transakcia upravená' : 'Transakcia uložená',
+        text: `${entry.category}${entry.sub ? ' / ' + entry.sub : ''} · ${parseFloat(entry.amount).toFixed(2)} €`
+    });
 }
 
 function handleDelete(idToDelete = null) {
     const id = idToDelete || document.getElementById('entry-id').value;
     if (id && confirm('Zmazať transakciu?')) {
+        const deletedItem = db.find(x => String(x.id) === String(id));
+
         syncQueue.push({ id: id, action: 'delete' });
         db = db.filter(x => String(x.id) !== String(id));
         saveData(false);
@@ -169,6 +183,12 @@ function handleDelete(idToDelete = null) {
         updateAnalytics();
         updateBurnRateTab();
         processSyncQueue();
+
+        showToast({
+            type: 'warning',
+            title: 'Transakcia zmazaná',
+            text: deletedItem ? `${deletedItem.category}${deletedItem.sub ? ' / ' + deletedItem.sub : ''}` : ''
+        });
     }
 }
 
@@ -227,8 +247,10 @@ function handleSwipeEnd(e, id, processed) {
     const translateX = matrix.m41;
 
     if (translateX > 80) {
+        hideSwipeHintForever();
         toggleProcessed(id);
     } else if (translateX < -80) {
+        hideSwipeHintForever();
         handleDelete(id);
     }
 
@@ -385,6 +407,81 @@ function toggleSubFilter(sub) {
     renderList();
 }
 
+function renderActiveFilterSummary() {
+    const el = document.getElementById('active-filter-summary');
+    if (!el) return;
+
+    const year = document.getElementById('filter-year')?.value || new Date().getFullYear();
+    const months = ['Jan','Feb','Mar','Apr','Máj','Jún','Júl','Aug','Sep','Okt','Nov','Dec'];
+
+    const chips = [];
+
+    if (selectedMonths.length === 0) {
+        chips.push(`<span class="filter-summary-chip"><strong>Mesiace:</strong> všetky</span>`);
+    } else if (selectedMonths.length === 1) {
+        chips.push(`<span class="filter-summary-chip"><strong>Mesiac:</strong> ${months[selectedMonths[0]]}</span>`);
+    } else {
+        chips.push(`<span class="filter-summary-chip"><strong>Mesiace:</strong> ${selectedMonths.length} vybrané</span>`);
+    }
+
+    chips.push(`<span class="filter-summary-chip"><strong>Rok:</strong> ${year}</span>`);
+    chips.push(`<span class="filter-summary-chip"><strong>Status:</strong> ${currentStatusFilter === 'unprocessed' ? 'Nové' : 'Všetky'}</span>`);
+
+    if (activeCategoryFilter) {
+        chips.push(`<span class="filter-summary-chip"><strong>Kategória:</strong> ${activeCategoryFilter}</span>`);
+    }
+
+    if (window.activeSubFilter) {
+        chips.push(`<span class="filter-summary-chip"><strong>Podkategória:</strong> ${window.activeSubFilter}</span>`);
+    }
+
+    if (chips.length === 0) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    el.classList.remove('hidden');
+    el.innerHTML = `<div class="filter-summary-bar">${chips.join('')}</div>`;
+}
+
+function renderSwipeHint() {
+    const el = document.getElementById('swipe-hint');
+    if (!el) return;
+
+    if (hasShownSwipeHint) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    el.classList.remove('hidden');
+    el.innerHTML = `
+        <div class="swipe-hint-card">
+            <div class="hint-icon">
+                <i data-lucide="move-horizontal" class="w-4 h-4"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="hint-title">Rýchle gestá</div>
+                <div class="hint-text">Potiahni položku doprava pre zapísanie alebo doľava pre vymazanie.</div>
+            </div>
+            <button type="button" class="hint-close" onclick="hideSwipeHintForever()">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function hideSwipeHintForever() {
+    hasShownSwipeHint = true;
+    localStorage.setItem('f_swipe_hint_seen_v20', 'true');
+    const el = document.getElementById('swipe-hint');
+    if (!el) return;
+    el.classList.add('hidden');
+    el.innerHTML = '';
+}
+
 function renderList() {
     const list = document.getElementById('transaction-list');
     let currentFiltered = getFilteredData();
@@ -400,7 +497,9 @@ function renderList() {
             sums[item.category] += item.amount;
         }
     });
+
     renderSummary(sums, currentFiltered);
+    renderActiveFilterSummary();
 
     if (activeCategoryFilter) {
         currentFiltered = currentFiltered.filter(d => d.category === activeCategoryFilter);
@@ -428,7 +527,20 @@ function renderList() {
     });
 
     if (Object.keys(grouped).length === 0) {
-        list.innerHTML = `<div class="text-center py-8 text-slate-400 font-extrabold text-xs uppercase">Žiadne transakcie</div>`;
+        list.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i data-lucide="receipt-text" class="w-6 h-6"></i>
+                </div>
+                <div class="empty-state-title">Žiadne transakcie</div>
+                <div class="empty-state-text">Pre aktuálny výber filtrov zatiaľ nemáš žiadne položky. Skús zmeniť mesiac, status alebo pridať novú transakciu.</div>
+                <button type="button" onclick="openModal()" class="empty-state-action">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    Pridať transakciu
+                </button>
+            </div>
+        `;
+        lucide.createIcons();
         return;
     }
 
