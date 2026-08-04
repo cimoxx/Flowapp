@@ -568,7 +568,6 @@ input, select, textarea {
     border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
-/* SEARCH */
 .search-wrap { width: 100%; }
 .search-box {
     display: flex;
@@ -609,7 +608,6 @@ input, select, textarea {
     flex-shrink: 0;
 }
 
-/* MODAL PHASE 2 */
 .modal-helper-card {
     padding: 12px 14px;
     border-radius: 16px;
@@ -631,7 +629,69 @@ input, select, textarea {
     font-weight: 700;
 }
 
-/* focus */
+/* FÁZA 3 */
+.summary-insight-card {
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: var(--shadow-soft);
+}
+.summary-insight-label {
+    font-size: 9px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-soft);
+    margin-bottom: 6px;
+}
+.summary-insight-value {
+    font-size: 18px;
+    line-height: 1.05;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    color: var(--text-main);
+}
+.summary-insight-sub {
+    margin-top: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-dim);
+    line-height: 1.35;
+}
+
+.burn-compare-positive { color: var(--accent); }
+.burn-compare-negative { color: var(--danger); }
+.burn-compare-neutral { color: var(--text-dim); }
+
+.segmented-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.seg-chip {
+    min-height: 34px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    transition: all 0.18s ease;
+}
+.seg-chip:active {
+    transform: scale(0.96);
+}
+.seg-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0b0f1a;
+    box-shadow: 0 6px 18px rgba(16,185,129,0.14);
+}
+
 button, select, input, textarea { outline: none; }
 
 button:focus-visible,
