@@ -1,0 +1,21 @@
+{
+  "short_name": "FlowApp",
+  "name": "Flow V20 Online",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/fluency/192/safe.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://img.icons8.com/fluency/512/safe.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "scope": "./",
+  "theme_color": "#2563eb"
+}
