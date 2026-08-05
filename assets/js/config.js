@@ -8,8 +8,10 @@ let db = JSON.parse(localStorage.getItem('f_db_v20')) || [];
 let syncQueue = JSON.parse(localStorage.getItem('f_sync_q_v20')) || [];
 let categories = JSON.parse(localStorage.getItem('f_cats_v20')) || [];
 let pendingCatSync = JSON.parse(localStorage.getItem('f_pending_cat_sync_v20')) || false;
-let chartPresets = JSON.parse(localStorage.getItem('f_chart_presets_v20')) || [];
-let curUser = localStorage.getItem('f_last_user') || 'Lukáš';
+
+let users = JSON.parse(localStorage.getItem('f_users_v20')) || ['Osoba 1', 'Osoba 2'];
+let chartPresets = []; /* odstránené používanie presetov */
+let curUser = localStorage.getItem('f_last_user') || users[0] || 'Osoba 1';
 
 let curType = localStorage.getItem('f_last_type_v20') || 'expense',
     selectedCat = '',
@@ -40,10 +42,4 @@ let transactionSearchQuery = '';
 let lastDeletedEntry = null;
 let lastDeletedSyncSnapshot = null;
 
-/* FÁZA 4 */
-let quickTemplates = JSON.parse(localStorage.getItem('f_quick_templates_v20')) || [
-    { id: 'QT-1', label: 'Káva', amount: 2.20, type: 'expense', category: '', sub: '', note: 'Káva' },
-    { id: 'QT-2', label: 'Nákup', amount: 0, type: 'expense', category: '', sub: '', note: 'Nákup' },
-    { id: 'QT-3', label: 'Benzín', amount: 0, type: 'expense', category: '', sub: '', note: 'Benzín' },
-    { id: 'QT-4', label: 'Výplata', amount: 0, type: 'income', category: '', sub: '', note: 'Výplata' }
-];
+let quickTemplates = []; /* odstránené */
