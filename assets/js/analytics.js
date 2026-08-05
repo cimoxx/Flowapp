@@ -183,107 +183,6 @@ function getDaysCountForPeriod(filteredItems) {
     return 30;
 }
 
-function saveCurrentPreset() {
-    const name = prompt("Zadajte názov pohľadu:");
-    if (name && name.trim() !== "") {
-        const isBurn = !document.getElementById('screen-burnrate').classList.contains('hidden');
-        const prefix = isBurn ? 'burn-' : 'chart-';
-        const preset = {
-            id: 'P-' + Date.now(),
-            name: name.trim(),
-            isBurn: isBurn,
-            period: selectedChartPeriod,
-            months: [...selectedChartMonths],
-            type: document.getElementById(prefix + 'type').value,
-            level: document.getElementById(prefix + 'level-mode').value,
-            data: document.getElementById(prefix + 'data-mode').value,
-            user: document.getElementById(prefix + 'user-filter').value
-        };
-        chartPresets.push(preset);
-        localStorage.setItem('f_chart_presets_v20', JSON.stringify(chartPresets));
-        renderPresets();
-
-        showToast({
-            type: 'success',
-            title: 'Pohľad uložený',
-            text: name.trim()
-        });
-    }
-}
-
-function applyPreset(id) {
-    const p = chartPresets.find(x => x.id === id);
-    if (p) {
-        selectedChartPeriod = p.period;
-        selectedChartMonths = [...(p.months || [])];
-        renderChartMonthChips();
-
-        const prefix = p.isBurn ? 'burn-' : 'chart-';
-        if (document.getElementById(prefix + 'type')) document.getElementById(prefix + 'type').value = p.type;
-        if (document.getElementById(prefix + 'level-mode')) document.getElementById(prefix + 'level-mode').value = p.level;
-        if (document.getElementById(prefix + 'data-mode')) document.getElementById(prefix + 'data-mode').value = p.data;
-        if (document.getElementById(prefix + 'user-filter')) document.getElementById(prefix + 'user-filter').value = p.user;
-
-        if (p.isBurn) {
-            setAnalyticsDataMode('burn', p.data);
-            updateBurnRateTab();
-        } else {
-            setAnalyticsDataMode('chart', p.data);
-            updateAnalytics();
-        }
-
-        showToast({
-            type: 'info',
-            title: 'Pohľad načítaný',
-            text: p.name
-        });
-    }
-}
-
-function deletePreset(id, e) {
-    if (e) e.stopPropagation();
-    const preset = chartPresets.find(x => x.id === id);
-    chartPresets = chartPresets.filter(x => x.id !== id);
-    localStorage.setItem('f_chart_presets_v20', JSON.stringify(chartPresets));
-    renderPresets();
-
-    showToast({
-        type: 'warning',
-        title: 'Pohľad odstránený',
-        text: preset ? preset.name : ''
-    });
-}
-
-function renderPresets() {
-    const isBurn = !document.getElementById('screen-burnrate').classList.contains('hidden');
-    const containerId = isBurn ? 'burn-presets-container' : 'presets-container';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const relevant = chartPresets.filter(p => !!p.isBurn === isBurn);
-    if (relevant.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state !p-5 w-full">
-                <div class="empty-state-icon !w-11 !h-11 !rounded-2xl">
-                    <i data-lucide="bookmark" class="w-5 h-5"></i>
-                </div>
-                <div class="empty-state-title !text-[13px]">Zatiaľ nemáš uložené pohľady</div>
-                <div class="empty-state-text">Ulož si aktuálne nastavenie filtrov a grafu pre rýchly návrat.</div>
-            </div>
-        `;
-        lucide.createIcons();
-        return;
-    }
-
-    container.innerHTML = relevant.map(p => `
-        <div onclick="applyPreset('${p.id}')" class="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-xl cursor-pointer text-[9px] font-bold shrink-0">
-            <span>${p.name}</span>
-            <button type="button" onclick="deletePreset('${p.id}', event)" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-3 h-3"></i></button>
-        </div>
-    `).join('');
-    lucide.createIcons();
-}
-
 function filterFromStats(cat, sub = null) {
     activeCategoryFilter = cat;
     window.activeSubFilter = sub;
@@ -315,7 +214,7 @@ function buildAggregateData(filtered, dataMode, levelMode, userFilter) {
     let working = [...filtered];
 
     if (userFilter !== 'all') {
-        working = working.filter(i => (i.user || 'Lukáš') === userFilter);
+        working = working.filter(i => (i.user || users[0]) === userFilter);
     }
 
     const sums = {};
@@ -336,6 +235,65 @@ function buildAggregateData(filtered, dataMode, levelMode, userFilter) {
     });
 
     return { working, sums };
+}
+
+function buildSubcategoryBreakdown(filtered, dataMode, userFilter) {
+    let working = [...filtered];
+
+    if (userFilter !== 'all') {
+        working = working.filter(i => (i.user || users[0]) === userFilter);
+    }
+
+    const result = {};
+    working.forEach(item => {
+        if (dataMode === 'expense' && item.type !== 'expense') return;
+        if (dataMode === 'income' && item.type !== 'income') return;
+
+        const cat = item.category || 'Nezaradené';
+        const sub = item.sub || 'Nezaradené';
+        const val = parseFloat(item.amount);
+
+        if (!result[cat]) result[cat] = {};
+        if (!result[cat][sub]) result[cat][sub] = 0;
+
+        if (dataMode === 'balance') {
+            result[cat][sub] += item.type === 'income' ? val : -val;
+        } else {
+            result[cat][sub] += val;
+        }
+    });
+
+    return result;
+}
+
+function renderSubBreakdown(containerId, breakdown, accent = 'emerald') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const catKeys = Object.keys(breakdown);
+    if (catKeys.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = catKeys.map(cat => {
+        const subs = breakdown[cat];
+        const subKeys = Object.keys(subs).sort((a, b) => Math.abs(subs[b]) - Math.abs(subs[a]));
+
+        return `
+            <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div class="text-[10px] font-black uppercase tracking-[0.08em] text-${accent}-500 mb-2">${cat}</div>
+                <div class="space-y-1.5">
+                    ${subKeys.map(sub => `
+                        <div onclick="filterFromStats('${cat}', '${sub}')" class="flex items-center justify-between text-[11px] font-bold cursor-pointer">
+                            <span class="text-slate-500">${sub}</span>
+                            <span class="text-slate-800 dark:text-slate-200 font-extrabold">${subs[sub].toFixed(2)} €</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function renderAnalyticsSummaryCards(filtered, sums, dataMode) {
@@ -391,6 +349,7 @@ function updateAnalytics() {
 
     let filtered = getAnalyticsDataForPeriod();
     const { working, sums } = buildAggregateData(filtered, dataMode, levelMode, userFilter);
+    const subBreakdown = buildSubcategoryBreakdown(filtered, dataMode, userFilter);
 
     const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
     const data = labels.map(k => sums[k]);
@@ -403,6 +362,7 @@ function updateAnalytics() {
 
     const statsContainer = document.getElementById('chart-stats-summary');
     const summaryCards = document.getElementById('analytics-summary-cards');
+    const subStatsContainer = document.getElementById('chart-sub-stats-summary');
 
     if (labels.length === 0) {
         if (analyticsChartInstance) {
@@ -410,6 +370,7 @@ function updateAnalytics() {
             analyticsChartInstance = null;
         }
         if (summaryCards) summaryCards.innerHTML = '';
+        if (subStatsContainer) subStatsContainer.innerHTML = '';
         statsContainer.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">
@@ -424,6 +385,7 @@ function updateAnalytics() {
     }
 
     renderAnalyticsSummaryCards(working, sums, dataMode);
+    renderSubBreakdown('chart-sub-stats-summary', subBreakdown, 'emerald');
 
     const ctx = document.getElementById('analyticsChart').getContext('2d');
     if (analyticsChartInstance) analyticsChartInstance.destroy();
@@ -525,6 +487,7 @@ function updateBurnRateTab() {
 
     const { sums } = buildAggregateData(filtered, dataMode, levelMode, userFilter);
     const previousAggregate = buildAggregateData(previousPeriod, dataMode, levelMode, userFilter);
+    const subBreakdown = buildSubcategoryBreakdown(filtered, dataMode, userFilter);
 
     const daysCount = getDaysCountForPeriod(filtered);
     const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
@@ -542,6 +505,7 @@ function updateBurnRateTab() {
     const cardsContainer = document.getElementById('burn-metrics-cards');
     const breakdownContainer = document.getElementById('burn-stats-breakdown');
     const insightContainer = document.getElementById('burn-insight-cards');
+    const subBreakdownContainer = document.getElementById('burn-sub-stats-breakdown');
 
     if (labels.length === 0) {
         if (burnRateTabChartInstance) {
@@ -551,6 +515,7 @@ function updateBurnRateTab() {
 
         if (cardsContainer) cardsContainer.innerHTML = '';
         if (insightContainer) insightContainer.innerHTML = '';
+        if (subBreakdownContainer) subBreakdownContainer.innerHTML = '';
         if (breakdownContainer) {
             breakdownContainer.innerHTML = `
                 <div class="empty-state">
@@ -567,6 +532,7 @@ function updateBurnRateTab() {
     }
 
     renderBurnInsightCards(total, previousTotal, monthlyForecastTotal, daysLeft);
+    renderSubBreakdown('burn-sub-stats-breakdown', subBreakdown, 'amber');
 
     if (cardsContainer) {
         cardsContainer.innerHTML = `
