@@ -9,18 +9,14 @@ let syncQueue = JSON.parse(localStorage.getItem('f_sync_q_v20')) || [];
 let categories = JSON.parse(localStorage.getItem('f_cats_v20')) || [];
 let pendingCatSync = JSON.parse(localStorage.getItem('f_pending_cat_sync_v20')) || false;
 
-let users = JSON.parse(localStorage.getItem('f_users_v20')) || ['Osoba 1', 'Osoba 2'];
-let chartPresets = []; /* odstránené používanie presetov */
-let curUser = localStorage.getItem('f_last_user') || users[0] || 'Osoba 1';
+let curType = localStorage.getItem('f_last_type_v20') || 'expense';
+let selectedCat = '';
+let selectedSub = '';
+let activeCategoryFilter = null;
+let isSyncing = false;
 
-let curType = localStorage.getItem('f_last_type_v20') || 'expense',
-    selectedCat = '',
-    selectedSub = '',
-    activeCategoryFilter = null,
-    isSyncing = false;
-
-let currentStatusFilter = 'unprocessed',
-    activeSettingsCat = null;
+let currentStatusFilter = 'unprocessed';
+let activeSettingsCat = null;
 
 window.activeSubFilter = null;
 
@@ -42,4 +38,5 @@ let transactionSearchQuery = '';
 let lastDeletedEntry = null;
 let lastDeletedSyncSnapshot = null;
 
-let quickTemplates = []; /* odstránené */
+let analyticsBreakdownExpanded = {};
+let burnBreakdownExpanded = {};
