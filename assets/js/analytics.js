@@ -210,12 +210,8 @@ function filterFromStats(cat, sub = null) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function buildAggregateData(filtered, dataMode, levelMode, userFilter) {
+function buildAggregateData(filtered, dataMode, levelMode) {
     let working = [...filtered];
-
-    if (userFilter !== 'all') {
-        working = working.filter(i => (i.user || users[0]) === userFilter);
-    }
 
     const sums = {};
     working.forEach(item => {
@@ -237,13 +233,8 @@ function buildAggregateData(filtered, dataMode, levelMode, userFilter) {
     return { working, sums };
 }
 
-function buildNestedBreakdown(filtered, dataMode, userFilter) {
+function buildNestedBreakdown(filtered, dataMode) {
     let working = [...filtered];
-
-    if (userFilter !== 'all') {
-        working = working.filter(i => (i.user || users[0]) === userFilter);
-    }
-
     const result = {};
 
     working.forEach(item => {
@@ -268,17 +259,35 @@ function buildNestedBreakdown(filtered, dataMode, userFilter) {
     return result;
 }
 
-function renderTreeBreakdown(containerId, nestedData, accentColors) {
+function toggleBreakdownGroup(scope, cat) {
+    if (scope === 'analytics') {
+        analyticsBreakdownExpanded[cat] = !analyticsBreakdownExpanded[cat];
+        updateAnalytics();
+    } else {
+        burnBreakdownExpanded[cat] = !burnBreakdownExpanded[cat];
+        updateBurnRateTab();
+    }
+}
+
+function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'analytics') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    const stateObj = scope === 'analytics' ? analyticsBreakdownExpanded : burnBreakdownExpanded;
     const catEntries = Object.entries(nestedData).sort((a, b) => Math.abs(b[1].total) - Math.abs(a[1].total));
+
     if (catEntries.length === 0) {
         container.innerHTML = '';
         return;
     }
 
     const grandTotal = catEntries.reduce((sum, [, val]) => sum + Math.abs(val.total), 0);
+
+    catEntries.forEach(([cat], idx) => {
+        if (typeof stateObj[cat] === 'undefined') {
+            stateObj[cat] = idx < 3;
+        }
+    });
 
     container.innerHTML = `
         <div class="tree-breakdown-card">
@@ -292,14 +301,16 @@ function renderTreeBreakdown(containerId, nestedData, accentColors) {
                 const catPct = grandTotal > 0 ? (catTotalAbs / grandTotal) * 100 : 0;
                 const color = accentColors[idx % accentColors.length];
                 const subEntries = Object.entries(data.subs).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+                const expanded = !!stateObj[cat];
 
                 return `
                     <div class="tree-group">
-                        <div class="tree-top-row">
+                        <div class="tree-top-row tree-clickable" onclick="toggleBreakdownGroup('${scope}', '${cat}')">
                             <div class="tree-cat-left">
                                 <div class="tree-cat-name-row">
                                     <span class="tree-color-dot" style="background:${color}"></span>
                                     <span class="tree-cat-name">${cat}</span>
+                                    <span class="tree-expand-indicator">${expanded ? '−' : '+'}</span>
                                 </div>
                                 <div class="tree-progress">
                                     <div class="tree-progress-bar" style="width:${catPct.toFixed(1)}%; background:${color}"></div>
@@ -312,23 +323,25 @@ function renderTreeBreakdown(containerId, nestedData, accentColors) {
                             </div>
                         </div>
 
-                        <div class="tree-sub-list">
-                            ${subEntries.map(([sub, subVal]) => {
-                                const subPct = catTotalAbs > 0 ? (Math.abs(subVal) / catTotalAbs) * 100 : 0;
-                                return `
-                                    <div class="tree-sub-row" onclick="filterFromStats('${cat}', '${sub}')">
-                                        <div class="tree-sub-left">
-                                            <span class="tree-branch">└─</span>
-                                            <span class="tree-sub-name">${sub}</span>
+                        ${expanded ? `
+                            <div class="tree-sub-list">
+                                ${subEntries.map(([sub, subVal]) => {
+                                    const subPct = catTotalAbs > 0 ? (Math.abs(subVal) / catTotalAbs) * 100 : 0;
+                                    return `
+                                        <div class="tree-sub-row" onclick="filterFromStats('${cat}', '${sub}')">
+                                            <div class="tree-sub-left">
+                                                <span class="tree-branch">└─</span>
+                                                <span class="tree-sub-name">${sub}</span>
+                                            </div>
+                                            <div class="tree-sub-right">
+                                                <span class="tree-sub-share">${subPct.toFixed(0)}% z kat.</span>
+                                                <span class="tree-sub-amount">${subVal.toFixed(2)} €</span>
+                                            </div>
                                         </div>
-                                        <div class="tree-sub-right">
-                                            <span class="tree-sub-share">${subPct.toFixed(0)}% z kat.</span>
-                                            <span class="tree-sub-amount">${subVal.toFixed(2)} €</span>
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }).join('')}
@@ -380,7 +393,6 @@ function updateAnalytics() {
     const chartType = document.getElementById('chart-type').value;
     const levelMode = document.getElementById('chart-level-mode').value;
     const dataMode = document.getElementById('chart-data-mode').value;
-    const userFilter = document.getElementById('chart-user-filter').value;
 
     ['expense', 'income', 'balance'].forEach(m => {
         const btn = document.getElementById(`chart-data-${m}`);
@@ -388,8 +400,8 @@ function updateAnalytics() {
     });
 
     let filtered = getAnalyticsDataForPeriod();
-    const { working, sums } = buildAggregateData(filtered, dataMode, levelMode, userFilter);
-    const nested = buildNestedBreakdown(filtered, dataMode, userFilter);
+    const { working, sums } = buildAggregateData(filtered, dataMode, levelMode);
+    const nested = buildNestedBreakdown(filtered, dataMode);
 
     const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
     const data = labels.map(k => sums[k]);
@@ -417,7 +429,7 @@ function updateAnalytics() {
                     <i data-lucide="pie-chart" class="w-6 h-6"></i>
                 </div>
                 <div class="empty-state-title">Žiadne dáta pre graf</div>
-                <div class="empty-state-text">Skús zmeniť obdobie, osobu alebo typ dát. Keď pribudnú transakcie, graf sa zobrazí automaticky.</div>
+                <div class="empty-state-text">Skús zmeniť obdobie alebo typ dát. Keď pribudnú transakcie, graf sa zobrazí automaticky.</div>
             </div>
         `;
         lucide.createIcons();
@@ -425,7 +437,7 @@ function updateAnalytics() {
     }
 
     renderAnalyticsSummaryCards(working, sums, dataMode);
-    renderTreeBreakdown('chart-sub-stats-summary', nested, colors);
+    renderTreeBreakdown('chart-sub-stats-summary', nested, colors, 'analytics');
 
     const ctx = document.getElementById('analyticsChart').getContext('2d');
     if (analyticsChartInstance) analyticsChartInstance.destroy();
@@ -515,7 +527,6 @@ function updateBurnRateTab() {
     const chartType = document.getElementById('burn-chart-type').value;
     const levelMode = document.getElementById('burn-level-mode').value;
     const dataMode = document.getElementById('burn-data-mode').value;
-    const userFilter = document.getElementById('burn-user-filter').value;
 
     ['expense', 'income', 'balance'].forEach(m => {
         const btn = document.getElementById(`burn-data-${m}`);
@@ -525,9 +536,9 @@ function updateBurnRateTab() {
     let filtered = getAnalyticsDataForPeriod();
     const previousPeriod = getPreviousPeriodData();
 
-    const { sums } = buildAggregateData(filtered, dataMode, levelMode, userFilter);
-    const previousAggregate = buildAggregateData(previousPeriod, dataMode, levelMode, userFilter);
-    const nested = buildNestedBreakdown(filtered, dataMode, userFilter);
+    const { sums } = buildAggregateData(filtered, dataMode, levelMode);
+    const previousAggregate = buildAggregateData(previousPeriod, dataMode, levelMode);
+    const nested = buildNestedBreakdown(filtered, dataMode);
 
     const daysCount = getDaysCountForPeriod(filtered);
     const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
@@ -577,7 +588,7 @@ function updateBurnRateTab() {
     }
 
     renderBurnInsightCards(total, previousTotal, monthlyForecastTotal, daysLeft);
-    renderTreeBreakdown('burn-sub-stats-breakdown', nested, burnColors);
+    renderTreeBreakdown('burn-sub-stats-breakdown', nested, burnColors, 'burn');
 
     if (cardsContainer) {
         cardsContainer.innerHTML = `
