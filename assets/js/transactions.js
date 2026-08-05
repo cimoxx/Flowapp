@@ -84,7 +84,6 @@ function openModal(id = null) {
     const entryIdInput = document.getElementById('entry-id');
 
     overlay.classList.remove('hidden');
-    renderUserToggle();
 
     if (id) {
         setModalMeta(true);
@@ -99,7 +98,6 @@ function openModal(id = null) {
         const cleanD = getCleanDateStr(i.date);
         document.getElementById('f-date').value = cleanD || getTodayStr();
 
-        setUser(i.user || users[0]);
         setType(i.type || 'expense');
 
         const isRecurring = !!i.isRecurring;
@@ -123,7 +121,6 @@ function openModal(id = null) {
         document.getElementById('f-frequency').value = 'monthly';
         toggleRecurringOptions();
 
-        setUser(localStorage.getItem('f_last_user') || users[0] || 'Osoba 1');
         setType(localStorage.getItem('f_last_type_v20') || 'expense');
 
         renderCatGrid();
@@ -170,14 +167,13 @@ function handleSave(e) {
     const entry = {
         id: id,
         date: cleanDate,
-        full_date: fullDateWithTime,
+        full_date: fullDateWithCurrentTime(dateVal),
         category: selectedCat,
         sub: selectedSub,
         amount: parseFloat(document.getElementById('f-amount').value),
         type: curType,
         note: document.getElementById('f-note').value,
         processed: currentProcessed,
-        user: curUser,
         isRecurring: isRecurring,
         frequency: frequency,
         action: 'save'
@@ -185,7 +181,6 @@ function handleSave(e) {
 
     if (selectedCat) localStorage.setItem('f_last_cat', selectedCat);
     if (selectedSub) localStorage.setItem('f_last_sub', selectedSub);
-    localStorage.setItem('f_last_user', curUser);
     localStorage.setItem('f_last_type_v20', curType);
 
     const idx = db.findIndex(x => String(x.id) === String(id));
@@ -404,7 +399,6 @@ function matchesSearch(item) {
         item.category || '',
         item.sub || '',
         item.note || '',
-        item.user || '',
         String(item.amount || '')
     ].join(' ').toLowerCase();
 
@@ -660,7 +654,7 @@ function renderList() {
                             <span class="right-action flex items-center gap-1.5"><span>Vymazať</span> <i data-lucide="trash-2" class="w-4 h-4"></i></span>
                         </div>
 
-                        <div class="swipe-content tx-row p-3.5 flex items-center justify-between ${item.processed ? 'processed' : ''}"
+                        <div class="swipe-content tx-row tx-${item.type} p-3.5 flex items-center justify-between ${item.processed ? 'processed' : ''}"
                              id="item-${item.id}"
                              ontouchstart="handleSwipeStart(event, '${item.id}')"
                              ontouchmove="handleSwipeMove(event, '${item.id}')"
@@ -672,7 +666,7 @@ function renderList() {
                                     <span class="truncate">${item.category}</span>
                                     ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${item.sub}</span>` : ''}
                                 </div>
-                                <div class="tx-note">${item.note ? item.note : (item.user || '')}</div>
+                                <div class="tx-note">${item.note ? item.note : '&nbsp;'}</div>
                             </div>
 
                             <div class="tx-meta">
