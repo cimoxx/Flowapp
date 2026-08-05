@@ -376,15 +376,15 @@ function scrollToActiveMonth(monthIdx) {
 
 function getFilteredData() {
     const yearEl = document.getElementById('filter-year');
-    const selYear = parseInt(yearEl?.value || new Date().getFullYear());
+    const selYear = parseInt(yearEl?.value || new Date().getFullYear(), 10);
 
     return db.filter(d => {
         const cleanDate = getCleanDateStr(d.date);
         const parts = cleanDate.split('-');
         if (parts.length !== 3) return false;
 
-        const itemYear = parseInt(parts[0]);
-        const itemMonth = parseInt(parts[1]) - 1;
+        const itemYear = parseInt(parts[0], 10);
+        const itemMonth = parseInt(parts[1], 10) - 1;
         const monthMatches = selectedMonths.length === 0 || selectedMonths.includes(itemMonth);
 
         return monthMatches && itemYear === selYear;
@@ -420,7 +420,7 @@ function renderSummary(sums, currentFiltered) {
     sortedKeys.forEach(k => {
         if (activeCategoryFilter === null) {
             html += `
-                <div onclick="toggleFilter('${k}')" class="summary-card p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                <div onclick="toggleFilter('${String(k).replace(/'/g, "\\'")}')" class="summary-card p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
                     <span class="text-[9px] font-black uppercase text-slate-400 truncate">${k}</span>
                     <span class="text-[13px] font-extrabold mt-1">${sums[k].toFixed(2)} €</span>
                 </div>
@@ -428,7 +428,7 @@ function renderSummary(sums, currentFiltered) {
         } else {
             const isActive = window.activeSubFilter === k;
             html += `
-                <div onclick="toggleSubFilter('${k}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                <div onclick="toggleSubFilter('${String(k).replace(/'/g, "\\'")}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
                     <span class="text-[9px] font-black uppercase text-slate-400 truncate">${k}</span>
                     <span class="text-[13px] font-extrabold mt-1">${sums[k].toFixed(2)} €</span>
                 </div>
@@ -454,7 +454,7 @@ function renderSummary(sums, currentFiltered) {
             sortedSubs.forEach(sub => {
                 const isSubActive = window.activeSubFilter === sub;
                 html += `
-                    <div onclick="toggleSubFilter('${sub}')" class="summary-card ${isSubActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                    <div onclick="toggleSubFilter('${String(sub).replace(/'/g, "\\'")}')" class="summary-card ${isSubActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
                         <span class="text-[9px] font-black uppercase text-amber-500/80 truncate">${sub}</span>
                         <span class="text-[13px] font-extrabold mt-1">${subSums[sub].toFixed(2)} €</span>
                     </div>
