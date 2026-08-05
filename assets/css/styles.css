@@ -894,6 +894,173 @@ input, select, textarea {
     min-height: 44px;
 }
 
+/* NOVÝ STROMOVÝ BREAKDOWN */
+.tree-breakdown-card {
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    border-radius: 20px;
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+}
+
+.tree-breakdown-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 9px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-soft);
+}
+
+.tree-group {
+    padding: 12px 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+}
+
+.tree-group:last-child {
+    border-bottom: none;
+}
+
+.tree-top-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.tree-cat-left {
+    min-width: 0;
+}
+
+.tree-cat-right {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.tree-cat-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+}
+
+.tree-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.tree-cat-name {
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.15;
+    color: var(--text-main);
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+}
+
+.tree-progress {
+    width: 100%;
+    height: 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--border) 85%, transparent);
+    overflow: hidden;
+}
+
+.tree-progress-bar {
+    height: 100%;
+    border-radius: 999px;
+}
+
+.tree-cat-share {
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--text-dim);
+    text-align: right;
+    min-width: 34px;
+}
+
+.tree-cat-amount {
+    font-size: 13px;
+    font-weight: 900;
+    color: var(--text-main);
+    letter-spacing: -0.02em;
+}
+
+.tree-sub-list {
+    margin-top: 10px;
+    padding-left: 16px;
+    border-left: 2px solid color-mix(in srgb, var(--border) 70%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tree-sub-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    cursor: pointer;
+}
+
+.tree-sub-row:hover .tree-sub-name {
+    color: var(--text-main);
+}
+
+.tree-sub-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.tree-branch {
+    color: var(--text-soft);
+    font-weight: 900;
+    font-size: 12px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.tree-sub-name {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-dim);
+    line-height: 1.2;
+    transition: color 0.18s ease;
+    min-width: 0;
+}
+
+.tree-sub-right {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.tree-sub-share {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--text-soft);
+    white-space: nowrap;
+}
+
+.tree-sub-amount {
+    font-size: 11px;
+    font-weight: 900;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
 button, select, input, textarea {
     outline: none;
 }
