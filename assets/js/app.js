@@ -10,9 +10,6 @@
         yearSelect.appendChild(opt);
     }
 
-    renderUserToggle();
-    renderUserFilters();
-    renderUsersSettings();
     renderMonthChips();
     renderCatGrid();
     processRecurringPayments();
