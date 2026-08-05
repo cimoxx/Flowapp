@@ -39,46 +39,6 @@ function resetCategoryFilter() {
     renderList();
 }
 
-function renderQuickTemplates() {
-    const container = document.getElementById('quick-templates');
-    if (!container) return;
-
-    container.innerHTML = quickTemplates.map(t => `
-        <button type="button" onclick="applyQuickTemplate('${t.id}')" class="template-chip">
-            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-            ${t.label}
-        </button>
-    `).join('');
-    lucide.createIcons();
-}
-
-function applyQuickTemplate(id) {
-    const t = quickTemplates.find(x => x.id === id);
-    if (!t) return;
-
-    if (t.type) setType(t.type);
-    if (t.amount !== undefined && t.amount !== null) document.getElementById('f-amount').value = t.amount || '';
-    document.getElementById('f-note').value = t.note || '';
-
-    renderCatGrid();
-
-    if (t.category) {
-        selectCat(t.category);
-        if (t.sub) {
-            const cat = categories.find(c => c.id === t.category);
-            if (cat && cat.subs && cat.subs.includes(t.sub)) selectSub(t.sub);
-        }
-    } else if (categories[0]?.id) {
-        selectCat(categories[0].id);
-    }
-
-    showToast({
-        type: 'info',
-        title: 'Šablóna použitá',
-        text: t.label
-    });
-}
-
 function toggleProcessed(id) {
     const item = db.find(x => String(x.id) === String(id));
     if (item) {
@@ -124,7 +84,7 @@ function openModal(id = null) {
     const entryIdInput = document.getElementById('entry-id');
 
     overlay.classList.remove('hidden');
-    renderQuickTemplates();
+    renderUserToggle();
 
     if (id) {
         setModalMeta(true);
@@ -139,7 +99,7 @@ function openModal(id = null) {
         const cleanD = getCleanDateStr(i.date);
         document.getElementById('f-date').value = cleanD || getTodayStr();
 
-        setUser(i.user || 'Lukáš');
+        setUser(i.user || users[0]);
         setType(i.type || 'expense');
 
         const isRecurring = !!i.isRecurring;
@@ -157,15 +117,13 @@ function openModal(id = null) {
 
         document.getElementById('entry-form').reset();
         entryIdInput.value = "";
-
-        /* VŽDY dnešný dátum pre novú transakciu */
         document.getElementById('f-date').value = getTodayStr();
 
         document.getElementById('f-recurring').checked = false;
         document.getElementById('f-frequency').value = 'monthly';
         toggleRecurringOptions();
 
-        setUser(localStorage.getItem('f_last_user') || 'Lukáš');
+        setUser(localStorage.getItem('f_last_user') || users[0] || 'Osoba 1');
         setType(localStorage.getItem('f_last_type_v20') || 'expense');
 
         renderCatGrid();
@@ -447,8 +405,7 @@ function matchesSearch(item) {
         item.sub || '',
         item.note || '',
         item.user || '',
-        String(item.amount || ''),
-        item.type || ''
+        String(item.amount || '')
     ].join(' ').toLowerCase();
 
     return haystack.includes(transactionSearchQuery);
@@ -715,11 +672,11 @@ function renderList() {
                                     <span class="truncate">${item.category}</span>
                                     ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${item.sub}</span>` : ''}
                                 </div>
-                                <div class="tx-note">${item.note ? item.note : `${item.user || '—'} · ${item.type === 'income' ? 'Príjem' : 'Výdavok'}`}</div>
+                                <div class="tx-note">${item.note ? item.note : (item.user || '')}</div>
                             </div>
 
                             <div class="tx-meta">
-                                <span class="tx-amount ${item.type === 'income' ? 'income' : 'expense'}">${parseFloat(item.amount).toFixed(2)} €</span>
+                                <span class="tx-amount ${item.type === 'income' ? 'income' : 'expense'}">${item.type === 'income' ? '+' : '-'}${parseFloat(item.amount).toFixed(2)} €</span>
                                 <div onclick="event.stopPropagation(); toggleProcessed('${item.id}')" class="tx-check ${item.processed ? 'done' : 'pending'}">
                                     <i data-lucide="check" class="w-4 h-4"></i>
                                 </div>
