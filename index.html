@@ -86,12 +86,7 @@
     <main id="screen-analytics" class="p-4 flex-1 hidden space-y-4">
         <div class="flex justify-between items-center mb-1">
             <h2 class="text-xl font-extrabold">Grafická analýza</h2>
-            <button onclick="saveCurrentPreset()" class="text-[10px] font-extrabold bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-xl border border-emerald-500/20 active:scale-95 transition-all flex items-center gap-1">
-                <i data-lucide="bookmark" class="w-3 h-3"></i> Uložiť pohľad
-            </button>
         </div>
-
-        <div id="presets-container" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5"></div>
 
         <div class="space-y-1.5">
             <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie Grafu</label>
@@ -140,11 +135,7 @@
 
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Osoba</label>
-                <select id="chart-user-filter" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
-                    <option value="all">Všetci</option>
-                    <option value="Lukáš">Lukáš</option>
-                    <option value="Zdenka">Zdenka</option>
-                </select>
+                <select id="chart-user-filter" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs"></select>
             </div>
         </div>
 
@@ -153,6 +144,7 @@
         </div>
 
         <div id="chart-stats-summary" class="space-y-3 pt-1"></div>
+        <div id="chart-sub-stats-summary" class="space-y-2 pt-1"></div>
     </main>
 
     <main id="screen-burnrate" class="p-4 flex-1 hidden space-y-4">
@@ -163,12 +155,7 @@
                 </div>
                 <h2 class="text-xl font-extrabold">Burn Rate Analýza</h2>
             </div>
-            <button onclick="saveCurrentPreset()" class="text-[10px] font-extrabold bg-amber-500/10 text-amber-500 px-3 py-1.5 rounded-xl border border-amber-500/20 active:scale-95 transition-all flex items-center gap-1">
-                <i data-lucide="bookmark" class="w-3 h-3"></i> Uložiť pohľad
-            </button>
         </div>
-
-        <div id="burn-presets-container" class="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5"></div>
 
         <div class="space-y-1.5">
             <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie Analýzy</label>
@@ -217,11 +204,7 @@
 
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Osoba</label>
-                <select id="burn-user-filter" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
-                    <option value="all">Všetci</option>
-                    <option value="Lukáš">Lukáš</option>
-                    <option value="Zdenka">Zdenka</option>
-                </select>
+                <select id="burn-user-filter" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs"></select>
             </div>
         </div>
 
@@ -232,6 +215,7 @@
         </div>
 
         <div id="burn-stats-breakdown" class="space-y-3 pt-1"></div>
+        <div id="burn-sub-stats-breakdown" class="space-y-2 pt-1"></div>
     </main>
 
     <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-nav grid grid-cols-5 items-center h-16 px-2 z-30">
@@ -249,7 +233,6 @@
 
 <div id="toast-container" class="fixed inset-x-0 bottom-20 z-[70] px-4 pointer-events-none max-w-md mx-auto"></div>
 
-<!-- MODAL -->
 <div id="modal-overlay" class="fixed inset-0 bg-slate-900/90 z-[40] hidden backdrop-blur-sm flex items-end">
     <div class="bg-white dark:bg-slate-900 w-full max-w-md mx-auto rounded-t-[2.5rem] p-5 shadow-2xl max-h-[92vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4 sticky top-0 bg-white dark:bg-slate-900 pb-2 z-10">
@@ -263,19 +246,11 @@
             </div>
         </div>
 
-        <div class="mb-4">
-            <label class="text-[10px] font-black text-slate-400 uppercase block mb-2 px-1 tracking-widest">Rýchle šablóny</label>
-            <div id="quick-templates" class="flex gap-1.5 overflow-x-auto no-scrollbar py-1"></div>
-        </div>
-
         <form id="entry-form" onsubmit="handleSave(event)" class="space-y-5">
             <input type="submit" id="save-trigger" class="hidden">
             <input type="hidden" id="entry-id">
 
-            <div class="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                <button type="button" onclick="setUser('Lukáš')" id="u-Lukáš" class="flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all">LUKÁŠ</button>
-                <button type="button" onclick="setUser('Zdenka')" id="u-Zdenka" class="flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all">ZDENKA</button>
-            </div>
+            <div id="user-toggle-wrap"></div>
 
             <input type="number" id="f-amount" inputmode="decimal" step="0.01" placeholder="0.00" class="w-full text-center text-5xl font-extrabold py-2 outline-none border-none bg-transparent !p-0" required>
 
@@ -300,8 +275,8 @@
             </div>
 
             <div class="modal-helper-card">
-                <div class="modal-helper-title">Smart predvoľby</div>
-                <div class="modal-helper-text">Pri novej transakcii si aplikácia pamätá naposledy použitú osobu, typ, kategóriu, podkategóriu a dátum.</div>
+                <div class="modal-helper-title">Predvolené hodnoty</div>
+                <div class="modal-helper-text">Aplikácia si pamätá naposledy použitú osobu, typ, kategóriu a podkategóriu. Dátum novej transakcie sa vždy nastaví na dnešný deň.</div>
             </div>
 
             <div class="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -352,8 +327,29 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.28.1</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.29.0</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Odstránené rýchle šablóny a ukladanie pohľadov v analytike a Burn Rate pre čistejšie a jednoduchšie rozhranie.</li>
+                    <li>Mená používateľov sú teraz plne nastaviteľné v nastaveniach a aplikácia môže začínať neutrálne bez fixných mien.</li>
+                    <li>V prehľade transakcií bolo zjednodušené sekundárne info a príjmy/výdavky sú viac odlíšené vizuálne namiesto rušivých textových popisov.</li>
+                    <li>Pod grafmi v analytike aj Burn Rate pribudol detailnejší rozpad na podkategórie pre lepší vhľad do dát.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.28.2</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Pri pridávaní novej transakcie sa teraz automaticky používa dnešný dátum, pričom používateľ ho môže stále ručne upraviť.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.28.1</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
                     <li>Odstránené bulk akcie nad zoznamom transakcií pre čistejší a jednoduchší prehľad hlavnej obrazovky.</li>
@@ -370,101 +366,6 @@
                     <li>Pridaná možnosť meniť ikony kategórií a zobrazenie počtu transakcií pri kategóriách.</li>
                 </ul>
             </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.27.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Pridané sumárne karty do analytiky s prehľadom celkovej sumy, top kategórie, počtu transakcií a priemeru na transakciu.</li>
-                    <li>Rozšírený Burn Rate prehľad o porovnanie s predošlým obdobím, odhad do konca mesiaca a dni zostávajúce do konca mesiaca.</li>
-                    <li>Najčastejšie prepínače typu dát boli presunuté do rýchlych chipov pre pohodlnejšie ovládanie na mobile.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.26.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Pridané vyhľadávanie v transakciách podľa poznámky, kategórie, podkategórie, osoby a sumy.</li>
-                    <li>Doplnená možnosť obnoviť omylom zmazanú transakciu cez akciu „Späť“ priamo v notifikácii.</li>
-                    <li>Vylepšený formulár pre pridanie a úpravu transakcie o jasnejší kontext, helper texty a smart predvoľby.</li>
-                    <li>Rozšírené zapamätanie naposledy použitých hodnôt pri vytváraní novej transakcie.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.25.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Zlepšená čitateľnosť aplikácie väčšími textami, väčšími touch targetmi a lepšími kontrastmi v kľúčových častiach rozhrania.</li>
-                    <li>Doladené inputy, tlačidlá, chipy a interaktívne prvky pre pohodlnejšie ovládanie na mobile.</li>
-                    <li>Vylepšené focus a pressed stavy pre lepšiu orientáciu a presnejšiu prácu s aplikáciou.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-500 font-extrabold text-[10px]">v2.24.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Prepracovaný header s čistejšou hierarchiou, lepším oddelením zostatku a jemnejším vizuálom synchronizácie.</li>
-                    <li>Vizuálne vylepšené riadky transakcií pre rýchlejšie skenovanie kategórie, poznámky a sumy.</li>
-                    <li>Jemne upravené cards, chips a interakčné stavy pre modernejší a konzistentnejší app feel.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-500 font-extrabold text-[10px]">v2.23.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Pridané toast notifikácie pre uloženie, úpravu, zmazanie a spracovanie transakcií, ako aj pre prácu s uloženými pohľadmi.</li>
-                    <li>Doplnený riadok s aktívnymi filtrami pre lepšiu orientáciu v aktuálnom výbere.</li>
-                    <li>Pridané nové empty states pre transakcie, analytiku, burn rate a uložené pohľady.</li>
-                    <li>Doplnený onboarding hint pre swipe gestá so zobrazením iba pri prvom použití.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3 opacity-80">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 font-extrabold text-[10px]">v2.22.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Automatické generovanie a nahrávanie pravidelných platieb do nového mesiaca pri štarte aplikácie a po synchronizácii.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3 opacity-75">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 font-extrabold text-[10px]">v2.21.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Pridaná podpora pre nastavenie pravidelných platieb (týždenne, mesačne, štvrťročne, ročne) priamo v detaile transakcie.</li>
-                    <li>Vizuálne označenie opakovane sa vyskytujúcich platieb ikonou v zozname.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3 opacity-75">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 font-extrabold text-[10px]">v2.20.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Doplnené priemerné denné čerpanie a predpoklad mesačného čerpania ku každej hlavnej kategórii v Burn Rate prehľade.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3 opacity-75">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-slate-500/10 text-slate-500 font-extrabold text-[10px]">v2.19.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Dvojúrovňové filtrovanie v prehľade transakcií (hlavné kategórie a po výbere konkrétnej kategórie zobrazenie jej podkategórií).</li>
-                    <li>Zoradenie filtrov vždy podľa sumy od najväčšej.</li>
-                </ul>
-            </div>
         </div>
 
         <button type="button" onclick="closeChangelogModal()" class="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-extrabold text-[11px] uppercase rounded-xl mt-2">Zavrieť</button>
@@ -477,6 +378,16 @@
         <div class="flex items-center gap-4 mb-6">
             <button onclick="showScreen('home')" class="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><i data-lucide="arrow-left"></i></button>
             <h2 class="text-xl font-extrabold">Nastavenia</h2>
+        </div>
+
+        <div class="settings-section">
+            <div class="settings-section-title">Používatelia</div>
+            <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                <div id="users-settings-list" class="space-y-2"></div>
+                <button onclick="addUser()" class="settings-action-btn w-full">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> Pridať používateľa
+                </button>
+            </div>
         </div>
 
         <div class="settings-section">
@@ -519,7 +430,7 @@
             <div class="settings-section-title">O aplikácii</div>
             <div class="settings-info-card">
                 <div class="text-sm font-extrabold">Flow V20 Online</div>
-                <div class="text-[11px] font-semibold text-slate-400 mt-1">Verzia aplikácie: v2.28.1</div>
+                <div class="text-[11px] font-semibold text-slate-400 mt-1">Verzia aplikácie: v2.29.0</div>
                 <button onclick="openChangelogModal()" class="mt-3 inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase text-emerald-500">
                     <i data-lucide="history" class="w-4 h-4"></i> Zobraziť changelog
                 </button>
