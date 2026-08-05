@@ -67,7 +67,7 @@
                         type="text"
                         id="transaction-search"
                         oninput="setSearchQuery(this.value)"
-                        placeholder="Hľadaj podľa poznámky, kategórie, sumy alebo osoby..."
+                        placeholder="Hľadaj podľa poznámky, kategórie alebo sumy..."
                         class="search-input"
                     >
                     <button type="button" id="clear-search-btn" onclick="clearSearch()" class="search-clear-btn hidden">
@@ -102,7 +102,7 @@
 
         <div id="analytics-summary-cards" class="grid grid-cols-2 gap-2"></div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
                 <select id="chart-type" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
@@ -131,11 +131,6 @@
                     <option value="income">Príjmy</option>
                     <option value="balance">Bilancia</option>
                 </select>
-            </div>
-
-            <div>
-                <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Osoba</label>
-                <select id="chart-user-filter" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs"></select>
             </div>
         </div>
 
@@ -171,7 +166,7 @@
 
         <div id="burn-insight-cards" class="grid grid-cols-2 gap-2"></div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-800/50 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
             <div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
                 <select id="burn-chart-type" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
@@ -200,11 +195,6 @@
                     <option value="income">Príjmy</option>
                     <option value="balance">Bilancia</option>
                 </select>
-            </div>
-
-            <div>
-                <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Osoba</label>
-                <select id="burn-user-filter" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs"></select>
             </div>
         </div>
 
@@ -250,8 +240,6 @@
             <input type="submit" id="save-trigger" class="hidden">
             <input type="hidden" id="entry-id">
 
-            <div id="user-toggle-wrap"></div>
-
             <input type="number" id="f-amount" inputmode="decimal" step="0.01" placeholder="0.00" class="w-full text-center text-5xl font-extrabold py-2 outline-none border-none bg-transparent !p-0" required>
 
             <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
@@ -276,7 +264,7 @@
 
             <div class="modal-helper-card">
                 <div class="modal-helper-title">Predvolené hodnoty</div>
-                <div class="modal-helper-text">Aplikácia si pamätá naposledy použitú osobu, typ, kategóriu a podkategóriu. Dátum novej transakcie sa vždy nastaví na dnešný deň.</div>
+                <div class="modal-helper-text">Aplikácia si pamätá naposledy použitý typ, kategóriu a podkategóriu. Dátum novej transakcie sa vždy nastaví na dnešný deň.</div>
             </div>
 
             <div class="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
@@ -311,7 +299,6 @@
     </div>
 </div>
 
-<!-- CHANGELOG -->
 <div id="changelog-modal" class="fixed inset-0 bg-slate-900/90 z-[50] hidden backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 max-h-[85vh] overflow-y-auto">
         <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -327,8 +314,19 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.29.0</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.30.0</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Odstránené používateľské mená a zapisovatelia zo zadávania transakcií, nastavení aj analytických filtrov pre čistejší a neutrálnejší základ aplikácie.</li>
+                    <li>Príjmy sú teraz v zozname transakcií vizuálne odlíšené jemným zeleným akcentom pre rýchlejšie skenovanie.</li>
+                    <li>Rozpad kategórií pod analytickými grafmi a Burn Rate bol vylepšený o rozbaľovacie stromové zobrazenie vhodnejšie pre väčší objem dát.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.29.0</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
                     <li>Odstránené rýchle šablóny a ukladanie pohľadov v analytike a Burn Rate pre čistejšie a jednoduchšie rozhranie.</li>
@@ -337,57 +335,17 @@
                     <li>Pod grafmi v analytike aj Burn Rate pribudol detailnejší rozpad na podkategórie pre lepší vhľad do dát.</li>
                 </ul>
             </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.28.2</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Pri pridávaní novej transakcie sa teraz automaticky používa dnešný dátum, pričom používateľ ho môže stále ručne upraviť.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.28.1</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Odstránené bulk akcie nad zoznamom transakcií pre čistejší a jednoduchší prehľad hlavnej obrazovky.</li>
-                </ul>
-            </div>
-
-            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.28.0</span>
-                </div>
-                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Pridané rýchle šablóny transakcií pre ešte rýchlejšie zadávanie opakovaných položiek.</li>
-                    <li>Prepracovaná obrazovka nastavení do sekcií s novými akciami pre export, import a reset lokálnych dát.</li>
-                    <li>Pridaná možnosť meniť ikony kategórií a zobrazenie počtu transakcií pri kategóriách.</li>
-                </ul>
-            </div>
         </div>
 
         <button type="button" onclick="closeChangelogModal()" class="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-extrabold text-[11px] uppercase rounded-xl mt-2">Zavrieť</button>
     </div>
 </div>
 
-<!-- SETTINGS -->
 <div id="settings-screen" class="fixed inset-0 bg-white dark:bg-slate-900 z-50 hidden p-6 max-w-md mx-auto overflow-y-auto pb-24">
     <div id="settings-home">
         <div class="flex items-center gap-4 mb-6">
             <button onclick="showScreen('home')" class="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl"><i data-lucide="arrow-left"></i></button>
             <h2 class="text-xl font-extrabold">Nastavenia</h2>
-        </div>
-
-        <div class="settings-section">
-            <div class="settings-section-title">Používatelia</div>
-            <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
-                <div id="users-settings-list" class="space-y-2"></div>
-                <button onclick="addUser()" class="settings-action-btn w-full">
-                    <i data-lucide="user-plus" class="w-4 h-4"></i> Pridať používateľa
-                </button>
-            </div>
         </div>
 
         <div class="settings-section">
@@ -430,7 +388,7 @@
             <div class="settings-section-title">O aplikácii</div>
             <div class="settings-info-card">
                 <div class="text-sm font-extrabold">Flow V20 Online</div>
-                <div class="text-[11px] font-semibold text-slate-400 mt-1">Verzia aplikácie: v2.29.0</div>
+                <div class="text-[11px] font-semibold text-slate-400 mt-1">Verzia aplikácie: v2.30.0</div>
                 <button onclick="openChangelogModal()" class="mt-3 inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase text-emerald-500">
                     <i data-lucide="history" class="w-4 h-4"></i> Zobraziť changelog
                 </button>
