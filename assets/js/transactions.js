@@ -14,6 +14,7 @@ function toggleStatusFilter() {
         optUnprocessed.classList.add('active');
         optAll.classList.remove('active');
     }
+
     renderList();
 }
 
@@ -41,25 +42,31 @@ function resetCategoryFilter() {
 
 function toggleProcessed(id) {
     const item = db.find(x => String(x.id) === String(id));
-    if (item) {
-        item.processed = !item.processed;
-        syncQueue.push({ ...item, action: 'save' });
-        saveData(false);
-        renderList();
-        updateAnalytics();
-        updateBurnRateTab();
-        processSyncQueue();
+    if (!item) return;
 
-        showToast({
-            type: 'success',
-            title: item.processed ? 'Transakcia označená ako zapísaná' : 'Transakcia vrátená medzi nové',
-            text: `${item.category}${item.sub ? ' / ' + item.sub : ''}`
-        });
-    }
+    item.processed = !item.processed;
+    syncQueue.push({ ...item, action: 'save' });
+    saveData(false);
+
+    renderList();
+    updateAnalytics();
+    updateBurnRateTab();
+    processSyncQueue();
+
+    showToast({
+        type: 'success',
+        title: item.processed ? 'Transakcia označená ako zapísaná' : 'Transakcia vrátená medzi nové',
+        text: `${item.category}${item.sub ? ' / ' + item.sub : ''}`
+    });
 }
 
 function updateTotals(currentListData) {
-    const total = currentListData.reduce((acc, curr) => curr.type === 'income' ? acc + parseFloat(curr.amount) : acc - parseFloat(curr.amount), 0);
+    const total = currentListData.reduce((acc, curr) => {
+        return curr.type === 'income'
+            ? acc + parseFloat(curr.amount)
+            : acc - parseFloat(curr.amount);
+    }, 0);
+
     document.getElementById('display-balance').innerText = total.toFixed(2) + ' €';
 }
 
@@ -88,33 +95,30 @@ function openModal(id = null) {
     if (id) {
         setModalMeta(true);
 
-        const i = db.find(x => String(x.id) === String(id));
-        if (!i) return;
+        const item = db.find(x => String(x.id) === String(id));
+        if (!item) return;
 
-        entryIdInput.value = i.id;
-        amountInput.value = i.amount;
-        document.getElementById('f-note').value = i.note || '';
+        entryIdInput.value = item.id;
+        amountInput.value = item.amount;
+        document.getElementById('f-note').value = item.note || '';
+        document.getElementById('f-date').value = getCleanDateStr(item.date) || getTodayStr();
 
-        const cleanD = getCleanDateStr(i.date);
-        document.getElementById('f-date').value = cleanD || getTodayStr();
+        setType(item.type || 'expense');
 
-        setType(i.type || 'expense');
-
-        const isRecurring = !!i.isRecurring;
-        document.getElementById('f-recurring').checked = isRecurring;
-        document.getElementById('f-frequency').value = i.frequency || 'monthly';
+        document.getElementById('f-recurring').checked = !!item.isRecurring;
+        document.getElementById('f-frequency').value = item.frequency || 'monthly';
         toggleRecurringOptions();
 
         renderCatGrid();
-        selectCat(i.category);
-        if (i.sub) selectSub(i.sub);
+        selectCat(item.category);
+        if (item.sub) selectSub(item.sub);
 
         document.getElementById('del-btn').classList.remove('hidden');
     } else {
         setModalMeta(false);
 
         document.getElementById('entry-form').reset();
-        entryIdInput.value = "";
+        entryIdInput.value = '';
         document.getElementById('f-date').value = getTodayStr();
 
         document.getElementById('f-recurring').checked = false;
@@ -122,19 +126,20 @@ function openModal(id = null) {
         toggleRecurringOptions();
 
         setType(localStorage.getItem('f_last_type_v20') || 'expense');
-
         renderCatGrid();
 
         const lastCat = localStorage.getItem('f_last_cat');
         const lastSub = localStorage.getItem('f_last_sub');
-        let catToSelect = lastCat || (categories[0]?.id || '');
+        const catToSelect = lastCat || (categories[0]?.id || '');
 
-        selectCat(catToSelect);
+        if (catToSelect) {
+            selectCat(catToSelect);
 
-        if (lastSub) {
-            const cat = categories.find(c => c.id === catToSelect);
-            if (cat && cat.subs && cat.subs.includes(lastSub)) {
-                selectSub(lastSub);
+            if (lastSub) {
+                const cat = categories.find(c => c.id === catToSelect);
+                if (cat?.subs?.includes(lastSub)) {
+                    selectSub(lastSub);
+                }
             }
         }
 
@@ -144,14 +149,14 @@ function openModal(id = null) {
     setTimeout(() => {
         amountInput.focus();
         amountInput.select();
-    }, 300);
+    }, 250);
 }
 
 function handleSave(e) {
     e.preventDefault();
 
-    let existingId = document.getElementById('entry-id').value;
-    let id = existingId || 'ID-' + Date.now();
+    const existingId = document.getElementById('entry-id').value;
+    const id = existingId || ('ID-' + Date.now());
 
     const dateVal = document.getElementById('f-date').value;
     const cleanDate = getCleanDateStr(dateVal);
@@ -165,17 +170,17 @@ function handleSave(e) {
     const frequency = isRecurring ? document.getElementById('f-frequency').value : null;
 
     const entry = {
-        id: id,
+        id,
         date: cleanDate,
-        full_date: fullDateWithCurrentTime(dateVal),
+        full_date: fullDateWithTime,
         category: selectedCat,
         sub: selectedSub,
         amount: parseFloat(document.getElementById('f-amount').value),
         type: curType,
         note: document.getElementById('f-note').value,
         processed: currentProcessed,
-        isRecurring: isRecurring,
-        frequency: frequency,
+        isRecurring,
+        frequency,
         action: 'save'
     };
 
@@ -184,11 +189,8 @@ function handleSave(e) {
     localStorage.setItem('f_last_type_v20', curType);
 
     const idx = db.findIndex(x => String(x.id) === String(id));
-    if (idx > -1) {
-        db[idx] = entry;
-    } else {
-        db.push(entry);
-    }
+    if (idx > -1) db[idx] = entry;
+    else db.push(entry);
 
     syncQueue.push(entry);
     saveData(false);
@@ -208,33 +210,34 @@ function handleSave(e) {
 
 function handleDelete(idToDelete = null) {
     const id = idToDelete || document.getElementById('entry-id').value;
-    if (id && confirm('Zmazať transakciu?')) {
-        const deletedItem = db.find(x => String(x.id) === String(id));
-        if (!deletedItem) return;
+    if (!id || !confirm('Zmazať transakciu?')) return;
 
-        lastDeletedEntry = { ...deletedItem };
-        lastDeletedSyncSnapshot = [...syncQueue];
+    const deletedItem = db.find(x => String(x.id) === String(id));
+    if (!deletedItem) return;
 
-        syncQueue.push({ id: id, action: 'delete' });
-        db = db.filter(x => String(x.id) !== String(id));
-        saveData(false);
-        closeModal();
-        renderList();
-        updateAnalytics();
-        updateBurnRateTab();
-        processSyncQueue();
+    lastDeletedEntry = { ...deletedItem };
+    lastDeletedSyncSnapshot = [...syncQueue];
 
-        showToast({
-            type: 'warning',
-            title: 'Transakcia zmazaná',
-            text: `${deletedItem.category}${deletedItem.sub ? ' / ' + deletedItem.sub : ''}`,
-            duration: 5000,
-            action: {
-                label: 'Späť',
-                onClick: undoDelete
-            }
-        });
-    }
+    syncQueue.push({ id, action: 'delete' });
+    db = db.filter(x => String(x.id) !== String(id));
+
+    saveData(false);
+    closeModal();
+    renderList();
+    updateAnalytics();
+    updateBurnRateTab();
+    processSyncQueue();
+
+    showToast({
+        type: 'warning',
+        title: 'Transakcia zmazaná',
+        text: `${deletedItem.category}${deletedItem.sub ? ' / ' + deletedItem.sub : ''}`,
+        duration: 5000,
+        action: {
+            label: 'Späť',
+            onClick: undoDelete
+        }
+    });
 }
 
 function undoDelete() {
@@ -293,16 +296,11 @@ function handleSwipeMove(e, id) {
         const translateX = Math.max(-120, Math.min(120, diffX));
         el.style.transform = `translateX(${translateX}px)`;
         bg.style.opacity = Math.min(1, Math.abs(translateX) / 40);
-
-        if (translateX > 0) {
-            bg.className = "swipe-bg bg-emerald-500";
-        } else {
-            bg.className = "swipe-bg bg-rose-500";
-        }
+        bg.className = translateX > 0 ? 'swipe-bg bg-emerald-500' : 'swipe-bg bg-rose-500';
     }
 }
 
-function handleSwipeEnd(e, id, processed) {
+function handleSwipeEnd(e, id) {
     const el = document.getElementById(`item-${id}`);
     const bg = document.getElementById(`bg-${id}`);
     if (!el) return;
@@ -324,7 +322,7 @@ function handleSwipeEnd(e, id, processed) {
     el.style.transform = 'translateX(0px)';
     if (bg) bg.style.opacity = '0';
 
-    const touch = e.changedTouches ? e.changedTouches[0] : null;
+    const touch = e.changedTouches?.[0];
     let totalDist = 0;
 
     if (touch) {
@@ -346,6 +344,7 @@ function toggleMonthSelect(monthIdx) {
     } else {
         selectedMonths.push(monthIdx);
     }
+
     renderMonthChips();
     processRecurringPayments();
     renderList();
@@ -356,16 +355,14 @@ function toggleMonthSelect(monthIdx) {
 
 function renderMonthChips() {
     const container = document.getElementById('filter-months-container');
-    const months = ['Jan','Feb','Mar','Apr','Máj','Jún','Júl','Aug','Sep','Okt','Nov','Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
     container.innerHTML = months.map((m, i) => {
         const isActive = selectedMonths.includes(i);
         return `<button type="button" id="m-chip-${i}" onclick="toggleMonthSelect(${i})" class="month-chip ${isActive ? 'active' : ''}">${m}</button>`;
     }).join('');
 
-    if (selectedMonths.length > 0) {
-        scrollToActiveMonth(selectedMonths[0]);
-    }
+    if (selectedMonths.length > 0) scrollToActiveMonth(selectedMonths[0]);
 }
 
 function scrollToActiveMonth(monthIdx) {
@@ -378,17 +375,19 @@ function scrollToActiveMonth(monthIdx) {
 }
 
 function getFilteredData() {
-    const selYear = parseInt(document.getElementById('filter-year').value);
+    const yearEl = document.getElementById('filter-year');
+    const selYear = parseInt(yearEl?.value || new Date().getFullYear());
+
     return db.filter(d => {
         const cleanDate = getCleanDateStr(d.date);
         const parts = cleanDate.split('-');
-        if (parts.length === 3) {
-            const itemYear = parseInt(parts[0]);
-            const itemMonth = parseInt(parts[1]) - 1;
-            const monthMatches = selectedMonths.length === 0 || selectedMonths.includes(itemMonth);
-            return monthMatches && itemYear === selYear;
-        }
-        return false;
+        if (parts.length !== 3) return false;
+
+        const itemYear = parseInt(parts[0]);
+        const itemMonth = parseInt(parts[1]) - 1;
+        const monthMatches = selectedMonths.length === 0 || selectedMonths.includes(itemMonth);
+
+        return monthMatches && itemYear === selYear;
     });
 }
 
@@ -417,11 +416,11 @@ function renderSummary(sums, currentFiltered) {
     }
 
     let html = '<div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1">';
+
     sortedKeys.forEach(k => {
         if (activeCategoryFilter === null) {
-            const isActive = activeCategoryFilter === k;
             html += `
-                <div onclick="toggleFilter('${k}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                <div onclick="toggleFilter('${k}')" class="summary-card p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
                     <span class="text-[9px] font-black uppercase text-slate-400 truncate">${k}</span>
                     <span class="text-[13px] font-extrabold mt-1">${sums[k].toFixed(2)} €</span>
                 </div>
@@ -436,13 +435,14 @@ function renderSummary(sums, currentFiltered) {
             `;
         }
     });
+
     html += '</div>';
 
     if (activeCategoryFilter !== null) {
         const subSums = {};
         currentFiltered.forEach(item => {
             if (item.type === 'expense' && item.category === activeCategoryFilter) {
-                const subName = item.sub ? item.sub : 'Nezaradené';
+                const subName = item.sub || 'Nezaradené';
                 if (!subSums[subName]) subSums[subName] = 0;
                 subSums[subName] += item.amount;
             }
@@ -451,12 +451,12 @@ function renderSummary(sums, currentFiltered) {
         const sortedSubs = Object.keys(subSums).sort((a, b) => subSums[b] - subSums[a]);
         if (sortedSubs.length > 0) {
             html += '<div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1 mt-1 border-t border-slate-100 dark:border-slate-800/60 pt-2">';
-            sortedSubs.forEach(s => {
-                const isSubActive = window.activeSubFilter === s;
+            sortedSubs.forEach(sub => {
+                const isSubActive = window.activeSubFilter === sub;
                 html += `
-                    <div onclick="toggleSubFilter('${s}')" class="summary-card ${isSubActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
-                        <span class="text-[9px] font-black uppercase text-amber-500/80 truncate">${s}</span>
-                        <span class="text-[13px] font-extrabold mt-1">${subSums[s].toFixed(2)} €</span>
+                    <div onclick="toggleSubFilter('${sub}')" class="summary-card ${isSubActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                        <span class="text-[9px] font-black uppercase text-amber-500/80 truncate">${sub}</span>
+                        <span class="text-[13px] font-extrabold mt-1">${subSums[sub].toFixed(2)} €</span>
                     </div>
                 `;
             });
@@ -492,7 +492,7 @@ function renderActiveFilterSummary() {
     if (!el) return;
 
     const year = document.getElementById('filter-year')?.value || new Date().getFullYear();
-    const months = ['Jan','Feb','Mar','Apr','Máj','Jún','Júl','Aug','Sep','Okt','Nov','Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
     const chips = [];
 
@@ -590,12 +590,11 @@ function renderList() {
     if (activeCategoryFilter) {
         currentFiltered = currentFiltered.filter(d => d.category === activeCategoryFilter);
         if (window.activeSubFilter) {
-            currentFiltered = currentFiltered.filter(d => (d.sub ? d.sub : 'Nezaradené') === window.activeSubFilter);
+            currentFiltered = currentFiltered.filter(d => (d.sub || 'Nezaradené') === window.activeSubFilter);
         }
     }
 
     updateTotals(currentFiltered);
-
     document.getElementById('clear-cat-filter').classList.toggle('hidden', !activeCategoryFilter);
 
     const sortedItems = [...currentFiltered].sort((a, b) => {
@@ -636,50 +635,56 @@ function renderList() {
     }
 
     let html = '';
+
     Object.keys(grouped).forEach(dayKey => {
         const dayItems = grouped[dayKey];
-        const daySum = dayItems.reduce((acc, curr) => curr.type === 'income' ? acc + parseFloat(curr.amount) : acc - parseFloat(curr.amount), 0);
+        const daySum = dayItems.reduce((acc, curr) => {
+            return curr.type === 'income'
+                ? acc + parseFloat(curr.amount)
+                : acc - parseFloat(curr.amount);
+        }, 0);
 
         html += `
-        <div class="day-group mb-4">
-            <div class="flex justify-between items-center px-2 py-1.5 mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                <span>${formatDayLabel(dayKey)}</span>
-                <span class="${daySum >= 0 ? 'text-emerald-500' : 'text-slate-400'}">${daySum >= 0 ? '+' : ''}${daySum.toFixed(2)} €</span>
-            </div>
-            <div class="space-y-1.5">
-                ${dayItems.map(item => `
-                    <div class="swipe-wrapper" id="wrapper-${item.id}">
-                        <div class="swipe-bg" id="bg-${item.id}">
-                            <span class="left-action flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> <span id="bg-left-text-${item.id}">Zapísaná</span></span>
-                            <span class="right-action flex items-center gap-1.5"><span>Vymazať</span> <i data-lucide="trash-2" class="w-4 h-4"></i></span>
-                        </div>
-
-                        <div class="swipe-content tx-row tx-${item.type} p-3.5 flex items-center justify-between ${item.processed ? 'processed' : ''}"
-                             id="item-${item.id}"
-                             ontouchstart="handleSwipeStart(event, '${item.id}')"
-                             ontouchmove="handleSwipeMove(event, '${item.id}')"
-                             ontouchend="handleSwipeEnd(event, '${item.id}', ${item.processed})">
-
-                            <div class="tx-main flex-1 min-w-0">
-                                <div class="tx-title">
-                                    ${item.isRecurring ? '<i data-lucide="repeat" class="w-3.5 h-3.5 text-emerald-500 inline shrink-0"></i>' : ''}
-                                    <span class="truncate">${item.category}</span>
-                                    ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${item.sub}</span>` : ''}
-                                </div>
-                                <div class="tx-note">${item.note ? item.note : '&nbsp;'}</div>
+            <div class="day-group mb-4">
+                <div class="flex justify-between items-center px-2 py-1.5 mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
+                    <span>${formatDayLabel(dayKey)}</span>
+                    <span class="${daySum >= 0 ? 'text-emerald-500' : 'text-slate-400'}">${daySum >= 0 ? '+' : ''}${daySum.toFixed(2)} €</span>
+                </div>
+                <div class="space-y-1.5">
+                    ${dayItems.map(item => `
+                        <div class="swipe-wrapper" id="wrapper-${item.id}">
+                            <div class="swipe-bg" id="bg-${item.id}">
+                                <span class="left-action flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> <span>Zapísaná</span></span>
+                                <span class="right-action flex items-center gap-1.5"><span>Vymazať</span> <i data-lucide="trash-2" class="w-4 h-4"></i></span>
                             </div>
 
-                            <div class="tx-meta">
-                                <span class="tx-amount ${item.type === 'income' ? 'income' : 'expense'}">${item.type === 'income' ? '+' : '-'}${parseFloat(item.amount).toFixed(2)} €</span>
-                                <div onclick="event.stopPropagation(); toggleProcessed('${item.id}')" class="tx-check ${item.processed ? 'done' : 'pending'}">
-                                    <i data-lucide="check" class="w-4 h-4"></i>
+                            <div class="swipe-content tx-row tx-${item.type} p-3.5 flex items-center justify-between ${item.processed ? 'processed' : ''}"
+                                 id="item-${item.id}"
+                                 ontouchstart="handleSwipeStart(event, '${item.id}')"
+                                 ontouchmove="handleSwipeMove(event, '${item.id}')"
+                                 ontouchend="handleSwipeEnd(event, '${item.id}')">
+
+                                <div class="tx-main flex-1 min-w-0">
+                                    <div class="tx-title">
+                                        ${item.isRecurring ? '<i data-lucide="repeat" class="w-3.5 h-3.5 text-emerald-500 inline shrink-0"></i>' : ''}
+                                        <span class="truncate">${item.category}</span>
+                                        ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${item.sub}</span>` : ''}
+                                    </div>
+                                    <div class="tx-note">${item.note ? item.note : '&nbsp;'}</div>
+                                </div>
+
+                                <div class="tx-meta">
+                                    <span class="tx-amount ${item.type === 'income' ? 'income' : 'expense'}">${item.type === 'income' ? '+' : '-'}${parseFloat(item.amount).toFixed(2)} €</span>
+                                    <div onclick="event.stopPropagation(); toggleProcessed('${item.id}')" class="tx-check ${item.processed ? 'done' : 'pending'}">
+                                        <i data-lucide="check" class="w-4 h-4"></i>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                `).join('')}
+                    `).join('')}
+                </div>
             </div>
-        </div>`;
+        `;
     });
 
     list.innerHTML = html;
