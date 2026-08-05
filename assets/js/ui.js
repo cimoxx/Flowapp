@@ -28,33 +28,40 @@ function closeCatDetail() {
     renderManageCats();
 }
 
-function showScreen(s) {
-    document.getElementById('screen-home').classList.toggle('hidden', s !== 'home');
-    document.getElementById('screen-analytics').classList.toggle('hidden', s !== 'analytics');
-    document.getElementById('screen-burnrate').classList.toggle('hidden', s !== 'burnrate');
-    document.getElementById('settings-screen').classList.toggle('hidden', s !== 'settings');
+function showScreen(screen) {
+    document.getElementById('screen-home').classList.toggle('hidden', screen !== 'home');
+    document.getElementById('screen-analytics').classList.toggle('hidden', screen !== 'analytics');
+    document.getElementById('screen-burnrate').classList.toggle('hidden', screen !== 'burnrate');
+    document.getElementById('settings-screen').classList.toggle('hidden', screen !== 'settings');
 
-    document.getElementById('nav-home').classList.toggle('active', s === 'home');
-    document.getElementById('nav-analytics').classList.toggle('active', s === 'analytics');
-    document.getElementById('nav-burnrate').classList.toggle('active', s === 'burnrate');
-    document.getElementById('nav-settings').classList.toggle('active', s === 'settings');
+    document.getElementById('nav-home').classList.toggle('active', screen === 'home');
+    document.getElementById('nav-analytics').classList.toggle('active', screen === 'analytics');
+    document.getElementById('nav-burnrate').classList.toggle('active', screen === 'burnrate');
+    document.getElementById('nav-settings').classList.toggle('active', screen === 'settings');
 
-    if (s === 'settings') {
+    if (screen === 'settings') {
         activeSettingsCat = null;
         closeCatDetail();
         renderManageCats();
         lucide.createIcons();
-    } else if (s === 'analytics') {
+        return;
+    }
+
+    if (screen === 'analytics') {
         renderChartMonthChips();
         updateAnalytics();
-    } else if (s === 'burnrate') {
+        return;
+    }
+
+    if (screen === 'burnrate') {
         renderChartMonthChips();
         updateBurnRateTab();
-    } else {
-        processRecurringPayments();
-        renderList();
-        renderSwipeHint();
+        return;
     }
+
+    processRecurringPayments();
+    renderList();
+    renderSwipeHint();
 }
 
 function showToast({ type = 'success', title = '', text = '', duration = 2600, action = null } = {}) {
@@ -95,14 +102,9 @@ function showToast({ type = 'success', title = '', text = '', duration = 2600, a
         }
     }
 
-    requestAnimationFrame(() => {
-        toast.classList.add('show');
-    });
+    requestAnimationFrame(() => toast.classList.add('show'));
 
-    const timeout = setTimeout(() => {
-        dismissToast(toast);
-    }, duration);
-
+    const timeout = setTimeout(() => dismissToast(toast), duration);
     toastTimeouts.push(timeout);
 }
 
@@ -111,7 +113,7 @@ function exportData() {
         db,
         categories,
         exportedAt: new Date().toISOString(),
-        version: 'v2.30.0'
+        version: 'v2.30.1'
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -134,7 +136,7 @@ function importData(event) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         try {
             const parsed = JSON.parse(e.target.result);
 
@@ -143,6 +145,9 @@ function importData(event) {
 
             localStorage.setItem('f_db_v20', JSON.stringify(db));
             localStorage.setItem('f_cats_v20', JSON.stringify(categories));
+
+            analyticsBreakdownExpanded = {};
+            burnBreakdownExpanded = {};
 
             renderCatGrid();
             renderManageCats();
@@ -178,6 +183,8 @@ function resetLocalData() {
 
     db = [];
     syncQueue = [];
+    analyticsBreakdownExpanded = {};
+    burnBreakdownExpanded = {};
 
     renderList();
     updateAnalytics();
@@ -195,8 +202,6 @@ function dismissToast(toastEl) {
     if (!toastEl) return;
     toastEl.classList.remove('show');
     setTimeout(() => {
-        if (toastEl && toastEl.parentNode) {
-            toastEl.parentNode.removeChild(toastEl);
-        }
+        if (toastEl?.parentNode) toastEl.parentNode.removeChild(toastEl);
     }, 250);
 }
