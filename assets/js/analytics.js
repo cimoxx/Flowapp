@@ -237,7 +237,7 @@ function buildAggregateData(filtered, dataMode, levelMode, userFilter) {
     return { working, sums };
 }
 
-function buildSubcategoryBreakdown(filtered, dataMode, userFilter) {
+function buildNestedBreakdown(filtered, dataMode, userFilter) {
     let working = [...filtered];
 
     if (userFilter !== 'all') {
@@ -245,6 +245,7 @@ function buildSubcategoryBreakdown(filtered, dataMode, userFilter) {
     }
 
     const result = {};
+
     working.forEach(item => {
         if (dataMode === 'expense' && item.type !== 'expense') return;
         if (dataMode === 'income' && item.type !== 'income') return;
@@ -253,47 +254,86 @@ function buildSubcategoryBreakdown(filtered, dataMode, userFilter) {
         const sub = item.sub || 'Nezaradené';
         const val = parseFloat(item.amount);
 
-        if (!result[cat]) result[cat] = {};
-        if (!result[cat][sub]) result[cat][sub] = 0;
+        if (!result[cat]) result[cat] = { total: 0, subs: {} };
+        if (!result[cat].subs[sub]) result[cat].subs[sub] = 0;
 
-        if (dataMode === 'balance') {
-            result[cat][sub] += item.type === 'income' ? val : -val;
-        } else {
-            result[cat][sub] += val;
-        }
+        const signedVal = dataMode === 'balance'
+            ? (item.type === 'income' ? val : -val)
+            : val;
+
+        result[cat].total += signedVal;
+        result[cat].subs[sub] += signedVal;
     });
 
     return result;
 }
 
-function renderSubBreakdown(containerId, breakdown, accent = 'emerald') {
+function renderTreeBreakdown(containerId, nestedData, accentColors) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    const catKeys = Object.keys(breakdown);
-    if (catKeys.length === 0) {
+    const catEntries = Object.entries(nestedData).sort((a, b) => Math.abs(b[1].total) - Math.abs(a[1].total));
+    if (catEntries.length === 0) {
         container.innerHTML = '';
         return;
     }
 
-    container.innerHTML = catKeys.map(cat => {
-        const subs = breakdown[cat];
-        const subKeys = Object.keys(subs).sort((a, b) => Math.abs(subs[b]) - Math.abs(subs[a]));
+    const grandTotal = catEntries.reduce((sum, [, val]) => sum + Math.abs(val.total), 0);
 
-        return `
-            <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                <div class="text-[10px] font-black uppercase tracking-[0.08em] text-${accent}-500 mb-2">${cat}</div>
-                <div class="space-y-1.5">
-                    ${subKeys.map(sub => `
-                        <div onclick="filterFromStats('${cat}', '${sub}')" class="flex items-center justify-between text-[11px] font-bold cursor-pointer">
-                            <span class="text-slate-500">${sub}</span>
-                            <span class="text-slate-800 dark:text-slate-200 font-extrabold">${subs[sub].toFixed(2)} €</span>
-                        </div>
-                    `).join('')}
-                </div>
+    container.innerHTML = `
+        <div class="tree-breakdown-card">
+            <div class="tree-breakdown-header">
+                <span>Kategória / Podkategória</span>
+                <span>Suma / Podiel</span>
             </div>
-        `;
-    }).join('');
+
+            ${catEntries.map(([cat, data], idx) => {
+                const catTotalAbs = Math.abs(data.total);
+                const catPct = grandTotal > 0 ? (catTotalAbs / grandTotal) * 100 : 0;
+                const color = accentColors[idx % accentColors.length];
+                const subEntries = Object.entries(data.subs).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+
+                return `
+                    <div class="tree-group">
+                        <div class="tree-top-row">
+                            <div class="tree-cat-left">
+                                <div class="tree-cat-name-row">
+                                    <span class="tree-color-dot" style="background:${color}"></span>
+                                    <span class="tree-cat-name">${cat}</span>
+                                </div>
+                                <div class="tree-progress">
+                                    <div class="tree-progress-bar" style="width:${catPct.toFixed(1)}%; background:${color}"></div>
+                                </div>
+                            </div>
+
+                            <div class="tree-cat-right">
+                                <span class="tree-cat-share">${catPct.toFixed(0)}%</span>
+                                <span class="tree-cat-amount">${data.total.toFixed(2)} €</span>
+                            </div>
+                        </div>
+
+                        <div class="tree-sub-list">
+                            ${subEntries.map(([sub, subVal]) => {
+                                const subPct = catTotalAbs > 0 ? (Math.abs(subVal) / catTotalAbs) * 100 : 0;
+                                return `
+                                    <div class="tree-sub-row" onclick="filterFromStats('${cat}', '${sub}')">
+                                        <div class="tree-sub-left">
+                                            <span class="tree-branch">└─</span>
+                                            <span class="tree-sub-name">${sub}</span>
+                                        </div>
+                                        <div class="tree-sub-right">
+                                            <span class="tree-sub-share">${subPct.toFixed(0)}% z kat.</span>
+                                            <span class="tree-sub-amount">${subVal.toFixed(2)} €</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
 }
 
 function renderAnalyticsSummaryCards(filtered, sums, dataMode) {
@@ -349,7 +389,7 @@ function updateAnalytics() {
 
     let filtered = getAnalyticsDataForPeriod();
     const { working, sums } = buildAggregateData(filtered, dataMode, levelMode, userFilter);
-    const subBreakdown = buildSubcategoryBreakdown(filtered, dataMode, userFilter);
+    const nested = buildNestedBreakdown(filtered, dataMode, userFilter);
 
     const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
     const data = labels.map(k => sums[k]);
@@ -385,7 +425,7 @@ function updateAnalytics() {
     }
 
     renderAnalyticsSummaryCards(working, sums, dataMode);
-    renderSubBreakdown('chart-sub-stats-summary', subBreakdown, 'emerald');
+    renderTreeBreakdown('chart-sub-stats-summary', nested, colors);
 
     const ctx = document.getElementById('analyticsChart').getContext('2d');
     if (analyticsChartInstance) analyticsChartInstance.destroy();
@@ -487,7 +527,7 @@ function updateBurnRateTab() {
 
     const { sums } = buildAggregateData(filtered, dataMode, levelMode, userFilter);
     const previousAggregate = buildAggregateData(previousPeriod, dataMode, levelMode, userFilter);
-    const subBreakdown = buildSubcategoryBreakdown(filtered, dataMode, userFilter);
+    const nested = buildNestedBreakdown(filtered, dataMode, userFilter);
 
     const daysCount = getDaysCountForPeriod(filtered);
     const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
@@ -506,6 +546,11 @@ function updateBurnRateTab() {
     const breakdownContainer = document.getElementById('burn-stats-breakdown');
     const insightContainer = document.getElementById('burn-insight-cards');
     const subBreakdownContainer = document.getElementById('burn-sub-stats-breakdown');
+
+    const burnColors = [
+        '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6',
+        '#06b6d4', '#f97316', '#84cc16', '#64748b', '#d946ef'
+    ];
 
     if (labels.length === 0) {
         if (burnRateTabChartInstance) {
@@ -532,7 +577,7 @@ function updateBurnRateTab() {
     }
 
     renderBurnInsightCards(total, previousTotal, monthlyForecastTotal, daysLeft);
-    renderSubBreakdown('burn-sub-stats-breakdown', subBreakdown, 'amber');
+    renderTreeBreakdown('burn-sub-stats-breakdown', nested, burnColors);
 
     if (cardsContainer) {
         cardsContainer.innerHTML = `
