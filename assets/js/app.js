@@ -10,12 +10,14 @@
         yearSelect.appendChild(opt);
     }
 
+    renderUserToggle();
+    renderUserFilters();
+    renderUsersSettings();
     renderMonthChips();
     renderCatGrid();
     processRecurringPayments();
     renderList();
     renderSwipeHint();
-    renderQuickTemplates();
 
     if (pendingCatSync) {
         syncCategories('push');
