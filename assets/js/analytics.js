@@ -1,17 +1,25 @@
 function setAnalyticsDataMode(scope, mode) {
     if (scope === 'chart') {
-        document.getElementById('chart-data-mode').value = mode;
+        const input = document.getElementById('chart-data-mode');
+        if (input) input.value = mode;
+
         ['expense', 'income', 'balance'].forEach(m => {
-            document.getElementById(`chart-data-${m}`).classList.toggle('active', m === mode);
+            const btn = document.getElementById(`chart-data-${m}`);
+            if (btn) btn.classList.toggle('active', m === mode);
         });
+
         updateAnalytics();
         return;
     }
 
-    document.getElementById('burn-data-mode').value = mode;
+    const input = document.getElementById('burn-data-mode');
+    if (input) input.value = mode;
+
     ['expense', 'income', 'balance'].forEach(m => {
-        document.getElementById(`burn-data-${m}`).classList.toggle('active', m === mode);
+        const btn = document.getElementById(`burn-data-${m}`);
+        if (btn) btn.classList.toggle('active', m === mode);
     });
+
     updateBurnRateTab();
 }
 
@@ -47,6 +55,7 @@ function setChartPeriod(period) {
     renderChartMonthChips();
 
     document.querySelectorAll('.period-chip').forEach(btn => btn.classList.remove('active'));
+
     ['p-chip-', 'bp-chip-'].forEach(prefix => {
         const btn = document.getElementById(`${prefix}${period}`);
         if (btn) btn.classList.add('active');
@@ -69,9 +78,9 @@ function getAnalyticsDataForPeriod(periodOverride = null, monthsOverride = null)
         const parts = cleanD.split('-');
         if (parts.length !== 3) return false;
 
-        const itemYear = parseInt(parts[0]);
-        const itemMonth = parseInt(parts[1]) - 1;
-        const itemDate = new Date(itemYear, itemMonth, parseInt(parts[2]));
+        const itemYear = parseInt(parts[0], 10);
+        const itemMonth = parseInt(parts[1], 10) - 1;
+        const itemDate = new Date(itemYear, itemMonth, parseInt(parts[2], 10));
 
         if (activeMonths.length > 0) {
             return activeMonths.includes(itemMonth);
@@ -80,19 +89,23 @@ function getAnalyticsDataForPeriod(periodOverride = null, monthsOverride = null)
         if (activePeriod === 'current_month') {
             return itemYear === curYear && itemMonth === curMonth;
         }
+
         if (activePeriod === '3m') {
             const cutoff = new Date();
             cutoff.setMonth(now.getMonth() - 3);
             return itemDate >= cutoff;
         }
+
         if (activePeriod === '6m') {
             const cutoff = new Date();
             cutoff.setMonth(now.getMonth() - 6);
             return itemDate >= cutoff;
         }
+
         if (activePeriod === 'year') {
             return itemYear === curYear;
         }
+
         return true;
     });
 }
@@ -115,8 +128,8 @@ function getPreviousPeriodData() {
             const parts = cleanD.split('-');
             if (parts.length !== 3) return false;
 
-            const itemYear = parseInt(parts[0]);
-            const itemMonth = parseInt(parts[1]) - 1;
+            const itemYear = parseInt(parts[0], 10);
+            const itemMonth = parseInt(parts[1], 10) - 1;
             const prevMonth = (curMonth - 1 + 12) % 12;
             const prevYear = curMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
@@ -153,7 +166,7 @@ function getPreviousPeriodData() {
         return db.filter(d => {
             const cleanD = getCleanDateStr(d.date);
             const parts = cleanD.split('-');
-            return parts.length === 3 && parseInt(parts[0]) === prevYear;
+            return parts.length === 3 && parseInt(parts[0], 10) === prevYear;
         });
     }
 
@@ -164,10 +177,7 @@ function getDaysCountForPeriod(filteredItems) {
     const now = new Date();
 
     if (selectedChartMonths.length > 0) return selectedChartMonths.length * 30.5;
-
-    if (selectedChartPeriod === 'current_month') {
-        return Math.max(1, now.getDate());
-    }
+    if (selectedChartPeriod === 'current_month') return Math.max(1, now.getDate());
     if (selectedChartPeriod === '3m') return 90;
     if (selectedChartPeriod === '6m') return 180;
 
@@ -179,11 +189,13 @@ function getDaysCountForPeriod(filteredItems) {
 
     if (selectedChartPeriod === 'all') {
         if (filteredItems.length === 0) return 1;
+
         const timestamps = filteredItems
             .map(i => new Date(getCleanDateStr(i.date)).getTime())
             .filter(t => !isNaN(t));
 
         if (timestamps.length === 0) return 1;
+
         const minDate = new Date(Math.min(...timestamps));
         const diffTime = Math.abs(now - minDate);
         return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
@@ -210,7 +222,7 @@ function filterFromStats(cat, sub = null) {
             selectedMonths = [];
             for (let i = 0; i < 6; i++) selectedMonths.push((curMonth - i + 12) % 12);
         } else {
-            selectedMonths = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+            selectedMonths = [0,1,2,3,4,5,6,7,8,9,10,11];
         }
     }
 
@@ -226,12 +238,12 @@ function buildAggregateData(filtered, dataMode, levelMode) {
         if (dataMode === 'expense' && item.type !== 'expense') return;
         if (dataMode === 'income' && item.type !== 'income') return;
 
-        let key = item.category;
+        let key = item.category || 'Nezaradené';
         if (levelMode === 'sub') {
             key = item.sub ? `${item.category} / ${item.sub}` : `${item.category} / Nezaradené`;
         }
 
-        const val = parseFloat(item.amount);
+        const val = parseFloat(item.amount) || 0;
         if (!sums[key]) sums[key] = 0;
 
         if (dataMode === 'balance') {
@@ -253,7 +265,7 @@ function buildNestedBreakdown(filtered, dataMode) {
 
         const cat = item.category || 'Nezaradené';
         const sub = item.sub || 'Nezaradené';
-        const amount = parseFloat(item.amount);
+        const amount = parseFloat(item.amount) || 0;
 
         if (!result[cat]) result[cat] = { total: 0, subs: {} };
         if (!result[cat].subs[sub]) result[cat].subs[sub] = 0;
@@ -316,7 +328,7 @@ function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'ana
 
                 return `
                     <div class="tree-group">
-                        <div class="tree-top-row tree-clickable" onclick="toggleBreakdownGroup('${scope}', '${cat}')">
+                        <div class="tree-top-row tree-clickable" onclick="toggleBreakdownGroup('${scope}', '${String(cat).replace(/'/g, "\\'")}')">
                             <div class="tree-cat-left">
                                 <div class="tree-cat-name-row">
                                     <span class="tree-color-dot" style="background:${color}"></span>
@@ -339,7 +351,7 @@ function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'ana
                                 ${subEntries.map(([sub, subVal]) => {
                                     const subPct = catTotalAbs > 0 ? (Math.abs(subVal) / catTotalAbs) * 100 : 0;
                                     return `
-                                        <div class="tree-sub-row" onclick="filterFromStats('${cat}', '${sub}')">
+                                        <div class="tree-sub-row" onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', '${String(sub).replace(/'/g, "\\'")}')">
                                             <div class="tree-sub-left">
                                                 <span class="tree-branch">└─</span>
                                                 <span class="tree-sub-name">${sub}</span>
@@ -401,100 +413,109 @@ function renderAnalyticsSummaryCards(filtered, sums, dataMode) {
 function updateAnalytics() {
     if (document.getElementById('screen-analytics').classList.contains('hidden')) return;
 
-    const chartType = document.getElementById('chart-type').value;
-    const levelMode = document.getElementById('chart-level-mode').value;
-    const dataMode = document.getElementById('chart-data-mode').value;
+    try {
+        const chartType = document.getElementById('chart-type').value;
+        const levelMode = document.getElementById('chart-level-mode').value;
+        const dataMode = document.getElementById('chart-data-mode').value;
 
-    ['expense', 'income', 'balance'].forEach(m => {
-        const btn = document.getElementById(`chart-data-${m}`);
-        if (btn) btn.classList.toggle('active', m === dataMode);
-    });
+        ['expense', 'income', 'balance'].forEach(m => {
+            const btn = document.getElementById(`chart-data-${m}`);
+            if (btn) btn.classList.toggle('active', m === dataMode);
+        });
 
-    const filtered = getAnalyticsDataForPeriod();
-    const { working, sums } = buildAggregateData(filtered, dataMode, levelMode);
-    const nested = buildNestedBreakdown(filtered, dataMode);
+        const filtered = getAnalyticsDataForPeriod();
+        const { working, sums } = buildAggregateData(filtered, dataMode, levelMode);
+        const nested = buildNestedBreakdown(filtered, dataMode);
 
-    const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
-    const data = labels.map(k => sums[k]);
-    const total = data.reduce((a, b) => a + b, 0);
+        const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
+        const data = labels.map(k => sums[k]);
+        const total = data.reduce((a, b) => a + b, 0);
 
-    const colors = [
-        '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6',
-        '#06b6d4', '#f97316', '#84cc16', '#64748b', '#d946ef'
-    ];
+        const colors = [
+            '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6',
+            '#06b6d4', '#f97316', '#84cc16', '#64748b', '#d946ef'
+        ];
 
-    const statsContainer = document.getElementById('chart-stats-summary');
-    const summaryCards = document.getElementById('analytics-summary-cards');
-    const subStatsContainer = document.getElementById('chart-sub-stats-summary');
+        const statsContainer = document.getElementById('chart-stats-summary');
+        const summaryCards = document.getElementById('analytics-summary-cards');
+        const subStatsContainer = document.getElementById('chart-sub-stats-summary');
 
-    if (labels.length === 0) {
-        if (analyticsChartInstance) {
-            analyticsChartInstance.destroy();
-            analyticsChartInstance = null;
-        }
-        if (summaryCards) summaryCards.innerHTML = '';
-        if (subStatsContainer) subStatsContainer.innerHTML = '';
+        if (labels.length === 0) {
+            if (analyticsChartInstance) {
+                analyticsChartInstance.destroy();
+                analyticsChartInstance = null;
+            }
+            if (summaryCards) summaryCards.innerHTML = '';
+            if (subStatsContainer) subStatsContainer.innerHTML = '';
 
-        statsContainer.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">
-                    <i data-lucide="pie-chart" class="w-6 h-6"></i>
+            statsContainer.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i data-lucide="pie-chart" class="w-6 h-6"></i>
+                    </div>
+                    <div class="empty-state-title">Žiadne dáta pre graf</div>
+                    <div class="empty-state-text">Skús zmeniť obdobie alebo typ dát. Keď pribudnú transakcie, graf sa zobrazí automaticky.</div>
                 </div>
-                <div class="empty-state-title">Žiadne dáta pre graf</div>
-                <div class="empty-state-text">Skús zmeniť obdobie alebo typ dát. Keď pribudnú transakcie, graf sa zobrazí automaticky.</div>
-            </div>
-        `;
-        lucide.createIcons();
-        return;
-    }
+            `;
+            lucide.createIcons();
+            return;
+        }
 
-    renderAnalyticsSummaryCards(working, sums, dataMode);
-    renderTreeBreakdown('chart-sub-stats-summary', nested, colors, 'analytics');
+        renderAnalyticsSummaryCards(working, sums, dataMode);
+        renderTreeBreakdown('chart-sub-stats-summary', nested, colors, 'analytics');
 
-    const ctx = document.getElementById('analyticsChart').getContext('2d');
-    if (analyticsChartInstance) analyticsChartInstance.destroy();
+        const canvas = document.getElementById('analyticsChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
 
-    analyticsChartInstance = new Chart(ctx, {
-        type: chartType,
-        data: {
-            labels,
-            datasets: [{
-                data,
-                backgroundColor: colors.slice(0, labels.length),
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: chartType === 'doughnut',
-                    position: 'bottom',
-                    labels: { font: { size: 10 } }
+        if (analyticsChartInstance) analyticsChartInstance.destroy();
+
+        analyticsChartInstance = new Chart(ctx, {
+            type: chartType,
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: colors.slice(0, labels.length),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: chartType === 'doughnut',
+                        position: 'bottom',
+                        labels: { font: { size: 10 } }
+                    }
                 }
             }
-        }
-    });
+        });
 
-    statsContainer.innerHTML = labels.map((label, idx) => {
-        const val = sums[label];
-        const pct = total !== 0 ? ((val / total) * 100).toFixed(1) : '0';
-        const [cat, sub] = label.split(' / ');
+        statsContainer.innerHTML = labels.map((label, idx) => {
+            const val = sums[label];
+            const pct = total !== 0 ? ((val / total) * 100).toFixed(1) : '0';
+            const [cat, sub] = label.split(' / ');
 
-        return `
-            <div onclick="filterFromStats('${cat}', ${sub ? `'${sub}'` : 'null'})" class="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-emerald-500/50 transition-all">
-                <div class="flex items-center gap-2">
-                    <div class="w-2.5 h-2.5 rounded-full" style="background:${colors[idx % colors.length]}"></div>
-                    <span class="text-xs font-bold">${label}</span>
+            return `
+                <div onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', ${sub ? `'${String(sub).replace(/'/g, "\\'")}'` : 'null'})" class="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-emerald-500/50 transition-all">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2.5 h-2.5 rounded-full" style="background:${colors[idx % colors.length]}"></div>
+                        <span class="text-xs font-bold">${label}</span>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs font-extrabold">${val.toFixed(2)} €</div>
+                        <div class="text-[9px] font-bold text-slate-400">${pct}%</div>
+                    </div>
                 </div>
-                <div class="text-right">
-                    <div class="text-xs font-extrabold">${val.toFixed(2)} €</div>
-                    <div class="text-[9px] font-bold text-slate-400">${pct}%</div>
-                </div>
-            </div>
-        `;
-    }).join('');
+            `;
+        }).join('');
+
+        lucide.createIcons();
+    } catch (err) {
+        console.error('Analytics render error:', err);
+    }
 }
 
 function renderBurnInsightCards(total, previousTotal, forecast, daysLeft) {
@@ -535,130 +556,139 @@ function renderBurnInsightCards(total, previousTotal, forecast, daysLeft) {
 function updateBurnRateTab() {
     if (document.getElementById('screen-burnrate').classList.contains('hidden')) return;
 
-    const chartType = document.getElementById('burn-chart-type').value;
-    const levelMode = document.getElementById('burn-level-mode').value;
-    const dataMode = document.getElementById('burn-data-mode').value;
+    try {
+        const chartType = document.getElementById('burn-chart-type').value;
+        const levelMode = document.getElementById('burn-level-mode').value;
+        const dataMode = document.getElementById('burn-data-mode').value;
 
-    ['expense', 'income', 'balance'].forEach(m => {
-        const btn = document.getElementById(`burn-data-${m}`);
-        if (btn) btn.classList.toggle('active', m === dataMode);
-    });
+        ['expense', 'income', 'balance'].forEach(m => {
+            const btn = document.getElementById(`burn-data-${m}`);
+            if (btn) btn.classList.toggle('active', m === dataMode);
+        });
 
-    const filtered = getAnalyticsDataForPeriod();
-    const previousPeriod = getPreviousPeriodData();
+        const filtered = getAnalyticsDataForPeriod();
+        const previousPeriod = getPreviousPeriodData();
 
-    const { sums } = buildAggregateData(filtered, dataMode, levelMode);
-    const previousAggregate = buildAggregateData(previousPeriod, dataMode, levelMode);
-    const nested = buildNestedBreakdown(filtered, dataMode);
+        const { sums } = buildAggregateData(filtered, dataMode, levelMode);
+        const previousAggregate = buildAggregateData(previousPeriod, dataMode, levelMode);
+        const nested = buildNestedBreakdown(filtered, dataMode);
 
-    const daysCount = getDaysCountForPeriod(filtered);
-    const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
-    const data = labels.map(k => sums[k]);
-    const total = data.reduce((a, b) => a + b, 0);
-    const previousTotal = Object.values(previousAggregate.sums).reduce((a, b) => a + b, 0);
+        const daysCount = getDaysCountForPeriod(filtered);
+        const labels = Object.keys(sums).sort((a, b) => Math.abs(sums[b]) - Math.abs(sums[a]));
+        const data = labels.map(k => sums[k]);
+        const total = data.reduce((a, b) => a + b, 0);
+        const previousTotal = Object.values(previousAggregate.sums).reduce((a, b) => a + b, 0);
 
-    const dailyAvgTotal = total / daysCount;
-    const monthlyForecastTotal = dailyAvgTotal * 30.5;
+        const dailyAvgTotal = total / daysCount;
+        const monthlyForecastTotal = dailyAvgTotal * 30.5;
 
-    const now = new Date();
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const daysLeft = Math.max(0, endOfMonth.getDate() - now.getDate());
+        const now = new Date();
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const daysLeft = Math.max(0, endOfMonth.getDate() - now.getDate());
 
-    const cardsContainer = document.getElementById('burn-metrics-cards');
-    const breakdownContainer = document.getElementById('burn-stats-breakdown');
-    const insightContainer = document.getElementById('burn-insight-cards');
-    const subBreakdownContainer = document.getElementById('burn-sub-stats-breakdown');
+        const cardsContainer = document.getElementById('burn-metrics-cards');
+        const breakdownContainer = document.getElementById('burn-stats-breakdown');
+        const insightContainer = document.getElementById('burn-insight-cards');
+        const subBreakdownContainer = document.getElementById('burn-sub-stats-breakdown');
 
-    const burnColors = [
-        '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6',
-        '#06b6d4', '#f97316', '#84cc16', '#64748b', '#d946ef'
-    ];
+        const burnColors = [
+            '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6',
+            '#06b6d4', '#f97316', '#84cc16', '#64748b', '#d946ef'
+        ];
 
-    if (labels.length === 0) {
-        if (burnRateTabChartInstance) {
-            burnRateTabChartInstance.destroy();
-            burnRateTabChartInstance = null;
+        if (labels.length === 0) {
+            if (burnRateTabChartInstance) {
+                burnRateTabChartInstance.destroy();
+                burnRateTabChartInstance = null;
+            }
+
+            if (cardsContainer) cardsContainer.innerHTML = '';
+            if (insightContainer) insightContainer.innerHTML = '';
+            if (subBreakdownContainer) subBreakdownContainer.innerHTML = '';
+
+            breakdownContainer.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i data-lucide="flame" class="w-6 h-6"></i>
+                    </div>
+                    <div class="empty-state-title">Žiadne dáta pre burn rate</div>
+                    <div class="empty-state-text">Pre zvolený výber sa nenašli žiadne transakcie. Skús zmeniť filtre alebo počkaj na nové dáta.</div>
+                </div>
+            `;
+            lucide.createIcons();
+            return;
         }
 
-        if (cardsContainer) cardsContainer.innerHTML = '';
-        if (insightContainer) insightContainer.innerHTML = '';
-        if (subBreakdownContainer) subBreakdownContainer.innerHTML = '';
+        renderBurnInsightCards(total, previousTotal, monthlyForecastTotal, daysLeft);
+        renderTreeBreakdown('burn-sub-stats-breakdown', nested, burnColors, 'burn');
 
-        breakdownContainer.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">
-                    <i data-lucide="flame" class="w-6 h-6"></i>
-                </div>
-                <div class="empty-state-title">Žiadne dáta pre burn rate</div>
-                <div class="empty-state-text">Pre zvolený výber sa nenašli žiadne transakcie. Skús zmeniť filtre alebo počkaj na nové dáta.</div>
+        cardsContainer.innerHTML = `
+            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-center">
+                <span class="text-[8px] font-black text-amber-500 uppercase tracking-wider block mb-1">Celkom</span>
+                <span class="text-sm font-extrabold text-amber-500">${total.toFixed(2)} €</span>
+            </div>
+            <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-center">
+                <span class="text-[8px] font-black text-emerald-500 uppercase tracking-wider block mb-1">Denný Priemer</span>
+                <span class="text-sm font-extrabold text-emerald-500">${dailyAvgTotal.toFixed(2)} €</span>
+            </div>
+            <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-center">
+                <span class="text-[8px] font-black text-blue-500 uppercase tracking-wider block mb-1">Mesačný Odhad</span>
+                <span class="text-sm font-extrabold text-blue-500">${monthlyForecastTotal.toFixed(2)} €</span>
             </div>
         `;
+
+        const canvas = document.getElementById('burnRateTabChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        if (burnRateTabChartInstance) burnRateTabChartInstance.destroy();
+
+        burnRateTabChartInstance = new Chart(ctx, {
+            type: chartType,
+            data: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: '#f59e0b',
+                    borderWidth: 0,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        breakdownContainer.innerHTML = labels.map(label => {
+            const val = sums[label];
+            const dailyAvg = val / daysCount;
+            const monthlyForecast = dailyAvg * 30.5;
+            const [cat, sub] = label.split(' / ');
+
+            return `
+                <div onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', ${sub ? `'${String(sub).replace(/'/g, "\\'")}'` : 'null'})" class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-amber-500/50 transition-all space-y-1.5">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-extrabold">${label}</span>
+                        <span class="text-xs font-black text-amber-500">${val.toFixed(2)} €</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[9px] pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <div>
+                            <span class="text-slate-400 block font-bold">Denný priemer</span>
+                            <span class="font-extrabold text-slate-700 dark:text-slate-300">${dailyAvg.toFixed(2)} €/deň</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-slate-400 block font-bold">Predpoklad / mesiac</span>
+                            <span class="font-extrabold text-slate-700 dark:text-slate-300">${monthlyForecast.toFixed(2)} €</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
         lucide.createIcons();
-        return;
+    } catch (err) {
+        console.error('Burn rate render error:', err);
     }
-
-    renderBurnInsightCards(total, previousTotal, monthlyForecastTotal, daysLeft);
-    renderTreeBreakdown('burn-sub-stats-breakdown', nested, burnColors, 'burn');
-
-    cardsContainer.innerHTML = `
-        <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-center">
-            <span class="text-[8px] font-black text-amber-500 uppercase tracking-wider block mb-1">Celkom</span>
-            <span class="text-sm font-extrabold text-amber-500">${total.toFixed(2)} €</span>
-        </div>
-        <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-center">
-            <span class="text-[8px] font-black text-emerald-500 uppercase tracking-wider block mb-1">Denný Priemer</span>
-            <span class="text-sm font-extrabold text-emerald-500">${dailyAvgTotal.toFixed(2)} €</span>
-        </div>
-        <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-center">
-            <span class="text-[8px] font-black text-blue-500 uppercase tracking-wider block mb-1">Mesačný Odhad</span>
-            <span class="text-sm font-extrabold text-blue-500">${monthlyForecastTotal.toFixed(2)} €</span>
-        </div>
-    `;
-
-    const ctx = document.getElementById('burnRateTabChart').getContext('2d');
-    if (burnRateTabChartInstance) burnRateTabChartInstance.destroy();
-
-    burnRateTabChartInstance = new Chart(ctx, {
-        type: chartType,
-        data: {
-            labels,
-            datasets: [{
-                data,
-                backgroundColor: '#f59e0b',
-                borderWidth: 0,
-                borderRadius: 8
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } }
-        }
-    });
-
-    breakdownContainer.innerHTML = labels.map(label => {
-        const val = sums[label];
-        const dailyAvg = val / daysCount;
-        const monthlyForecast = dailyAvg * 30.5;
-        const [cat, sub] = label.split(' / ');
-
-        return `
-            <div onclick="filterFromStats('${cat}', ${sub ? `'${sub}'` : 'null'})" class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-amber-500/50 transition-all space-y-1.5">
-                <div class="flex justify-between items-center">
-                    <span class="text-xs font-extrabold">${label}</span>
-                    <span class="text-xs font-black text-amber-500">${val.toFixed(2)} €</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 text-[9px] pt-1 border-t border-slate-100 dark:border-slate-800">
-                    <div>
-                        <span class="text-slate-400 block font-bold">Denný priemer</span>
-                        <span class="font-extrabold text-slate-700 dark:text-slate-300">${dailyAvg.toFixed(2)} €/deň</span>
-                    </div>
-                    <div class="text-right">
-                        <span class="text-slate-400 block font-bold">Predpoklad / mesiac</span>
-                        <span class="font-extrabold text-slate-700 dark:text-slate-300">${monthlyForecast.toFixed(2)} €</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
 }
