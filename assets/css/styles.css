@@ -1069,21 +1069,4 @@ input, select, textarea {
 .tree-sub-amount {
     font-size: 11px;
     font-weight: 900;
-    color: var(--text-main);
-    white-space: nowrap;
-}
-
-button, select, input, textarea {
-    outline: none;
-}
-
-button:focus-visible,
-select:focus-visible,
-input:focus-visible,
-textarea:focus-visible {
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.16);
-}
-
-.text-safe-dim {
-    color: var(--text-dim);
-}
+    color
