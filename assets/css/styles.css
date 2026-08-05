@@ -645,12 +645,9 @@ input, select, textarea {
     letter-spacing: -0.03em;
 }
 
+/* OPRAVA KONTRASTU */
 .tx-amount.expense {
-    color: #0f172a;
-}
-
-.dark .tx-amount.expense {
-    color: #f1f5f9;
+    color: var(--text-main);
 }
 
 .tx-amount.income {
@@ -894,7 +891,6 @@ input, select, textarea {
     min-height: 44px;
 }
 
-/* NOVÝ STROMOVÝ BREAKDOWN */
 .tree-breakdown-card {
     border: 1px solid var(--border);
     background: var(--bg-card);
