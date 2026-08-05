@@ -5,13 +5,14 @@ function setAnalyticsDataMode(scope, mode) {
             document.getElementById(`chart-data-${m}`).classList.toggle('active', m === mode);
         });
         updateAnalytics();
-    } else if (scope === 'burn') {
-        document.getElementById('burn-data-mode').value = mode;
-        ['expense', 'income', 'balance'].forEach(m => {
-            document.getElementById(`burn-data-${m}`).classList.toggle('active', m === mode);
-        });
-        updateBurnRateTab();
+        return;
     }
+
+    document.getElementById('burn-data-mode').value = mode;
+    ['expense', 'income', 'balance'].forEach(m => {
+        document.getElementById(`burn-data-${m}`).classList.toggle('active', m === mode);
+    });
+    updateBurnRateTab();
 }
 
 function toggleChartMonthSelect(monthIdx) {
@@ -20,13 +21,14 @@ function toggleChartMonthSelect(monthIdx) {
     } else {
         selectedChartMonths.push(monthIdx);
     }
+
     renderChartMonthChips();
     updateAnalytics();
     updateBurnRateTab();
 }
 
 function renderChartMonthChips() {
-    const months = ['Jan','Feb','Mar','Apr','Máj','Jún','Júl','Aug','Sep','Okt','Nov','Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
     ['chart-months-container', 'burn-months-container'].forEach(containerId => {
         const container = document.getElementById(containerId);
@@ -45,7 +47,6 @@ function setChartPeriod(period) {
     renderChartMonthChips();
 
     document.querySelectorAll('.period-chip').forEach(btn => btn.classList.remove('active'));
-
     ['p-chip-', 'bp-chip-'].forEach(prefix => {
         const btn = document.getElementById(`${prefix}${period}`);
         if (btn) btn.classList.add('active');
@@ -78,18 +79,19 @@ function getAnalyticsDataForPeriod(periodOverride = null, monthsOverride = null)
 
         if (activePeriod === 'current_month') {
             return itemYear === curYear && itemMonth === curMonth;
-        } else if (activePeriod === '3m') {
+        }
+        if (activePeriod === '3m') {
             const cutoff = new Date();
             cutoff.setMonth(now.getMonth() - 3);
             return itemDate >= cutoff;
-        } else if (activePeriod === '6m') {
+        }
+        if (activePeriod === '6m') {
             const cutoff = new Date();
             cutoff.setMonth(now.getMonth() - 6);
             return itemDate >= cutoff;
-        } else if (activePeriod === 'year') {
+        }
+        if (activePeriod === 'year') {
             return itemYear === curYear;
-        } else if (activePeriod === 'all') {
-            return true;
         }
         return true;
     });
@@ -103,6 +105,7 @@ function getPreviousPeriodData() {
         const prevMonths = selectedChartMonths
             .map(m => (m - 1 + 12) % 12)
             .filter((m, idx, arr) => arr.indexOf(m) === idx);
+
         return getAnalyticsDataForPeriod(selectedChartPeriod, prevMonths);
     }
 
@@ -111,9 +114,9 @@ function getPreviousPeriodData() {
             const cleanD = getCleanDateStr(d.date);
             const parts = cleanD.split('-');
             if (parts.length !== 3) return false;
+
             const itemYear = parseInt(parts[0]);
             const itemMonth = parseInt(parts[1]) - 1;
-
             const prevMonth = (curMonth - 1 + 12) % 12;
             const prevYear = curMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
@@ -122,26 +125,26 @@ function getPreviousPeriodData() {
     }
 
     if (selectedChartPeriod === '3m') {
-        const prevCutoffEnd = new Date();
-        prevCutoffEnd.setMonth(now.getMonth() - 3);
-        const prevCutoffStart = new Date();
-        prevCutoffStart.setMonth(now.getMonth() - 6);
+        const prevEnd = new Date();
+        prevEnd.setMonth(now.getMonth() - 3);
+        const prevStart = new Date();
+        prevStart.setMonth(now.getMonth() - 6);
 
         return db.filter(d => {
             const itemDate = new Date(getCleanDateStr(d.date));
-            return itemDate >= prevCutoffStart && itemDate < prevCutoffEnd;
+            return itemDate >= prevStart && itemDate < prevEnd;
         });
     }
 
     if (selectedChartPeriod === '6m') {
-        const prevCutoffEnd = new Date();
-        prevCutoffEnd.setMonth(now.getMonth() - 6);
-        const prevCutoffStart = new Date();
-        prevCutoffStart.setMonth(now.getMonth() - 12);
+        const prevEnd = new Date();
+        prevEnd.setMonth(now.getMonth() - 6);
+        const prevStart = new Date();
+        prevStart.setMonth(now.getMonth() - 12);
 
         return db.filter(d => {
             const itemDate = new Date(getCleanDateStr(d.date));
-            return itemDate >= prevCutoffStart && itemDate < prevCutoffEnd;
+            return itemDate >= prevStart && itemDate < prevEnd;
         });
     }
 
@@ -164,22 +167,28 @@ function getDaysCountForPeriod(filteredItems) {
 
     if (selectedChartPeriod === 'current_month') {
         return Math.max(1, now.getDate());
-    } else if (selectedChartPeriod === '3m') {
-        return 90;
-    } else if (selectedChartPeriod === '6m') {
-        return 180;
-    } else if (selectedChartPeriod === 'year') {
+    }
+    if (selectedChartPeriod === '3m') return 90;
+    if (selectedChartPeriod === '6m') return 180;
+
+    if (selectedChartPeriod === 'year') {
         const startOfYear = new Date(now.getFullYear(), 0, 1);
         const diffTime = Math.abs(now - startOfYear);
         return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    } else if (selectedChartPeriod === 'all') {
+    }
+
+    if (selectedChartPeriod === 'all') {
         if (filteredItems.length === 0) return 1;
-        const dates = filteredItems.map(i => new Date(getCleanDateStr(i.date)).getTime()).filter(t => !isNaN(t));
-        if (dates.length === 0) return 1;
-        const minDate = new Date(Math.min(...dates));
+        const timestamps = filteredItems
+            .map(i => new Date(getCleanDateStr(i.date)).getTime())
+            .filter(t => !isNaN(t));
+
+        if (timestamps.length === 0) return 1;
+        const minDate = new Date(Math.min(...timestamps));
         const diffTime = Math.abs(now - minDate);
         return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     }
+
     return 30;
 }
 
@@ -187,7 +196,7 @@ function filterFromStats(cat, sub = null) {
     activeCategoryFilter = cat;
     window.activeSubFilter = sub;
 
-    if (selectedChartMonths && selectedChartMonths.length > 0) {
+    if (selectedChartMonths.length > 0) {
         selectedMonths = [...selectedChartMonths];
     } else {
         const now = new Date();
@@ -200,8 +209,8 @@ function filterFromStats(cat, sub = null) {
         } else if (selectedChartPeriod === '6m') {
             selectedMonths = [];
             for (let i = 0; i < 6; i++) selectedMonths.push((curMonth - i + 12) % 12);
-        } else if (selectedChartPeriod === 'year' || selectedChartPeriod === 'all') {
-            selectedMonths = [0,1,2,3,4,5,6,7,8,9,10,11];
+        } else {
+            selectedMonths = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
         }
     }
 
@@ -211,10 +220,9 @@ function filterFromStats(cat, sub = null) {
 }
 
 function buildAggregateData(filtered, dataMode, levelMode) {
-    let working = [...filtered];
-
     const sums = {};
-    working.forEach(item => {
+
+    filtered.forEach(item => {
         if (dataMode === 'expense' && item.type !== 'expense') return;
         if (dataMode === 'income' && item.type !== 'income') return;
 
@@ -226,34 +234,36 @@ function buildAggregateData(filtered, dataMode, levelMode) {
         const val = parseFloat(item.amount);
         if (!sums[key]) sums[key] = 0;
 
-        if (dataMode === 'balance') sums[key] += item.type === 'income' ? val : -val;
-        else sums[key] += val;
+        if (dataMode === 'balance') {
+            sums[key] += item.type === 'income' ? val : -val;
+        } else {
+            sums[key] += val;
+        }
     });
 
-    return { working, sums };
+    return { working: [...filtered], sums };
 }
 
 function buildNestedBreakdown(filtered, dataMode) {
-    let working = [...filtered];
     const result = {};
 
-    working.forEach(item => {
+    filtered.forEach(item => {
         if (dataMode === 'expense' && item.type !== 'expense') return;
         if (dataMode === 'income' && item.type !== 'income') return;
 
         const cat = item.category || 'Nezaradené';
         const sub = item.sub || 'Nezaradené';
-        const val = parseFloat(item.amount);
+        const amount = parseFloat(item.amount);
 
         if (!result[cat]) result[cat] = { total: 0, subs: {} };
         if (!result[cat].subs[sub]) result[cat].subs[sub] = 0;
 
-        const signedVal = dataMode === 'balance'
-            ? (item.type === 'income' ? val : -val)
-            : val;
+        const signedValue = dataMode === 'balance'
+            ? (item.type === 'income' ? amount : -amount)
+            : amount;
 
-        result[cat].total += signedVal;
-        result[cat].subs[sub] += signedVal;
+        result[cat].total += signedValue;
+        result[cat].subs[sub] += signedValue;
     });
 
     return result;
@@ -263,10 +273,11 @@ function toggleBreakdownGroup(scope, cat) {
     if (scope === 'analytics') {
         analyticsBreakdownExpanded[cat] = !analyticsBreakdownExpanded[cat];
         updateAnalytics();
-    } else {
-        burnBreakdownExpanded[cat] = !burnBreakdownExpanded[cat];
-        updateBurnRateTab();
+        return;
     }
+
+    burnBreakdownExpanded[cat] = !burnBreakdownExpanded[cat];
+    updateBurnRateTab();
 }
 
 function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'analytics') {
@@ -399,7 +410,7 @@ function updateAnalytics() {
         if (btn) btn.classList.toggle('active', m === dataMode);
     });
 
-    let filtered = getAnalyticsDataForPeriod();
+    const filtered = getAnalyticsDataForPeriod();
     const { working, sums } = buildAggregateData(filtered, dataMode, levelMode);
     const nested = buildNestedBreakdown(filtered, dataMode);
 
@@ -423,6 +434,7 @@ function updateAnalytics() {
         }
         if (summaryCards) summaryCards.innerHTML = '';
         if (subStatsContainer) subStatsContainer.innerHTML = '';
+
         statsContainer.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">
@@ -445,9 +457,9 @@ function updateAnalytics() {
     analyticsChartInstance = new Chart(ctx, {
         type: chartType,
         data: {
-            labels: labels,
+            labels,
             datasets: [{
-                data: data,
+                data,
                 backgroundColor: colors.slice(0, labels.length),
                 borderWidth: 0
             }]
@@ -465,25 +477,24 @@ function updateAnalytics() {
         }
     });
 
-    if (statsContainer) {
-        statsContainer.innerHTML = labels.map((l, idx) => {
-            const val = sums[l];
-            const pct = total !== 0 ? ((val / total) * 100).toFixed(1) : '0';
-            const [cat, sub] = l.split(' / ');
-            return `
-                <div onclick="filterFromStats('${cat}', ${sub ? `'${sub}'` : 'null'})" class="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-emerald-500/50 transition-all">
-                    <div class="flex items-center gap-2">
-                        <div class="w-2.5 h-2.5 rounded-full" style="background:${colors[idx % colors.length]}"></div>
-                        <span class="text-xs font-bold">${l}</span>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-xs font-extrabold">${val.toFixed(2)} €</div>
-                        <div class="text-[9px] font-bold text-slate-400">${pct}%</div>
-                    </div>
+    statsContainer.innerHTML = labels.map((label, idx) => {
+        const val = sums[label];
+        const pct = total !== 0 ? ((val / total) * 100).toFixed(1) : '0';
+        const [cat, sub] = label.split(' / ');
+
+        return `
+            <div onclick="filterFromStats('${cat}', ${sub ? `'${sub}'` : 'null'})" class="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-emerald-500/50 transition-all">
+                <div class="flex items-center gap-2">
+                    <div class="w-2.5 h-2.5 rounded-full" style="background:${colors[idx % colors.length]}"></div>
+                    <span class="text-xs font-bold">${label}</span>
                 </div>
-            `;
-        }).join('');
-    }
+                <div class="text-right">
+                    <div class="text-xs font-extrabold">${val.toFixed(2)} €</div>
+                    <div class="text-[9px] font-bold text-slate-400">${pct}%</div>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function renderBurnInsightCards(total, previousTotal, forecast, daysLeft) {
@@ -533,7 +544,7 @@ function updateBurnRateTab() {
         if (btn) btn.classList.toggle('active', m === dataMode);
     });
 
-    let filtered = getAnalyticsDataForPeriod();
+    const filtered = getAnalyticsDataForPeriod();
     const previousPeriod = getPreviousPeriodData();
 
     const { sums } = buildAggregateData(filtered, dataMode, levelMode);
@@ -572,40 +583,37 @@ function updateBurnRateTab() {
         if (cardsContainer) cardsContainer.innerHTML = '';
         if (insightContainer) insightContainer.innerHTML = '';
         if (subBreakdownContainer) subBreakdownContainer.innerHTML = '';
-        if (breakdownContainer) {
-            breakdownContainer.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">
-                        <i data-lucide="flame" class="w-6 h-6"></i>
-                    </div>
-                    <div class="empty-state-title">Žiadne dáta pre burn rate</div>
-                    <div class="empty-state-text">Pre zvolený výber sa nenašli žiadne transakcie. Skús zmeniť filtre alebo počkaj na nové dáta.</div>
+
+        breakdownContainer.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i data-lucide="flame" class="w-6 h-6"></i>
                 </div>
-            `;
-            lucide.createIcons();
-        }
+                <div class="empty-state-title">Žiadne dáta pre burn rate</div>
+                <div class="empty-state-text">Pre zvolený výber sa nenašli žiadne transakcie. Skús zmeniť filtre alebo počkaj na nové dáta.</div>
+            </div>
+        `;
+        lucide.createIcons();
         return;
     }
 
     renderBurnInsightCards(total, previousTotal, monthlyForecastTotal, daysLeft);
     renderTreeBreakdown('burn-sub-stats-breakdown', nested, burnColors, 'burn');
 
-    if (cardsContainer) {
-        cardsContainer.innerHTML = `
-            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-center">
-                <span class="text-[8px] font-black text-amber-500 uppercase tracking-wider block mb-1">Celkom</span>
-                <span class="text-sm font-extrabold text-amber-500">${total.toFixed(2)} €</span>
-            </div>
-            <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-center">
-                <span class="text-[8px] font-black text-emerald-500 uppercase tracking-wider block mb-1">Denný Priemer</span>
-                <span class="text-sm font-extrabold text-emerald-500">${dailyAvgTotal.toFixed(2)} €</span>
-            </div>
-            <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-center">
-                <span class="text-[8px] font-black text-blue-500 uppercase tracking-wider block mb-1">Mesačný Odhad</span>
-                <span class="text-sm font-extrabold text-blue-500">${monthlyForecastTotal.toFixed(2)} €</span>
-            </div>
-        `;
-    }
+    cardsContainer.innerHTML = `
+        <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-center">
+            <span class="text-[8px] font-black text-amber-500 uppercase tracking-wider block mb-1">Celkom</span>
+            <span class="text-sm font-extrabold text-amber-500">${total.toFixed(2)} €</span>
+        </div>
+        <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-center">
+            <span class="text-[8px] font-black text-emerald-500 uppercase tracking-wider block mb-1">Denný Priemer</span>
+            <span class="text-sm font-extrabold text-emerald-500">${dailyAvgTotal.toFixed(2)} €</span>
+        </div>
+        <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-center">
+            <span class="text-[8px] font-black text-blue-500 uppercase tracking-wider block mb-1">Mesačný Odhad</span>
+            <span class="text-sm font-extrabold text-blue-500">${monthlyForecastTotal.toFixed(2)} €</span>
+        </div>
+    `;
 
     const ctx = document.getElementById('burnRateTabChart').getContext('2d');
     if (burnRateTabChartInstance) burnRateTabChartInstance.destroy();
@@ -613,9 +621,9 @@ function updateBurnRateTab() {
     burnRateTabChartInstance = new Chart(ctx, {
         type: chartType,
         data: {
-            labels: labels,
+            labels,
             datasets: [{
-                data: data,
+                data,
                 backgroundColor: '#f59e0b',
                 borderWidth: 0,
                 borderRadius: 8
@@ -628,31 +636,29 @@ function updateBurnRateTab() {
         }
     });
 
-    if (breakdownContainer) {
-        breakdownContainer.innerHTML = labels.map(l => {
-            const val = sums[l];
-            const dailyAvg = val / daysCount;
-            const monthlyForecast = dailyAvg * 30.5;
-            const [cat, sub] = l.split(' / ');
+    breakdownContainer.innerHTML = labels.map(label => {
+        const val = sums[label];
+        const dailyAvg = val / daysCount;
+        const monthlyForecast = dailyAvg * 30.5;
+        const [cat, sub] = label.split(' / ');
 
-            return `
-                <div onclick="filterFromStats('${cat}', ${sub ? `'${sub}'` : 'null'})" class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-amber-500/50 transition-all space-y-1.5">
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs font-extrabold">${l}</span>
-                        <span class="text-xs font-black text-amber-500">${val.toFixed(2)} €</span>
+        return `
+            <div onclick="filterFromStats('${cat}', ${sub ? `'${sub}'` : 'null'})" class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-amber-500/50 transition-all space-y-1.5">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-extrabold">${label}</span>
+                    <span class="text-xs font-black text-amber-500">${val.toFixed(2)} €</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[9px] pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div>
+                        <span class="text-slate-400 block font-bold">Denný priemer</span>
+                        <span class="font-extrabold text-slate-700 dark:text-slate-300">${dailyAvg.toFixed(2)} €/deň</span>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 text-[9px] pt-1 border-t border-slate-100 dark:border-slate-800">
-                        <div>
-                            <span class="text-slate-400 block font-bold">Denný priemer</span>
-                            <span class="font-extrabold text-slate-700 dark:text-slate-300">${dailyAvg.toFixed(2)} €/deň</span>
-                        </div>
-                        <div class="text-right">
-                            <span class="text-slate-400 block font-bold">Predpoklad / mesiac</span>
-                            <span class="font-extrabold text-slate-700 dark:text-slate-300">${monthlyForecast.toFixed(2)} €</span>
-                        </div>
+                    <div class="text-right">
+                        <span class="text-slate-400 block font-bold">Predpoklad / mesiac</span>
+                        <span class="font-extrabold text-slate-700 dark:text-slate-300">${monthlyForecast.toFixed(2)} €</span>
                     </div>
                 </div>
-            `;
-        }).join('');
-    }
+            </div>
+        `;
+    }).join('');
 }
