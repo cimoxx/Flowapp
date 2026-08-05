@@ -269,7 +269,7 @@ input, select, textarea {
     position: relative;
     z-index: 10;
     background: var(--bg-card);
-    transition: transform 0.2s ease-out, box-shadow 0.2s ease, background 0.2s ease;
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
     will-change: transform;
     user-select: none;
     cursor: pointer;
@@ -284,6 +284,13 @@ input, select, textarea {
 
 .swipe-content.swiping {
     transition: none !important;
+}
+
+.tx-income {
+    border-left: 4px solid rgba(16, 185, 129, 0.65);
+    background:
+        linear-gradient(90deg, rgba(16, 185, 129, 0.07) 0%, rgba(16, 185, 129, 0.02) 18%, transparent 42%),
+        var(--bg-card);
 }
 
 #display-balance {
@@ -627,6 +634,7 @@ input, select, textarea {
     margin-top: 5px;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    min-height: 14px;
 }
 
 .tx-meta {
@@ -645,7 +653,6 @@ input, select, textarea {
     letter-spacing: -0.03em;
 }
 
-/* OPRAVA KONTRASTU */
 .tx-amount.expense {
     color: var(--text-main);
 }
@@ -887,10 +894,6 @@ input, select, textarea {
     box-shadow: var(--shadow-soft);
 }
 
-#users-settings-list input {
-    min-height: 44px;
-}
-
 .tree-breakdown-card {
     border: 1px solid var(--border);
     background: var(--bg-card);
@@ -929,6 +932,10 @@ input, select, textarea {
     margin-bottom: 8px;
 }
 
+.tree-clickable {
+    cursor: pointer;
+}
+
 .tree-cat-left {
     min-width: 0;
 }
@@ -961,6 +968,15 @@ input, select, textarea {
     color: var(--text-main);
     text-transform: uppercase;
     letter-spacing: -0.01em;
+}
+
+.tree-expand-indicator {
+    margin-left: auto;
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--text-soft);
+    line-height: 1;
+    flex-shrink: 0;
 }
 
 .tree-progress {
