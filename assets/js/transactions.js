@@ -487,6 +487,48 @@ function toggleSubFilter(sub) {
     renderList();
 }
 
+function renderActiveFilterSummary() {
+    const el = document.getElementById('active-filter-summary');
+    if (!el) return;
+
+    const year = document.getElementById('filter-year')?.value || new Date().getFullYear();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+
+    const chips = [];
+
+    if (selectedMonths.length === 0) {
+        chips.push(`<span class="filter-summary-chip"><strong>Mesiace:</strong> všetky</span>`);
+    } else if (selectedMonths.length === 1) {
+        chips.push(`<span class="filter-summary-chip"><strong>Mesiac:</strong> ${months[selectedMonths[0]]}</span>`);
+    } else {
+        chips.push(`<span class="filter-summary-chip"><strong>Mesiace:</strong> ${selectedMonths.length} vybrané</span>`);
+    }
+
+    chips.push(`<span class="filter-summary-chip"><strong>Rok:</strong> ${year}</span>`);
+    chips.push(`<span class="filter-summary-chip"><strong>Status:</strong> ${currentStatusFilter === 'unprocessed' ? 'Nové' : 'Všetky'}</span>`);
+
+    if (activeCategoryFilter) {
+        chips.push(`<span class="filter-summary-chip"><strong>Kategória:</strong> ${activeCategoryFilter}</span>`);
+    }
+
+    if (window.activeSubFilter) {
+        chips.push(`<span class="filter-summary-chip"><strong>Podkategória:</strong> ${window.activeSubFilter}</span>`);
+    }
+
+    if (transactionSearchQuery) {
+        chips.push(`<span class="filter-summary-chip"><strong>Hľadanie:</strong> ${transactionSearchQuery}</span>`);
+    }
+
+    if (chips.length === 0) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    el.classList.remove('hidden');
+    el.innerHTML = `<div class="filter-summary-bar">${chips.join('')}</div>`;
+}
+
 function renderSwipeHint() {
     const el = document.getElementById('swipe-hint');
     if (!el) return;
@@ -543,6 +585,7 @@ function renderList() {
     });
 
     renderSummary(sums, currentFiltered);
+    renderActiveFilterSummary();
 
     if (activeCategoryFilter) {
         currentFiltered = currentFiltered.filter(d => d.category === activeCategoryFilter);
