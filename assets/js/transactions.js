@@ -5,14 +5,14 @@ function toggleStatusFilter() {
 
     if (currentStatusFilter === 'unprocessed') {
         currentStatusFilter = 'all';
-        toggle.classList.add('all-active');
-        optUnprocessed.classList.remove('active');
-        optAll.classList.add('active');
+        if (toggle) toggle.classList.add('all-active');
+        if (optUnprocessed) optUnprocessed.classList.remove('active');
+        if (optAll) optAll.classList.add('active');
     } else {
         currentStatusFilter = 'unprocessed';
-        toggle.classList.remove('all-active');
-        optUnprocessed.classList.add('active');
-        optAll.classList.remove('active');
+        if (toggle) toggle.classList.remove('all-active');
+        if (optUnprocessed) optUnprocessed.classList.add('active');
+        if (optAll) optAll.classList.remove('active');
     }
 
     renderList();
@@ -27,10 +27,13 @@ function setSearchQuery(value) {
 
 function clearSearch() {
     transactionSearchQuery = '';
+
     const input = document.getElementById('transaction-search');
     if (input) input.value = '';
+
     const clearBtn = document.getElementById('clear-search-btn');
     if (clearBtn) clearBtn.classList.add('hidden');
+
     renderList();
 }
 
@@ -61,13 +64,15 @@ function toggleProcessed(id) {
 }
 
 function updateTotals(currentListData) {
+    const balanceEl = document.getElementById('display-balance');
+    if (!balanceEl) return;
+
     const total = currentListData.reduce((acc, curr) => {
-        return curr.type === 'income'
-            ? acc + parseFloat(curr.amount)
-            : acc - parseFloat(curr.amount);
+        const amount = parseFloat(curr.amount) || 0;
+        return curr.type === 'income' ? acc + amount : acc - amount;
     }, 0);
 
-    document.getElementById('display-balance').innerText = total.toFixed(2) + ' €';
+    balanceEl.innerText = total.toFixed(2) + ' €';
 }
 
 function setModalMeta(isEdit = false) {
@@ -90,6 +95,7 @@ function openModal(id = null) {
     const amountInput = document.getElementById('f-amount');
     const entryIdInput = document.getElementById('entry-id');
 
+    if (!overlay || !amountInput || !entryIdInput) return;
     overlay.classList.remove('hidden');
 
     if (id) {
@@ -168,6 +174,9 @@ function handleSave(e) {
 
     const isRecurring = document.getElementById('f-recurring').checked;
     const frequency = isRecurring ? document.getElementById('f-frequency').value : null;
+    const amount = parseFloat(document.getElementById('f-amount').value);
+
+    if (!selectedCat || isNaN(amount)) return;
 
     const entry = {
         id,
@@ -175,7 +184,7 @@ function handleSave(e) {
         full_date: fullDateWithTime,
         category: selectedCat,
         sub: selectedSub,
-        amount: parseFloat(document.getElementById('f-amount').value),
+        amount,
         type: curType,
         note: document.getElementById('f-note').value,
         processed: currentProcessed,
@@ -355,6 +364,8 @@ function toggleMonthSelect(monthIdx) {
 
 function renderMonthChips() {
     const container = document.getElementById('filter-months-container');
+    if (!container) return;
+
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
 
     container.innerHTML = months.map((m, i) => {
@@ -491,7 +502,6 @@ function renderActiveFilterSummary() {
     const el = document.getElementById('active-filter-summary');
     if (!el) return;
 
-    /* sumár filtrov nechceme zobrazovať */
     el.classList.add('hidden');
     el.innerHTML = '';
 }
@@ -527,14 +537,18 @@ function renderSwipeHint() {
 function hideSwipeHintForever() {
     hasShownSwipeHint = true;
     localStorage.setItem('f_swipe_hint_seen_v20', 'true');
+
     const el = document.getElementById('swipe-hint');
     if (!el) return;
+
     el.classList.add('hidden');
     el.innerHTML = '';
 }
 
 function renderList() {
     const list = document.getElementById('transaction-list');
+    if (!list) return;
+
     let currentFiltered = getFilteredData();
 
     if (currentStatusFilter === 'unprocessed') {
@@ -562,7 +576,9 @@ function renderList() {
     }
 
     updateTotals(currentFiltered);
-    document.getElementById('clear-cat-filter').classList.toggle('hidden', !activeCategoryFilter);
+
+    const clearFilterBtn = document.getElementById('clear-cat-filter');
+    if (clearFilterBtn) clearFilterBtn.classList.toggle('hidden', !activeCategoryFilter);
 
     const sortedItems = [...currentFiltered].sort((a, b) => {
         const dateA = getCleanDateStr(a.date);
@@ -606,9 +622,8 @@ function renderList() {
     Object.keys(grouped).forEach(dayKey => {
         const dayItems = grouped[dayKey];
         const daySum = dayItems.reduce((acc, curr) => {
-            return curr.type === 'income'
-                ? acc + parseFloat(curr.amount)
-                : acc - parseFloat(curr.amount);
+            const amount = parseFloat(curr.amount) || 0;
+            return curr.type === 'income' ? acc + amount : acc - amount;
         }, 0);
 
         html += `
@@ -634,14 +649,14 @@ function renderList() {
                                 <div class="tx-main flex-1 min-w-0">
                                     <div class="tx-title">
                                         ${item.isRecurring ? '<i data-lucide="repeat" class="w-3.5 h-3.5 text-emerald-500 inline shrink-0"></i>' : ''}
-                                        <span class="truncate">${item.category}</span>
+                                        <span class="truncate">${item.category || 'Nezaradené'}</span>
                                         ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${item.sub}</span>` : ''}
                                     </div>
                                     <div class="tx-note">${item.note ? item.note : '&nbsp;'}</div>
                                 </div>
 
                                 <div class="tx-meta">
-                                    <span class="tx-amount ${item.type === 'income' ? 'income' : 'expense'}">${item.type === 'income' ? '+' : '-'}${parseFloat(item.amount).toFixed(2)} €</span>
+                                    <span class="tx-amount ${item.type === 'income' ? 'income' : 'expense'}">${item.type === 'income' ? '+' : '-'}${(parseFloat(item.amount) || 0).toFixed(2)} €</span>
                                     <div onclick="event.stopPropagation(); toggleProcessed('${item.id}')" class="tx-check ${item.processed ? 'done' : 'pending'}">
                                         <i data-lucide="check" class="w-4 h-4"></i>
                                     </div>
