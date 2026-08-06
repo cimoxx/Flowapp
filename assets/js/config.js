@@ -1,42 +1,56 @@
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
-}
+const GOOGLE_URL = 'https://script.google.com/macros/s/AKfycbwL3Yvp-zAL16wUyslfeqPUOCp9XWPY6BRckXR2Qdnrx6bX5ogu1DZV10xJFpPzQY0DiQ/exec';
 
-const GOOGLE_URL = 'https://script.google.com/macros/s/AKfycbybTaD_vfOjOooWjKEHY7_wJxrvlSaYbqRqQM8OO_Q6VyV9V-BLkOg8f4Esu74X5sSFfQ/exec';
+let db = JSON.parse(localStorage.getItem('f_db_v20') || '[]');
+let syncQueue = JSON.parse(localStorage.getItem('f_sync_q_v20') || '[]');
+let categories = JSON.parse(localStorage.getItem('f_cats_v20') || 'null') || [
+    { id: 'Potraviny', icon: 'shopping-cart', subs: ['Billa','Lidl','Kaufland','Tesco','COOP'] },
+    { id: 'Byvanie', icon: 'home', subs: ['Najom','Elektrina','Plyn','Voda','Internet'] },
+    { id: 'Doprava', icon: 'car', subs: ['Tankovanie','MHD','Servis','Poistka'] },
+    { id: 'Zabava', icon: 'gamepad-2', subs: ['Kino','Restauracia','Bar','Streaming'] },
+    { id: 'Zdravie', icon: 'heart-pulse', subs: ['Lekaren','Doktor','Poistenie'] },
+    { id: 'Oblecenie', icon: 'shirt', subs: ['Topanky','Bunda','Doplnky'] },
+    { id: 'Prijem', icon: 'wallet', subs: ['Vyplata','Bonus','Predaj','Ine'] },
+    { id: 'Ine', icon: 'package', subs: ['Darcek','Domacnost','Ostatne'] }
+];
 
-let db = JSON.parse(localStorage.getItem('f_db_v20')) || [];
-let syncQueue = JSON.parse(localStorage.getItem('f_sync_q_v20')) || [];
-let categories = JSON.parse(localStorage.getItem('f_cats_v20')) || [];
-let pendingCatSync = JSON.parse(localStorage.getItem('f_pending_cat_sync_v20')) || false;
-
-let curType = localStorage.getItem('f_last_type_v20') || 'expense';
-let selectedCat = '';
-let selectedSub = '';
-let activeCategoryFilter = null;
-let isSyncing = false;
+let selectedCat = null;
+let selectedSub = null;
+let curType = 'expense';
 
 let currentStatusFilter = 'unprocessed';
-let activeSettingsCat = null;
+let selectedMonths = [new Date().getMonth()];
+let selectedChartMonths = [];
+let selectedChartPeriod = 'current_month';
 
+let transactionSearchQuery = '';
+let activeCategoryFilter = null;
 window.activeSubFilter = null;
 
+let activeSettingsCat = null;
+let pendingCatSync = localStorage.getItem('f_pending_cat_sync_v20') === 'true';
+
+let isSyncing = false;
 let analyticsChartInstance = null;
 let burnRateTabChartInstance = null;
 
-let selectedChartPeriod = 'current_month';
-let selectedChartMonths = [];
-let selectedMonths = [new Date().getMonth()];
+let analyticsBreakdownExpanded = {};
+let burnBreakdownExpanded = {};
 
 let touchStartX = 0;
 let touchStartY = 0;
 let isSwiping = false;
 
 let toastTimeouts = [];
-let hasShownSwipeHint = localStorage.getItem('f_swipe_hint_seen_v20') === 'true';
 
-let transactionSearchQuery = '';
 let lastDeletedEntry = null;
 let lastDeletedSyncSnapshot = null;
 
-let analyticsBreakdownExpanded = {};
-let burnBreakdownExpanded = {};
+let hasShownSwipeHint = localStorage.getItem('f_swipe_hint_seen_v20') === 'true';
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => {
+            console.warn('Service worker registration failed:', err);
+        });
+    });
+}
