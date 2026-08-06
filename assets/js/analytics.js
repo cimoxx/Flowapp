@@ -306,9 +306,9 @@ function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'ana
 
     const grandTotal = catEntries.reduce((sum, [, val]) => sum + Math.abs(val.total), 0);
 
-    catEntries.forEach(([cat], idx) => {
+    catEntries.forEach(([cat]) => {
         if (typeof stateObj[cat] === 'undefined') {
-            stateObj[cat] = idx < 3;
+            stateObj[cat] = true;
         }
     });
 
