@@ -2,6 +2,8 @@ function updateSyncUI(status) {
     const dot = document.getElementById('sync-dot');
     const text = document.getElementById('sync-text');
 
+    if (!dot || !text) return;
+
     if (status === 'syncing') {
         dot.className = "w-2 h-2 bg-blue-400 animate-pulse rounded-full";
         text.innerText = "...";
@@ -26,6 +28,8 @@ function saveData(syncCats = false) {
         localStorage.setItem('f_pending_cat_sync_v20', 'true');
         syncCategories('push');
     }
+
+    updateSyncUI('ok');
 }
 
 function manualSync() {
@@ -44,16 +48,30 @@ async function processSyncQueue() {
     updateSyncUI('syncing');
 
     while (syncQueue.length > 0) {
+        const item = syncQueue[0];
+
         try {
-            await fetch(GOOGLE_URL, {
+            console.log('SYNC PUSH START:', item);
+
+            const res = await fetch(GOOGLE_URL, {
                 method: 'POST',
-                mode: 'no-cors',
-                body: JSON.stringify(syncQueue[0])
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify(item)
             });
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+
+            console.log('SYNC PUSH OK:', item.id);
+
             syncQueue.shift();
             saveData(false);
             updateSyncUI('syncing');
         } catch (e) {
+            console.error('SYNC PUSH ERROR:', e, item);
             break;
         }
     }
@@ -65,11 +83,19 @@ async function processSyncQueue() {
 async function syncTransactions(action = 'pull') {
     if (action === 'pull') {
         updateSyncUI('syncing');
+
         try {
             const res = await fetch(GOOGLE_URL + "?get=transactions");
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+
             const cloudData = await res.json();
+
             if (Array.isArray(cloudData)) {
                 const queuedIds = syncQueue.map(q => String(q.id));
+
                 db = cloudData.map(c => {
                     const local = db.find(l => String(l.id) === String(c.id));
                     if (queuedIds.includes(String(c.id)) && local) return local;
@@ -77,14 +103,16 @@ async function syncTransactions(action = 'pull') {
                 });
 
                 localStorage.setItem('f_db_v20', JSON.stringify(db));
+
                 processRecurringPayments();
                 renderList();
                 updateAnalytics();
                 updateBurnRateTab();
             }
         } catch (e) {
-            console.error("Sync error:", e);
+            console.error("Sync pull error:", e);
         }
+
         updateSyncUI('ok');
     }
 }
@@ -94,30 +122,51 @@ async function syncCategories(action = 'push') {
 
     if (action === 'push') {
         try {
-            await fetch(GOOGLE_URL, {
+            const res = await fetch(GOOGLE_URL, {
                 method: 'POST',
-                mode: 'no-cors',
-                body: JSON.stringify({ action: 'sync_categories', categories: categories })
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify({
+                    action: 'sync_categories',
+                    categories: categories
+                })
             });
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+
             pendingCatSync = false;
             localStorage.removeItem('f_pending_cat_sync_v20');
         } catch (e) {
+            console.error('CATEGORY PUSH ERROR:', e);
             pendingCatSync = true;
             localStorage.setItem('f_pending_cat_sync_v20', 'true');
         }
     } else {
         try {
             const res = await fetch(GOOGLE_URL + "?get=categories");
+
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+
             const cloudData = await res.json();
+
             if (Array.isArray(cloudData) && cloudData.length > 0) {
                 categories = cloudData;
                 localStorage.setItem('f_cats_v20', JSON.stringify(categories));
+
                 renderCatGrid();
+
                 if (!document.getElementById('settings-screen').classList.contains('hidden') && activeSettingsCat === null) {
                     renderManageCats();
                 }
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('CATEGORY PULL ERROR:', e);
+        }
     }
 
     updateSyncUI('ok');
@@ -170,6 +219,7 @@ function processRecurringPayments() {
                             processed: false,
                             action: 'save'
                         };
+
                         db.push(newEntry);
                         syncQueue.push(newEntry);
                         hasNew = true;
