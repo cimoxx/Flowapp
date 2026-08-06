@@ -228,6 +228,7 @@ function filterFromStats(cat, sub = null) {
 
     showScreen('home');
     renderMonthChips();
+    renderList();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -238,9 +239,12 @@ function buildAggregateData(filtered, dataMode, levelMode) {
         if (dataMode === 'expense' && item.type !== 'expense') return;
         if (dataMode === 'income' && item.type !== 'income') return;
 
-        let key = item.category || 'Nezaradené';
+        const categoryName = item.category || 'Nezaradené';
+        const subName = item.sub || 'Nezaradené';
+
+        let key = categoryName;
         if (levelMode === 'sub') {
-            key = item.sub ? `${item.category} / ${item.sub}` : `${item.category} / Nezaradené`;
+            key = `${categoryName} / ${subName}`;
         }
 
         const val = parseFloat(item.amount) || 0;
@@ -325,10 +329,11 @@ function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'ana
                 const color = accentColors[idx % accentColors.length];
                 const subEntries = Object.entries(data.subs).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
                 const expanded = !!stateObj[cat];
+                const safeCat = String(cat).replace(/'/g, "\\'");
 
                 return `
                     <div class="tree-group">
-                        <div class="tree-top-row tree-clickable" onclick="toggleBreakdownGroup('${scope}', '${String(cat).replace(/'/g, "\\'")}')">
+                        <div class="tree-top-row tree-clickable" onclick="toggleBreakdownGroup('${scope}', '${safeCat}')">
                             <div class="tree-cat-left">
                                 <div class="tree-cat-name-row">
                                     <span class="tree-color-dot" style="background:${color}"></span>
@@ -350,8 +355,9 @@ function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'ana
                             <div class="tree-sub-list">
                                 ${subEntries.map(([sub, subVal]) => {
                                     const subPct = catTotalAbs > 0 ? (Math.abs(subVal) / catTotalAbs) * 100 : 0;
+                                    const safeSub = String(sub).replace(/'/g, "\\'");
                                     return `
-                                        <div class="tree-sub-row" onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', '${String(sub).replace(/'/g, "\\'")}')">
+                                        <div class="tree-sub-row" onclick="filterFromStats('${safeCat}', '${safeSub}')">
                                             <div class="tree-sub-left">
                                                 <span class="tree-branch">└─</span>
                                                 <span class="tree-sub-name">${sub}</span>
@@ -411,12 +417,19 @@ function renderAnalyticsSummaryCards(filtered, sums, dataMode) {
 }
 
 function updateAnalytics() {
-    if (document.getElementById('screen-analytics').classList.contains('hidden')) return;
+    const screen = document.getElementById('screen-analytics');
+    if (!screen || screen.classList.contains('hidden')) return;
 
     try {
-        const chartType = document.getElementById('chart-type').value;
-        const levelMode = document.getElementById('chart-level-mode').value;
-        const dataMode = document.getElementById('chart-data-mode').value;
+        const chartTypeEl = document.getElementById('chart-type');
+        const levelModeEl = document.getElementById('chart-level-mode');
+        const dataModeEl = document.getElementById('chart-data-mode');
+
+        if (!chartTypeEl || !levelModeEl || !dataModeEl) return;
+
+        const chartType = chartTypeEl.value;
+        const levelMode = levelModeEl.value;
+        const dataMode = dataModeEl.value;
 
         ['expense', 'income', 'balance'].forEach(m => {
             const btn = document.getElementById(`chart-data-${m}`);
@@ -440,13 +453,16 @@ function updateAnalytics() {
         const summaryCards = document.getElementById('analytics-summary-cards');
         const subStatsContainer = document.getElementById('chart-sub-stats-summary');
 
+        if (!statsContainer || !summaryCards || !subStatsContainer) return;
+
         if (labels.length === 0) {
             if (analyticsChartInstance) {
                 analyticsChartInstance.destroy();
                 analyticsChartInstance = null;
             }
-            if (summaryCards) summaryCards.innerHTML = '';
-            if (subStatsContainer) subStatsContainer.innerHTML = '';
+
+            summaryCards.innerHTML = '';
+            subStatsContainer.innerHTML = '';
 
             statsContainer.innerHTML = `
                 <div class="empty-state">
@@ -466,7 +482,9 @@ function updateAnalytics() {
 
         const canvas = document.getElementById('analyticsChart');
         if (!canvas) return;
+
         const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
         if (analyticsChartInstance) analyticsChartInstance.destroy();
 
@@ -497,9 +515,11 @@ function updateAnalytics() {
             const val = sums[label];
             const pct = total !== 0 ? ((val / total) * 100).toFixed(1) : '0';
             const [cat, sub] = label.split(' / ');
+            const safeCat = String(cat).replace(/'/g, "\\'");
+            const safeSub = sub ? String(sub).replace(/'/g, "\\'") : null;
 
             return `
-                <div onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', ${sub ? `'${String(sub).replace(/'/g, "\\'")}'` : 'null'})" class="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-emerald-500/50 transition-all">
+                <div onclick="filterFromStats('${safeCat}', ${safeSub ? `'${safeSub}'` : 'null'})" class="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-emerald-500/50 transition-all">
                     <div class="flex items-center gap-2">
                         <div class="w-2.5 h-2.5 rounded-full" style="background:${colors[idx % colors.length]}"></div>
                         <span class="text-xs font-bold">${label}</span>
@@ -554,12 +574,19 @@ function renderBurnInsightCards(total, previousTotal, forecast, daysLeft) {
 }
 
 function updateBurnRateTab() {
-    if (document.getElementById('screen-burnrate').classList.contains('hidden')) return;
+    const screen = document.getElementById('screen-burnrate');
+    if (!screen || screen.classList.contains('hidden')) return;
 
     try {
-        const chartType = document.getElementById('burn-chart-type').value;
-        const levelMode = document.getElementById('burn-level-mode').value;
-        const dataMode = document.getElementById('burn-data-mode').value;
+        const chartTypeEl = document.getElementById('burn-chart-type');
+        const levelModeEl = document.getElementById('burn-level-mode');
+        const dataModeEl = document.getElementById('burn-data-mode');
+
+        if (!chartTypeEl || !levelModeEl || !dataModeEl) return;
+
+        const chartType = chartTypeEl.value;
+        const levelMode = levelModeEl.value;
+        const dataMode = dataModeEl.value;
 
         ['expense', 'income', 'balance'].forEach(m => {
             const btn = document.getElementById(`burn-data-${m}`);
@@ -591,6 +618,8 @@ function updateBurnRateTab() {
         const insightContainer = document.getElementById('burn-insight-cards');
         const subBreakdownContainer = document.getElementById('burn-sub-stats-breakdown');
 
+        if (!cardsContainer || !breakdownContainer || !insightContainer || !subBreakdownContainer) return;
+
         const burnColors = [
             '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6',
             '#06b6d4', '#f97316', '#84cc16', '#64748b', '#d946ef'
@@ -602,9 +631,9 @@ function updateBurnRateTab() {
                 burnRateTabChartInstance = null;
             }
 
-            if (cardsContainer) cardsContainer.innerHTML = '';
-            if (insightContainer) insightContainer.innerHTML = '';
-            if (subBreakdownContainer) subBreakdownContainer.innerHTML = '';
+            cardsContainer.innerHTML = '';
+            insightContainer.innerHTML = '';
+            subBreakdownContainer.innerHTML = '';
 
             breakdownContainer.innerHTML = `
                 <div class="empty-state">
@@ -639,7 +668,9 @@ function updateBurnRateTab() {
 
         const canvas = document.getElementById('burnRateTabChart');
         if (!canvas) return;
+
         const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
         if (burnRateTabChartInstance) burnRateTabChartInstance.destroy();
 
@@ -657,7 +688,11 @@ function updateBurnRateTab() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } }
+                plugins: {
+                    legend: {
+                        display: chartType === 'doughnut'
+                    }
+                }
             }
         });
 
@@ -666,9 +701,11 @@ function updateBurnRateTab() {
             const dailyAvg = val / daysCount;
             const monthlyForecast = dailyAvg * 30.5;
             const [cat, sub] = label.split(' / ');
+            const safeCat = String(cat).replace(/'/g, "\\'");
+            const safeSub = sub ? String(sub).replace(/'/g, "\\'") : null;
 
             return `
-                <div onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', ${sub ? `'${String(sub).replace(/'/g, "\\'")}'` : 'null'})" class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-amber-500/50 transition-all space-y-1.5">
+                <div onclick="filterFromStats('${safeCat}', ${safeSub ? `'${safeSub}'` : 'null'})" class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-amber-500/50 transition-all space-y-1.5">
                     <div class="flex justify-between items-center">
                         <span class="text-xs font-extrabold">${label}</span>
                         <span class="text-xs font-black text-amber-500">${val.toFixed(2)} €</span>
