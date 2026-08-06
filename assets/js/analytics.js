@@ -308,7 +308,7 @@ function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'ana
 
     catEntries.forEach(([cat], idx) => {
         if (typeof stateObj[cat] === 'undefined') {
-            stateObj[cat] = true;
+            stateObj[cat] = idx < 3;
         }
     });
 
