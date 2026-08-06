@@ -1,43 +1,68 @@
 function openChangelogModal() {
-    document.getElementById('changelog-modal').classList.remove('hidden');
+    const modal = document.getElementById('changelog-modal');
+    if (modal) modal.classList.remove('hidden');
 }
 
 function closeChangelogModal() {
-    document.getElementById('changelog-modal').classList.add('hidden');
+    const modal = document.getElementById('changelog-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 function setType(t) {
     curType = t;
     localStorage.setItem('f_last_type_v20', t);
 
-    document.getElementById('t-ex').className =
-        `flex-1 py-2 rounded-lg text-[10px] font-black ${t === 'expense' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400'}`;
+    const expenseBtn = document.getElementById('t-ex');
+    const incomeBtn = document.getElementById('t-in');
 
-    document.getElementById('t-in').className =
-        `flex-1 py-2 rounded-lg text-[10px] font-black ${t === 'income' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
+    if (expenseBtn) {
+        expenseBtn.className =
+            `flex-1 py-2 rounded-lg text-[10px] font-black ${t === 'expense' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400'}`;
+    }
+
+    if (incomeBtn) {
+        incomeBtn.className =
+            `flex-1 py-2 rounded-lg text-[10px] font-black ${t === 'income' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
+    }
 }
 
 function closeModal() {
-    document.getElementById('modal-overlay').classList.add('hidden');
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay) overlay.classList.add('hidden');
 }
 
 function closeCatDetail() {
     activeSettingsCat = null;
-    document.getElementById('settings-cat-detail').classList.add('hidden');
-    document.getElementById('settings-home').classList.remove('hidden');
+
+    const detail = document.getElementById('settings-cat-detail');
+    const home = document.getElementById('settings-home');
+
+    if (detail) detail.classList.add('hidden');
+    if (home) home.classList.remove('hidden');
+
     renderManageCats();
 }
 
 function showScreen(screen) {
-    document.getElementById('screen-home').classList.toggle('hidden', screen !== 'home');
-    document.getElementById('screen-analytics').classList.toggle('hidden', screen !== 'analytics');
-    document.getElementById('screen-burnrate').classList.toggle('hidden', screen !== 'burnrate');
-    document.getElementById('settings-screen').classList.toggle('hidden', screen !== 'settings');
+    const homeScreen = document.getElementById('screen-home');
+    const analyticsScreen = document.getElementById('screen-analytics');
+    const burnrateScreen = document.getElementById('screen-burnrate');
+    const settingsScreen = document.getElementById('settings-screen');
 
-    document.getElementById('nav-home').classList.toggle('active', screen === 'home');
-    document.getElementById('nav-analytics').classList.toggle('active', screen === 'analytics');
-    document.getElementById('nav-burnrate').classList.toggle('active', screen === 'burnrate');
-    document.getElementById('nav-settings').classList.toggle('active', screen === 'settings');
+    if (homeScreen) homeScreen.classList.toggle('hidden', screen !== 'home');
+    if (analyticsScreen) analyticsScreen.classList.toggle('hidden', screen !== 'analytics');
+    if (burnrateScreen) burnrateScreen.classList.toggle('hidden', screen !== 'burnrate');
+    if (settingsScreen) settingsScreen.classList.toggle('hidden', screen !== 'settings');
+
+    const navHome = document.getElementById('nav-home');
+    const navAnalytics = document.getElementById('nav-analytics');
+    const navBurnrate = document.getElementById('nav-burnrate');
+    const navSettings = document.getElementById('nav-settings');
+
+    if (navHome) navHome.classList.toggle('active', screen === 'home');
+    if (navAnalytics) navAnalytics.classList.toggle('active', screen === 'analytics');
+    if (navBurnrate) navBurnrate.classList.toggle('active', screen === 'burnrate');
+    if (navSettings) navSettings.classList.toggle('active', screen === 'settings');
 
     if (screen === 'settings') {
         activeSettingsCat = null;
@@ -60,6 +85,7 @@ function showScreen(screen) {
     }
 
     processRecurringPayments();
+    renderMonthChips();
     renderList();
     renderSwipeHint();
 }
@@ -113,7 +139,7 @@ function exportData() {
         db,
         categories,
         exportedAt: new Date().toISOString(),
-        version: 'v2.30.1'
+        version: 'v2.30.2'
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -189,7 +215,10 @@ function resetLocalData() {
     renderList();
     updateAnalytics();
     updateBurnRateTab();
-    updateSyncUI('ok');
+
+    if (typeof updateSyncUI === 'function') {
+        updateSyncUI('ok');
+    }
 
     showToast({
         type: 'warning',
