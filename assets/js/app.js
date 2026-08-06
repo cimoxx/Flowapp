@@ -2,15 +2,12 @@
     const yearSelect = document.getElementById('filter-year');
     const currentYear = new Date().getFullYear();
 
-    if (yearSelect) {
-        yearSelect.innerHTML = '';
-        for (let y = currentYear - 2; y <= currentYear + 2; y++) {
-            const opt = document.createElement('option');
-            opt.value = y;
-            opt.innerText = y;
-            if (y === currentYear) opt.selected = true;
-            yearSelect.appendChild(opt);
-        }
+    for (let y = currentYear - 2; y <= currentYear + 2; y++) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.innerText = y;
+        if (y === currentYear) opt.selected = true;
+        yearSelect.appendChild(opt);
     }
 
     renderMonthChips();
