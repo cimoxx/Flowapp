@@ -77,7 +77,7 @@ function exportData() {
         db,
         categories,
         exportedAt: new Date().toISOString(),
-        version: 'v2.33.0'
+        version: 'v2.33.1'
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });

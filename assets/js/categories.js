@@ -26,7 +26,8 @@ function renderManageCats() {
                     <div class="text-[9px] text-slate-400 font-black">${getCategoryTransactionCount(c.id)} tx</div>
                 </div>
             </div>
-            <button type="button" onclick="editCategoryName(${i})" class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-emerald-500"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+            <button type="button" onclick="editCategoryName(${i})" class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-emerald-500" aria-label="Premenovať kategóriu"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+            <button type="button" onclick="deleteCategoryFromList(${i}, event)" class="p-3 bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-100 dark:border-red-900/30 text-red-400 hover:text-red-600" aria-label="Zmazať kategóriu"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
             <div class="flex flex-col gap-1">
                 <button type="button" onclick="moveCat(${i}, -1)" class="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700"><i data-lucide="chevron-up" class="w-3 h-3"></i></button>
                 <button type="button" onclick="moveCat(${i}, 1)" class="p-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700"><i data-lucide="chevron-down" class="w-3 h-3"></i></button>
@@ -61,6 +62,55 @@ function editCategoryName(index) {
         updateBurnRateTab();
         processSyncQueue();
     }
+}
+
+function deleteCategoryFromList(index, event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    if (activeSettingsCat === index) activeSettingsCat = null;
+    deleteCategoryByIndex(index);
+}
+
+function deleteCategoryByIndex(index) {
+    if (index === null || index === undefined || !categories[index]) return;
+
+    const deletedCategory = categories[index];
+    const deletedId = deletedCategory.id;
+    const affectedItems = db.filter(item => item.category === deletedId && !item.deleted);
+
+    const fallbackCategory = categories.find(c => c.id === 'Ine' && c.id !== deletedId)
+        || categories.find(c => c.id !== deletedId);
+    const fallbackId = fallbackCategory ? fallbackCategory.id : '';
+
+    if (!confirm(`Zmazať kategóriu ${deletedId}?${affectedItems.length ? `\n\nObsahuje ${affectedItems.length} transakcií. Tie budú presunuté do kategórie „${fallbackId || 'bez kategórie'}“.` : ''}`)) return;
+
+    affectedItems.forEach(item => {
+        item.category = fallbackId;
+        item.categoryId = fallbackCategory ? fallbackCategory.uid : '';
+        item.sub = '';
+        item.updatedAt = new Date().toISOString();
+        item.version = (parseInt(item.version, 10) || 0) + 1;
+        queueMutation(item);
+    });
+
+    categories.splice(index, 1);
+    activeSettingsCat = null;
+    saveData(true);
+
+    const home = document.getElementById('settings-home');
+    const detail = document.getElementById('settings-cat-detail');
+    if (detail) detail.classList.add('hidden');
+    if (home) home.classList.remove('hidden');
+
+    renderManageCats();
+    renderCatGrid();
+    renderList();
+    updateAnalytics();
+    updateBurnRateTab();
+    if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    processSyncQueue();
 }
 
 function openCatDetail(index) {
@@ -204,54 +254,7 @@ function deleteSub(index) {
 }
 
 function deleteActiveCat() {
-    if (activeSettingsCat === null || !categories[activeSettingsCat]) return;
-
-    const deletedCategory = categories[activeSettingsCat];
-    const deletedId = deletedCategory.id;
-    const affectedItems = db.filter(item => item.category === deletedId);
-
-    if (!confirm(`Zmazať kategóriu ${deletedId}?${affectedItems.length ? `\n\nObsahuje ${affectedItems.length} transakcií. Tie budú presunuté do kategórie „Ine“.` : ''}`)) {
-        return;
-    }
-
-    const fallbackCategory = categories.find(c => c.id === 'Ine' && c.id !== deletedId)
-        || categories.find(c => c.id !== deletedId);
-    const fallbackId = fallbackCategory ? fallbackCategory.id : '';
-
-    affectedItems.forEach(item => {
-        item.category = fallbackId;
-        item.categoryId = fallbackCategory ? fallbackCategory.uid : '';
-        item.sub = '';
-        item.updatedAt = new Date().toISOString();
-        syncQueue.push({ ...item, action: 'save' });
-    });
-
-    categories.splice(activeSettingsCat, 1);
-
-    // De-duplicate queued saves for the same transaction so category deletion
-    // does not create an ever-growing sync queue.
-    const seen = new Set();
-    syncQueue = syncQueue.filter((item, index, queue) => {
-        if (!item || !item.id) return true;
-        const key = String(item.id);
-        // Keep the newest queued mutation for a transaction.
-        for (let i = index + 1; i < queue.length; i++) {
-            const later = queue[i];
-            if (later && later.id && String(later.id) === key) return false;
-        }
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
-
-    saveData(true);
-    closeCatDetail();
-    renderCatGrid();
-    renderList();
-    updateAnalytics();
-    updateBurnRateTab();
-    if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
-    processSyncQueue();
+    deleteCategoryByIndex(activeSettingsCat);
 }
 
 function selectCat(id, e = null) {

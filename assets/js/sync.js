@@ -112,6 +112,35 @@ function compareRecords(local, cloud) {
     return 0;
 }
 
+function recordsEquivalentForSync(local, cloud) {
+    if (!local || !cloud) return false;
+    const localVersion = Number(local.version) || 0;
+    const cloudVersion = Number(cloud.version) || 0;
+    if (cloudVersion < localVersion) return false;
+
+    const localUpdated = Date.parse(local.updatedAt || local.createdAt || 0) || 0;
+    const cloudUpdated = Date.parse(cloud.updatedAt || cloud.createdAt || 0) || 0;
+    if (cloudVersion === localVersion && cloudUpdated < localUpdated) return false;
+
+    if (local.action === 'delete' || local.deleted === true) return Boolean(cloud.deleted);
+    return !cloud.deleted;
+}
+
+function reconcileSyncQueueWithCloud(cloudData) {
+    if (!Array.isArray(cloudData) || !syncQueue.length) return false;
+    const cloudById = new Map(cloudData.map(c => [String(c.id), c]));
+    const before = syncQueue.length;
+    syncQueue = syncQueue.filter(item => {
+        const cloud = cloudById.get(String(item.id));
+        return !cloud || !recordsEquivalentForSync(item, cloud);
+    });
+    if (syncQueue.length !== before) {
+        localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+        return true;
+    }
+    return false;
+}
+
 async function syncTransactions(action = 'pull') {
     if (action !== 'pull') return;
 
@@ -123,6 +152,11 @@ async function syncTransactions(action = 'pull') {
 
         const cloudData = await res.json();
         if (!Array.isArray(cloudData)) return;
+
+        // Clear queue entries already accepted by the server. This prevents an
+        // old 2.33 migration queue from pushing hundreds of duplicate saves.
+        reconcileSyncQueueWithCloud(cloudData);
+        updateSyncUI('syncing');
 
         const localById = new Map(db.map(x => [String(x.id), x]));
         const queuedById = new Map(syncQueue.map(q => [String(q.id), q]));

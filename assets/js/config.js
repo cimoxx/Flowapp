@@ -1,4 +1,4 @@
-const APP_VERSION = '2.33.0';
+const APP_VERSION = '2.33.1';
 const GOOGLE_URL = 'https://script.google.com/macros/s/AKfycbwL3Yvp-zAL16wUyslfeqPUOCp9XWPY6BRckXR2Qdnrx6bX5ogu1DZV10xJFpPzQY0DiQ/exec';
 
 let db = JSON.parse(localStorage.getItem('f_db_v20') || '[]');
@@ -125,7 +125,7 @@ function ensureDataIntegrity() {
     localStorage.setItem('f_db_v20', JSON.stringify(db));
     localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
     localStorage.setItem('f_cats_v20', JSON.stringify(categories));
-    localStorage.setItem('f_data_schema_version', '2.33');
+    localStorage.setItem('f_data_schema_version', '2.33.1');
 }
 
 ensureDataIntegrity();
