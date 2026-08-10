@@ -70,3 +70,13 @@ function formatDayLabel(dateStr) {
 
     return cleanDate;
 }
+
+function formatCurrency(value, currency = 'EUR') {
+    const amount = Number(value) || 0;
+    return new Intl.NumberFormat('sk-SK', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(amount);
+}

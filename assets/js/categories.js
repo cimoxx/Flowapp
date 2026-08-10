@@ -193,12 +193,53 @@ function deleteSub(index) {
 }
 
 function deleteActiveCat() {
-    if (confirm(`Zmazať kategóriu ${categories[activeSettingsCat].id}?`)) {
-        categories.splice(activeSettingsCat, 1);
-        saveData(true);
-        closeCatDetail();
-        renderCatGrid();
+    if (activeSettingsCat === null || !categories[activeSettingsCat]) return;
+
+    const deletedCategory = categories[activeSettingsCat];
+    const deletedId = deletedCategory.id;
+    const affectedItems = db.filter(item => item.category === deletedId);
+
+    if (!confirm(`Zmazať kategóriu ${deletedId}?${affectedItems.length ? `\n\nObsahuje ${affectedItems.length} transakcií. Tie budú presunuté do kategórie „Ine“.` : ''}`)) {
+        return;
     }
+
+    const fallbackCategory = categories.find(c => c.id === 'Ine' && c.id !== deletedId)
+        || categories.find(c => c.id !== deletedId);
+    const fallbackId = fallbackCategory ? fallbackCategory.id : '';
+
+    affectedItems.forEach(item => {
+        item.category = fallbackId;
+        item.sub = '';
+        item.updatedAt = new Date().toISOString();
+        syncQueue.push({ ...item, action: 'save' });
+    });
+
+    categories.splice(activeSettingsCat, 1);
+
+    // De-duplicate queued saves for the same transaction so category deletion
+    // does not create an ever-growing sync queue.
+    const seen = new Set();
+    syncQueue = syncQueue.filter((item, index, queue) => {
+        if (!item || !item.id) return true;
+        const key = String(item.id);
+        // Keep the newest queued mutation for a transaction.
+        for (let i = index + 1; i < queue.length; i++) {
+            const later = queue[i];
+            if (later && later.id && String(later.id) === key) return false;
+        }
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
+    saveData(true);
+    closeCatDetail();
+    renderCatGrid();
+    renderList();
+    updateAnalytics();
+    updateBurnRateTab();
+    if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    processSyncQueue();
 }
 
 function selectCat(id, e = null) {

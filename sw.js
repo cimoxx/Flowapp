@@ -1,9 +1,21 @@
-const CACHE_NAME = 'flow-v20-cache-v1';
+const CACHE_NAME = 'flow-v20-cache-v2.31.0';
 const ASSETS = [
   './',
   './index.html',
+  './manifest.json',
+  './assets/css/styles.css',
+  './assets/js/config.js',
+  './assets/js/utils.js',
+  './assets/js/sync.js',
+  './assets/js/ui.js',
+  './assets/js/categories.js',
+  './assets/js/transactions.js',
+  './assets/js/analytics.js',
+  './assets/js/budget.js',
+  './assets/js/app.js',
   'https://cdn.tailwindcss.com',
-  'https://unpkg.com/lucide@latest'
+  'https://unpkg.com/lucide@latest',
+  'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
 self.addEventListener('install', (e) => {

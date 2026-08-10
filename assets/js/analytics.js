@@ -83,7 +83,12 @@ function getAnalyticsDataForPeriod(periodOverride = null, monthsOverride = null)
         const itemDate = new Date(itemYear, itemMonth, parseInt(parts[2], 10));
 
         if (activeMonths.length > 0) {
-            return activeMonths.includes(itemMonth);
+            // Month chips represent months within the currently selected year.
+            // Without the year check, selecting e.g. Jan would aggregate Jan
+            // from every year in the database.
+            const yearEl = document.getElementById('filter-year');
+            const selectedYear = parseInt(yearEl?.value || curYear, 10);
+            return itemYear === selectedYear && activeMonths.includes(itemMonth);
         }
 
         if (activePeriod === 'current_month') {

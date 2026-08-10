@@ -28,42 +28,6 @@ function closeCatDetail() {
     renderManageCats();
 }
 
-function showScreen(screen) {
-    document.getElementById('screen-home').classList.toggle('hidden', screen !== 'home');
-    document.getElementById('screen-analytics').classList.toggle('hidden', screen !== 'analytics');
-    document.getElementById('screen-burnrate').classList.toggle('hidden', screen !== 'burnrate');
-    document.getElementById('settings-screen').classList.toggle('hidden', screen !== 'settings');
-
-    document.getElementById('nav-home').classList.toggle('active', screen === 'home');
-    document.getElementById('nav-analytics').classList.toggle('active', screen === 'analytics');
-    document.getElementById('nav-burnrate').classList.toggle('active', screen === 'burnrate');
-    document.getElementById('nav-settings').classList.toggle('active', screen === 'settings');
-
-    if (screen === 'settings') {
-        activeSettingsCat = null;
-        closeCatDetail();
-        renderManageCats();
-        lucide.createIcons();
-        return;
-    }
-
-    if (screen === 'analytics') {
-        renderChartMonthChips();
-        updateAnalytics();
-        return;
-    }
-
-    if (screen === 'burnrate') {
-        renderChartMonthChips();
-        updateBurnRateTab();
-        return;
-    }
-
-    processRecurringPayments();
-    renderList();
-    renderSwipeHint();
-}
-
 function showToast({ type = 'success', title = '', text = '', duration = 2600, action = null } = {}) {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -113,7 +77,7 @@ function exportData() {
         db,
         categories,
         exportedAt: new Date().toISOString(),
-        version: 'v2.30.1'
+        version: 'v2.31.0'
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -140,11 +104,23 @@ function importData(event) {
         try {
             const parsed = JSON.parse(e.target.result);
 
+            if (!Array.isArray(parsed.db) && !Array.isArray(parsed.categories)) {
+                throw new Error('Neplatný Flow backup');
+            }
+
             if (Array.isArray(parsed.db)) db = parsed.db;
             if (Array.isArray(parsed.categories)) categories = parsed.categories;
 
+            // Imported data replaces the current local dataset. Any old queued
+            // mutations belong to the previous dataset and must never be pushed
+            // after the import, otherwise they can overwrite imported data.
+            syncQueue = [];
+            pendingCatSync = false;
+
             localStorage.setItem('f_db_v20', JSON.stringify(db));
             localStorage.setItem('f_cats_v20', JSON.stringify(categories));
+            localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+            localStorage.removeItem('f_pending_cat_sync_v20');
 
             analyticsBreakdownExpanded = {};
             burnBreakdownExpanded = {};
@@ -180,9 +156,11 @@ function resetLocalData() {
     localStorage.removeItem('f_last_cat');
     localStorage.removeItem('f_last_sub');
     localStorage.removeItem('f_last_type_v20');
+    localStorage.removeItem('f_pending_cat_sync_v20');
 
     db = [];
     syncQueue = [];
+    pendingCatSync = false;
     analyticsBreakdownExpanded = {};
     burnBreakdownExpanded = {};
 

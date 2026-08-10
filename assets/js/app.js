@@ -22,18 +22,24 @@ function showScreen(screen) {
 
     if (screen === 'settings') {
         if (settings) settings.classList.remove('hidden');
-    }
-
-    if (screen === 'analytics' && typeof updateAnalytics === 'function') {
-        updateAnalytics();
-    }
-
-    if (screen === 'burnrate' && typeof updateBurnRateTab === 'function') {
-        updateBurnRateTab();
-    }
-
-    if (screen === 'budget' && typeof updateBudgetScreen === 'function') {
-        updateBudgetScreen();
+        activeSettingsCat = null;
+        const detail = document.getElementById('settings-cat-detail');
+        const home = document.getElementById('settings-home');
+        if (detail) detail.classList.add('hidden');
+        if (home) home.classList.remove('hidden');
+        if (typeof renderManageCats === 'function') renderManageCats();
+    } else if (screen === 'analytics') {
+        if (typeof renderChartMonthChips === 'function') renderChartMonthChips();
+        if (typeof updateAnalytics === 'function') updateAnalytics();
+    } else if (screen === 'burnrate') {
+        if (typeof renderChartMonthChips === 'function') renderChartMonthChips();
+        if (typeof updateBurnRateTab === 'function') updateBurnRateTab();
+    } else if (screen === 'budget') {
+        if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    } else if (screen === 'home') {
+        if (typeof processRecurringPayments === 'function') processRecurringPayments();
+        if (typeof renderList === 'function') renderList();
+        if (typeof renderSwipeHint === 'function') renderSwipeHint();
     }
 
     if (typeof lucide !== 'undefined') {
