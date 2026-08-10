@@ -47,6 +47,11 @@ let lastDeletedSyncSnapshot = null;
 
 let hasShownSwipeHint = localStorage.getItem('f_swipe_hint_seen_v20') === 'true';
 
+let budgetState = {
+    month: new Date().getMonth(),
+    year: new Date().getFullYear()
+};
+
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(err => {
