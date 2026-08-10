@@ -45,7 +45,8 @@ function toggleProcessed(id) {
     if (!item) return;
 
     item.processed = !item.processed;
-    syncQueue.push({ ...item, action: 'save' });
+    touchTransaction(item, false);
+    enqueueTransactionMutation({ ...item, action: 'save' });
     saveData(false);
 
     renderList();
@@ -169,20 +170,24 @@ function handleSave(e) {
     const isRecurring = document.getElementById('f-recurring').checked;
     const frequency = isRecurring ? document.getElementById('f-frequency').value : null;
 
+    const categoryRecord = categories.find(c => c.id === selectedCat);
     const entry = {
         id,
+        transactionId: id,
         date: cleanDate,
         full_date: fullDateWithTime,
         category: selectedCat,
+        categoryId: categoryRecord?.uid || '',
         sub: selectedSub,
         amount: parseFloat(document.getElementById('f-amount').value),
         type: curType,
         note: document.getElementById('f-note').value,
         processed: currentProcessed,
         isRecurring,
-        frequency,
-        action: 'save'
+        frequency
     };
+    touchTransaction(entry, !localRecord);
+    entry.action = 'save';
 
     if (selectedCat) localStorage.setItem('f_last_cat', selectedCat);
     if (selectedSub) localStorage.setItem('f_last_sub', selectedSub);
@@ -192,7 +197,7 @@ function handleSave(e) {
     if (idx > -1) db[idx] = entry;
     else db.push(entry);
 
-    syncQueue.push(entry);
+    enqueueTransactionMutation(entry);
     saveData(false);
     closeModal();
     processRecurringPayments();
@@ -218,7 +223,15 @@ function handleDelete(idToDelete = null) {
     lastDeletedEntry = { ...deletedItem };
     lastDeletedSyncSnapshot = [...syncQueue];
 
-    syncQueue.push({ id, action: 'delete' });
+    const deleteVersion = Math.max(0, Number(deletedItem.version) || 0) + 1;
+    enqueueTransactionMutation({
+        id: String(id),
+        transactionId: String(deletedItem.transactionId || id),
+        action: 'delete',
+        deletedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: deleteVersion
+    });
     db = db.filter(x => String(x.id) !== String(id));
 
     saveData(false);
@@ -243,8 +256,12 @@ function handleDelete(idToDelete = null) {
 function undoDelete() {
     if (!lastDeletedEntry) return;
 
-    db.push({ ...lastDeletedEntry });
-    syncQueue = [...lastDeletedSyncSnapshot, { ...lastDeletedEntry, action: 'save' }];
+    const restored = { ...lastDeletedEntry };
+    touchTransaction(restored, false);
+    delete restored.deletedAt;
+    db.push(restored);
+    syncQueue = [...lastDeletedSyncSnapshot];
+    enqueueTransactionMutation({ ...restored, action: 'save' });
 
     saveData(false);
     renderList();

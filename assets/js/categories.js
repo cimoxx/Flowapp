@@ -44,10 +44,14 @@ function editCategoryName(index) {
         db.forEach(item => {
             if (item.category === oldName) {
                 item.category = trimmed;
-                syncQueue.push({ ...item, action: 'save' });
+                touchTransaction(item, false);
+                const mutation = { ...item, action: 'save' };
+                if (typeof enqueueTransactionMutation === 'function') enqueueTransactionMutation(mutation);
+                else syncQueue.push(mutation);
             }
         });
         categories[index].id = trimmed;
+        touchCategory(categories[index], false);
         saveData(true);
         renderManageCats();
         renderCatGrid();
@@ -71,6 +75,7 @@ function saveCategoryIcon() {
     if (activeSettingsCat === null) return;
     const iconName = (document.getElementById('cat-icon-name').value || '').trim() || 'layers';
     categories[activeSettingsCat].icon = iconName;
+    touchCategory(categories[activeSettingsCat], false);
     saveData(true);
     renderManageCats();
     renderCatGrid();
@@ -113,10 +118,14 @@ function editSubCategoryName(subIndex) {
         db.forEach(item => {
             if (item.category === cat.id && item.sub === oldName) {
                 item.sub = trimmed;
-                syncQueue.push({ ...item, action: 'save' });
+                touchTransaction(item, false);
+                const mutation = { ...item, action: 'save' };
+                if (typeof enqueueTransactionMutation === 'function') enqueueTransactionMutation(mutation);
+                else syncQueue.push(mutation);
             }
         });
         cat.subs[subIndex] = trimmed;
+        touchCategory(cat, false);
         saveData(true);
         renderManageSubs();
         renderList();
@@ -131,6 +140,8 @@ function moveCat(i, dir) {
         const temp = categories[i];
         categories[i] = categories[i + dir];
         categories[i + dir] = temp;
+        touchCategory(categories[i], false);
+        touchCategory(categories[i + dir], false);
         saveData(true);
         renderManageCats();
         renderCatGrid();
@@ -143,6 +154,7 @@ function moveSub(i, dir) {
         const temp = subs[i];
         subs[i] = subs[i + dir];
         subs[i + dir] = temp;
+        touchCategory(categories[activeSettingsCat], false);
         saveData(true);
         renderManageSubs();
     }
@@ -151,7 +163,8 @@ function moveSub(i, dir) {
 function addCategory() {
     let n = document.getElementById('new-cat-name').value.trim();
     if (n) {
-        categories.push({ id: n, icon: 'layers', subs: [] });
+        const newCategory = touchCategory({ id: n, icon: 'layers', subs: [] }, true);
+        categories.push(newCategory);
         document.getElementById('new-cat-name').value = '';
         saveData(true);
         renderManageCats();
@@ -164,6 +177,7 @@ function addSubCategory() {
     if (n && activeSettingsCat !== null) {
         if (!categories[activeSettingsCat].subs) categories[activeSettingsCat].subs = [];
         categories[activeSettingsCat].subs.push(n);
+        touchCategory(categories[activeSettingsCat], false);
         document.getElementById('new-sub-name').value = '';
         saveData(true);
         renderManageSubs();
@@ -179,9 +193,13 @@ function deleteSub(index) {
         db.forEach(item => {
             if (item.category === cat.id && item.sub === deletedSubName) {
                 item.sub = '';
-                syncQueue.push({ ...item, action: 'save' });
+                touchTransaction(item, false);
+                const mutation = { ...item, action: 'save' };
+                if (typeof enqueueTransactionMutation === 'function') enqueueTransactionMutation(mutation);
+                else syncQueue.push(mutation);
             }
         });
+        touchCategory(cat, false);
 
         saveData(true);
         renderManageSubs();
@@ -209,9 +227,10 @@ function deleteActiveCat() {
 
     affectedItems.forEach(item => {
         item.category = fallbackId;
+        item.categoryId = fallbackCategory?.uid || '';
         item.sub = '';
-        item.updatedAt = new Date().toISOString();
-        syncQueue.push({ ...item, action: 'save' });
+        touchTransaction(item, false);
+        enqueueTransactionMutation({ ...item, action: 'save' });
     });
 
     categories.splice(activeSettingsCat, 1);

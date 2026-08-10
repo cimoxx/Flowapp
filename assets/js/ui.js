@@ -77,7 +77,7 @@ function exportData() {
         db,
         categories,
         exportedAt: new Date().toISOString(),
-        version: 'v2.31.0'
+        version: `v${APP_VERSION}`
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -110,6 +110,7 @@ function importData(event) {
 
             if (Array.isArray(parsed.db)) db = parsed.db;
             if (Array.isArray(parsed.categories)) categories = parsed.categories;
+            ensureDataIntegrity();
 
             // Imported data replaces the current local dataset. Any old queued
             // mutations belong to the previous dataset and must never be pushed

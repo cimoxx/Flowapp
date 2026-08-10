@@ -56,6 +56,7 @@ function refreshAllViews() {
 }
 
 (function initApp() {
+    ensureDataIntegrity();
     const yearSelect = document.getElementById('filter-year');
     const currentYear = new Date().getFullYear();
 
