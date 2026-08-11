@@ -1,5 +1,8 @@
-const APP_VERSION = '2.33.1';
+const APP_VERSION = '2.34.0';
 const GOOGLE_URL = 'https://script.google.com/macros/s/AKfycbwL3Yvp-zAL16wUyslfeqPUOCp9XWPY6BRckXR2Qdnrx6bX5ogu1DZV10xJFpPzQY0DiQ/exec';
+// Shared endpoint access token. This is basic endpoint protection, not full user authentication.
+const FLOW_API_TOKEN = 'XMdXUXce7yB6bD8mle2v_o78BUhNKvR4WOcfN9g5hWg';
+const FLOW_USER_ID = 'default';
 
 let db = JSON.parse(localStorage.getItem('f_db_v20') || '[]');
 let syncQueue = JSON.parse(localStorage.getItem('f_sync_q_v20') || '[]');
@@ -125,7 +128,7 @@ function ensureDataIntegrity() {
     localStorage.setItem('f_db_v20', JSON.stringify(db));
     localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
     localStorage.setItem('f_cats_v20', JSON.stringify(categories));
-    localStorage.setItem('f_data_schema_version', '2.33.1');
+    localStorage.setItem('f_data_schema_version', '2.34.0');
 }
 
 ensureDataIntegrity();
