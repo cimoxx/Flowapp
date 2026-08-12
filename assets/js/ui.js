@@ -76,6 +76,10 @@ function exportData() {
     const payload = {
         db,
         categories,
+        recurringPlans: typeof flowRecurringPlans !== 'undefined' ? flowRecurringPlans : [],
+        plannedEvents: typeof flowPlannedEvents !== 'undefined' ? flowPlannedEvents : [],
+        budgetOverrides: typeof flowBudgetOverrides !== 'undefined' ? flowBudgetOverrides : [],
+        forecastArchive: typeof flowForecastArchive !== 'undefined' ? flowForecastArchive : [],
         exportedAt: new Date().toISOString(),
         version: 'v2.33.1'
     };
@@ -110,6 +114,11 @@ function importData(event) {
 
             if (Array.isArray(parsed.db)) db = parsed.db;
             if (Array.isArray(parsed.categories)) categories = parsed.categories;
+            if (Array.isArray(parsed.recurringPlans) && typeof flowRecurringPlans !== 'undefined') flowRecurringPlans = parsed.recurringPlans;
+            if (Array.isArray(parsed.plannedEvents) && typeof flowPlannedEvents !== 'undefined') flowPlannedEvents = parsed.plannedEvents;
+            if (Array.isArray(parsed.budgetOverrides) && typeof flowBudgetOverrides !== 'undefined') flowBudgetOverrides = parsed.budgetOverrides;
+            if (Array.isArray(parsed.forecastArchive) && typeof flowForecastArchive !== 'undefined') flowForecastArchive = parsed.forecastArchive;
+            if (typeof planningPersist === 'function') planningPersist();
 
             // Imported data replaces the current local dataset. Any old queued
             // mutations belong to the previous dataset and must never be pushed
@@ -157,6 +166,17 @@ function resetLocalData() {
     localStorage.removeItem('f_last_sub');
     localStorage.removeItem('f_last_type_v20');
     localStorage.removeItem('f_pending_cat_sync_v20');
+    localStorage.removeItem('flow_recurring_plans_v235');
+    localStorage.removeItem('flow_planned_events_v235');
+    localStorage.removeItem('flow_budget_overrides_v235');
+    localStorage.removeItem('flow_forecast_archive_v235');
+    localStorage.removeItem('flow_model_state_v235');
+
+    if (typeof flowRecurringPlans !== 'undefined') flowRecurringPlans = [];
+    if (typeof flowPlannedEvents !== 'undefined') flowPlannedEvents = [];
+    if (typeof flowBudgetOverrides !== 'undefined') flowBudgetOverrides = [];
+    if (typeof flowForecastArchive !== 'undefined') flowForecastArchive = [];
+    if (typeof flowModelState !== 'undefined') flowModelState = {};
 
     db = [];
     syncQueue = [];

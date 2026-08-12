@@ -162,6 +162,43 @@ function getBudgetDataset() {
     const expenses = getExpenseItemsForMonth(year, month);
     const incomes = getIncomeItemsForMonth(year, month);
 
+    // v2.35: if the planning engine is available, Budget uses the same annual
+    // model as the yearly planner so the two screens cannot drift apart.
+    if (typeof getAnnualPlan === 'function') {
+        const annual = getAnnualPlan(year);
+        const monthPlan = annual[month];
+        if (monthPlan) {
+            const categoryRows = monthPlan.categoryRows.map(row => {
+                const safe = round2(row.budget - row.forecast);
+                const progressPct = row.budget > 0 ? Math.min(160, (row.actual / row.budget) * 100) : 0;
+                return {
+                    ...row,
+                    spent: row.actual,
+                    recommended: row.budget,
+                    forecast: row.forecast,
+                    safe,
+                    progressPct: round2(progressPct),
+                    confidenceLabel: formatConfidence(row.confidence),
+                    status: getBudgetStatus(row.actual, row.budget, row.forecast),
+                    avg: row.variable
+                };
+            });
+            const totalRecommended = round2(monthPlan.budget);
+            const totalSpent = round2(monthPlan.actualExpenses);
+            const totalIncome = round2(monthPlan.plannedIncome);
+            const totalForecast = round2(monthPlan.forecast);
+            return {
+                month, year, categoryRows, totalRecommended, totalSpent,
+                totalIncome, totalForecast,
+                safeToSpend: round2(totalRecommended - totalForecast),
+                recurringExpense: monthPlan.recurringExpense,
+                eventExpense: monthPlan.eventExpense,
+                plannedBalance: monthPlan.plannedBalance,
+                modelVersion: typeof FLOW_MODEL_VERSION !== 'undefined' ? FLOW_MODEL_VERSION : 'v2.35'
+            };
+        }
+    }
+
     const expenseCategories = categories.filter(c => c.id !== 'Prijem');
 
     const categoryRows = expenseCategories.map(cat => {

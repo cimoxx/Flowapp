@@ -1,5 +1,5 @@
 function showScreen(screen) {
-    const screens = ['home', 'budget', 'analytics', 'burnrate'];
+    const screens = ['home', 'budget', 'plan', 'recurring', 'analytics', 'burnrate'];
 
     screens.forEach(name => {
         const el = document.getElementById(`screen-${name}`);
@@ -12,7 +12,7 @@ function showScreen(screen) {
     const target = document.getElementById(`screen-${screen}`);
     if (target) target.classList.remove('hidden');
 
-    ['home', 'budget', 'analytics', 'burnrate', 'settings'].forEach(name => {
+    ['home', 'budget', 'plan', 'recurring', 'analytics', 'burnrate', 'settings'].forEach(name => {
         const nav = document.getElementById(`nav-${name}`);
         if (nav) nav.classList.remove('active');
     });
@@ -36,6 +36,10 @@ function showScreen(screen) {
         if (typeof updateBurnRateTab === 'function') updateBurnRateTab();
     } else if (screen === 'budget') {
         if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    } else if (screen === 'plan') {
+        if (typeof renderAnnualPlanScreen === 'function') renderAnnualPlanScreen();
+    } else if (screen === 'recurring') {
+        if (typeof renderRecurringScreen === 'function') renderRecurringScreen();
     } else if (screen === 'home') {
         if (typeof processRecurringPayments === 'function') processRecurringPayments();
         if (typeof renderList === 'function') renderList();
@@ -52,6 +56,7 @@ function refreshAllViews() {
     if (typeof updateAnalytics === 'function') updateAnalytics();
     if (typeof updateBurnRateTab === 'function') updateBurnRateTab();
     if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    if (typeof renderPlanningScreens === 'function') renderPlanningScreens();
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -77,6 +82,7 @@ function refreshAllViews() {
     if (typeof renderList === 'function') renderList();
     if (typeof renderSwipeHint === 'function') renderSwipeHint();
     if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    if (typeof initPlanning === 'function') initPlanning();
 
     if (pendingCatSync) {
         if (typeof syncCategories === 'function') syncCategories('push');

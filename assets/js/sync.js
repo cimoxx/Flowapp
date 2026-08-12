@@ -415,69 +415,41 @@ async function syncCategories(action = 'push') {
 }
 
 function processRecurringPayments() {
-    const selectedYear = parseInt(document.getElementById('filter-year')?.value || new Date().getFullYear());
+    // v2.35: recurring plans are the source of truth. Existing transaction-level
+    // recurring flags remain supported for backward compatibility until plans load.
+    if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans) || flowRecurringPlans.length === 0) return;
+
+    const selectedYear = parseInt(document.getElementById('filter-year')?.value || new Date().getFullYear(), 10);
     const activeMonths = selectedMonths.length > 0 ? selectedMonths : [new Date().getMonth()];
     let hasNew = false;
 
-    db.forEach(item => {
-        if (item.isRecurring && !item.deleted) {
-            const origClean = getCleanDateStr(item.date);
-            const origParts = origClean.split('-');
-            if (origParts.length !== 3) return;
+    flowRecurringPlans.filter(p => p.active).forEach(plan => {
+        activeMonths.forEach(targetMonth => {
+            const amount = getPlanMonthlyAmount(plan, selectedYear, targetMonth);
+            if (!(amount > 0)) return;
+            const day = Math.min(Number(plan.dayOfMonth) || 1, new Date(selectedYear, targetMonth + 1, 0).getDate());
+            const targetDateStr = `${selectedYear}-${String(targetMonth + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const exists = db.some(x => !x.deleted && getCleanDateStr(x.date) === targetDateStr && x.category === plan.category && (x.sub || '') === (plan.sub || '') && x.type === plan.type);
+            if (exists) return;
 
-            const origDay = origParts[2];
-            const freq = item.frequency || 'monthly';
-
-            activeMonths.forEach(targetMonth => {
-                let monthInterval = 1;
-                if (freq === 'quarterly') monthInterval = 3;
-                if (freq === 'yearly') monthInterval = 12;
-
-                const origMonth = parseInt(origParts[1]) - 1;
-                const origYear = parseInt(origParts[0]);
-                const diffMonths = (selectedYear - origYear) * 12 + (targetMonth - origMonth);
-
-                if (diffMonths > 0 && diffMonths % monthInterval === 0) {
-                    const targetMonthStr = String(targetMonth + 1).padStart(2, '0');
-                    const daysInMonth = new Date(selectedYear, targetMonth + 1, 0).getDate();
-                    const targetDayStr = String(Math.min(parseInt(origDay), daysInMonth)).padStart(2, '0');
-                    const targetDateStr = `${selectedYear}-${targetMonthStr}-${targetDayStr}`;
-
-                    const exists = db.some(x =>
-                        !x.deleted &&
-                        x.isRecurring &&
-                        x.categoryId === item.categoryId &&
-                        (x.sub || '') === (item.sub || '') &&
-                        parseFloat(x.amount) === parseFloat(item.amount) &&
-                        getCleanDateStr(x.date) === targetDateStr
-                    );
-
-                    if (!exists) {
-                        const now = new Date().toISOString();
-                        const newEntry = {
-                            ...item,
-                            id: createUid('tx'),
-                            date: targetDateStr,
-                            full_date: `${targetDateStr} 08:00:00`,
-                            processed: false,
-                            createdAt: now,
-                            updatedAt: now,
-                            version: 1,
-                            deleted: false,
-                            action: 'save'
-                        };
-
-                        db.push(newEntry);
-                        queueMutation(newEntry);
-                        hasNew = true;
-                    }
-                }
-            });
-        }
+            const now = new Date().toISOString();
+            const entry = {
+                id:createUid('tx'), date:targetDateStr, full_date:`${targetDateStr} 08:00:00`,
+                category:plan.category, categoryId:plan.categoryId || getCategoryUidByName(plan.category), sub:plan.sub || '',
+                amount, type:plan.type || 'expense', note:plan.name || '', processed:false,
+                isRecurring:true, frequency:plan.frequency, recurringPlanId:plan.id,
+                createdAt:now, updatedAt:now, version:1, deleted:false, action:'save'
+            };
+            db.push(entry); queueMutation(entry); hasNew = true;
+        });
     });
 
     if (hasNew) {
         saveData(false);
         processSyncQueue();
+        renderList();
+        updateAnalytics();
+        updateBurnRateTab();
+        if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
     }
 }
