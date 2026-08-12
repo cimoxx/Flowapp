@@ -468,7 +468,7 @@ function monthlyEquivalent(plan) {
 function renderRecurringCard(p) {
     const cat = p.category || 'Nezaradené';
     const freq = {monthly:'mesačne',quarterly:'štvrťročne',yearly:'ročne',weekly:'týždenne'}[p.frequency] || p.frequency;
-    return `<div class="recurring-card"><div class="recurring-card-top"><div class="recurring-icon"><i data-lucide="repeat"></i></div><div class="min-w-0 flex-1"><div class="recurring-name">${escPlanning(p.name || cat)}</div><div class="planning-muted">${escPlanning(cat)}${p.sub ? ' / '+escPlanning(p.sub):''} · ${freq}</div></div><div class="recurring-amount">${formatCurrency(p.amount)}</div></div><div class="recurring-meta"><span>Ďalšia podľa plánu: deň ${p.dayOfMonth || 1}.</span><span>${p.amountMode==='variable'?'Premenlivá':'Fixná'} suma</span></div><div class="annual-month-actions"><button type="button" onclick="openRecurringPlanModal('${p.id}')">Upraviť</button><button type="button" onclick="pauseRecurringPlan('${p.id}')">Pozastaviť</button></div></div>`;
+    return `<div class="recurring-card"><div class="recurring-card-top"><div class="recurring-icon"><i data-lucide="repeat"></i></div><div class="min-w-0 flex-1"><div class="recurring-name">${escPlanning(p.name || cat)}</div><div class="planning-muted">${escPlanning(cat)}${p.sub ? ' / '+escPlanning(p.sub):''} · ${freq}</div></div><div class="recurring-amount">${formatCurrency(p.amount)}</div></div><div class="recurring-meta"><span>Ďalšia podľa plánu: deň ${p.dayOfMonth || 1}.</span><span>${p.amountMode==='variable'?'Premenlivá':'Fixná'} suma</span></div><div class="annual-month-actions"><button type="button" onclick="openRecurringPlanModal('${p.id}')">Upraviť</button><button type="button" onclick="pauseRecurringPlan('${p.id}')">Pozastaviť</button><button type="button" class="text-rose-600" onclick="openRecurringDeleteChoice('${p.id}')">Odstrániť</button></div></div>`;
 }
 
 function closePlanningModal() {
@@ -552,6 +552,70 @@ function pauseRecurringPlan(id) {
     if(!p)return;
     p.active=false;p.version=(Number(p.version)||1)+1;p.updatedAt=new Date().toISOString();
     savePlanningEntity('recurring',p);
+}
+
+function openRecurringDeleteChoice(id) {
+    const p = flowRecurringPlans.find(x=>String(x.id)===String(id));
+    if (!p) return;
+    window._pendingRecurringDelete = p;
+    showPlanningModal('Odstrániť pravidelnú platbu','Pravidelné',`
+      <div class="space-y-3">
+        <div class="planning-change-summary"><b>${escPlanning(p.name || p.category)}</b><span>${formatCurrency(p.amount)}</span></div>
+        <div class="planning-muted">Vyber, čo sa má odstrániť. História sa štandardne nemení, pokiaľ to výslovne nezvolíš.</div>
+        <button type="button" class="planning-choice-btn" onclick="applyRecurringDelete('${p.id}','one')"><b>Iba jedna platba</b><span>Odstráni jednu najbližšiu budúcu transakciu. Pravidlo zostane aktívne.</span></button>
+        <button type="button" class="planning-choice-btn" onclick="applyRecurringDelete('${p.id}','future')"><b>Táto a všetky budúce</b><span>Odstráni budúce vygenerované platby a ukončí pravidelný plán. Minulé zostanú.</span></button>
+        <button type="button" class="planning-choice-btn" onclick="applyRecurringDelete('${p.id}','all')"><b>Všetky vrátane minulých</b><span>Odstráni všetky transakcie vytvorené týmto pravidelným plánom a ukončí ho.</span></button>
+      </div>`);
+}
+
+async function applyRecurringDelete(id, scope) {
+    const plan = flowRecurringPlans.find(x=>String(x.id)===String(id));
+    if (!plan) return;
+    const today = getTodayStr();
+    let affected = db.filter(tx => !tx.deleted && String(tx.recurringPlanId || '') === String(plan.id));
+    affected.sort((a,b) => String(a.date).localeCompare(String(b.date)));
+
+    if (scope === 'one') {
+        const one = affected.find(tx => getCleanDateStr(tx.date) >= today);
+        if (one) markRecurringTransactionDeleted(one);
+    } else if (scope === 'future') {
+        affected.filter(tx => getCleanDateStr(tx.date) >= today).forEach(markRecurringTransactionDeleted);
+        plan.active = false;
+        plan.endDate = today;
+        plan.version = (Number(plan.version)||1) + 1;
+        plan.updatedAt = new Date().toISOString();
+        await savePlanningEntity('recurring', plan);
+    } else if (scope === 'all') {
+        affected.forEach(markRecurringTransactionDeleted);
+        plan.active = false;
+        plan.deleted = true;
+        plan.endDate = today;
+        plan.version = (Number(plan.version)||1) + 1;
+        plan.updatedAt = new Date().toISOString();
+        await savePlanningEntity('recurring', plan);
+        const idx = flowRecurringPlans.findIndex(x=>String(x.id)===String(plan.id));
+        if (idx > -1) flowRecurringPlans.splice(idx,1);
+        planningPersist();
+    }
+
+    saveData(false);
+    processSyncQueue();
+    closePlanningModal();
+    renderList();
+    renderPlanningScreens();
+    updateAnalytics();
+    updateBurnRateTab();
+    if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    showToast?.({type:'success',title:'Pravidelná platba odstránená',text:scope==='one'?'Odstránená jedna budúca platba.':scope==='future'?'Odstránené budúce platby a plán bol ukončený.':'Odstránené všetky platby a plán.'});
+    window._pendingRecurringDelete = null;
+}
+
+function markRecurringTransactionDeleted(tx) {
+    tx.deleted = true;
+    tx.action = 'delete';
+    tx.updatedAt = new Date().toISOString();
+    tx.version = (Number(tx.version)||1) + 1;
+    queueMutation(tx);
 }
 
 function openPlanningEventModal(monthKey='') {

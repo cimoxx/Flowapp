@@ -414,29 +414,77 @@ async function syncCategories(action = 'push') {
     updateSyncUI('ok');
 }
 
+function addMonthsSafe(date, months) {
+    const d = new Date(date);
+    const day = d.getDate();
+    const target = new Date(d.getFullYear(), d.getMonth() + months, 1);
+    const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(day, last));
+    return target;
+}
+
+function recurringOccurrenceDates(plan, fromDate, toDate) {
+    const out = [];
+    if (!plan || !plan.active) return out;
+    const start = new Date((plan.startDate || getTodayStr()) + 'T00:00:00');
+    if (isNaN(start.getTime())) return out;
+    const from = new Date(fromDate); from.setHours(0,0,0,0);
+    const to = new Date(toDate); to.setHours(0,0,0,0);
+    let cursor = new Date(Math.max(start.getTime(), from.getTime()));
+    const endPlan = plan.endDate ? new Date(plan.endDate + 'T23:59:59') : null;
+    if (endPlan && cursor > endPlan) return out;
+
+    const frequency = plan.frequency || 'monthly';
+    if (frequency === 'weekly') {
+        // Weekly plans use the weekday of startDate; dayOfMonth is ignored.
+        const weekday = start.getDay();
+        const diff = (weekday - cursor.getDay() + 7) % 7;
+        cursor.setDate(cursor.getDate() + diff);
+        while (cursor <= to) {
+            if (cursor >= from && (!endPlan || cursor <= endPlan)) out.push(new Date(cursor));
+            cursor.setDate(cursor.getDate() + 7);
+        }
+        return out;
+    }
+
+    const step = frequency === 'yearly' ? 12 : frequency === 'quarterly' ? 3 : 1;
+    let occurrence = new Date(start);
+    const desiredDay = Math.min(Number(plan.dayOfMonth) || start.getDate() || 1, 31);
+    occurrence.setDate(Math.min(desiredDay, new Date(occurrence.getFullYear(), occurrence.getMonth()+1,0).getDate()));
+
+    while (occurrence < from) occurrence = addMonthsSafe(occurrence, step);
+    while (occurrence <= to) {
+        if ((!endPlan || occurrence <= endPlan) && occurrence >= from) out.push(new Date(occurrence));
+        occurrence = addMonthsSafe(occurrence, step);
+    }
+    return out;
+}
+
+function recurringOccurrenceAmount(plan) {
+    return Number(plan.amount) || 0;
+}
+
 function processRecurringPayments() {
-    // v2.35: recurring plans are the source of truth. Existing transaction-level
-    // recurring flags remain supported for backward compatibility until plans load.
+    // Generate real transaction occurrences only from today through 12 months ahead.
+    // The selected transaction filter must never limit recurring generation.
     if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans) || flowRecurringPlans.length === 0) return;
 
-    const selectedYear = parseInt(document.getElementById('filter-year')?.value || new Date().getFullYear(), 10);
-    const activeMonths = selectedMonths.length > 0 ? selectedMonths : [new Date().getMonth()];
+    const today = new Date(); today.setHours(0,0,0,0);
+    const horizon = addMonthsSafe(today, 12); horizon.setHours(23,59,59,999);
     let hasNew = false;
 
     flowRecurringPlans.filter(p => p.active).forEach(plan => {
-        activeMonths.forEach(targetMonth => {
-            const amount = getPlanMonthlyAmount(plan, selectedYear, targetMonth);
-            if (!(amount > 0)) return;
-            const day = Math.min(Number(plan.dayOfMonth) || 1, new Date(selectedYear, targetMonth + 1, 0).getDate());
-            const targetDateStr = `${selectedYear}-${String(targetMonth + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            const exists = db.some(x => !x.deleted && getCleanDateStr(x.date) === targetDateStr && x.category === plan.category && (x.sub || '') === (plan.sub || '') && x.type === plan.type);
+        const dates = recurringOccurrenceDates(plan, today, horizon);
+        dates.forEach(date => {
+            const targetDateStr = getCleanDateStr(date.toISOString());
+            const exists = db.some(x => !x.deleted && String(x.recurringPlanId || '') === String(plan.id) && getCleanDateStr(x.date) === targetDateStr);
             if (exists) return;
 
             const now = new Date().toISOString();
             const entry = {
                 id:createUid('tx'), date:targetDateStr, full_date:`${targetDateStr} 08:00:00`,
                 category:plan.category, categoryId:plan.categoryId || getCategoryUidByName(plan.category), sub:plan.sub || '',
-                amount, type:plan.type || 'expense', note:plan.name || '', processed:false,
+                amount:recurringOccurrenceAmount(plan), type:plan.type || 'expense', note:plan.name || '', processed:false,
                 isRecurring:true, frequency:plan.frequency, recurringPlanId:plan.id,
                 createdAt:now, updatedAt:now, version:1, deleted:false, action:'save'
             };
@@ -453,3 +501,4 @@ function processRecurringPayments() {
         if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
     }
 }
+
