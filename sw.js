@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flow-v20-cache-v2.34.0';
+const CACHE_NAME = 'flow-v20-cache-v2.35.0';
 const ASSETS = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const ASSETS = [
   './assets/js/transactions.js',
   './assets/js/analytics.js',
   './assets/js/budget.js',
+  './assets/js/planning.js',
   './assets/js/app.js',
   'https://cdn.tailwindcss.com',
   'https://unpkg.com/lucide@latest',
