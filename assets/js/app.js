@@ -1,14 +1,3 @@
-function refreshActiveView() {
-    const active = document.querySelector('[id^="nav-"].active');
-    const screen = active ? active.id.replace('nav-', '') : 'home';
-    if (screen === 'home') renderList?.();
-    else if (screen === 'budget') updateBudgetScreen?.();
-    else if (screen === 'plan') renderAnnualPlanScreen?.();
-    else if (screen === 'recurring') renderRecurringScreen?.();
-    else if (screen === 'analytics') updateAnalytics?.();
-    else if (screen === 'burnrate') updateBurnRateTab?.();
-}
-
 function showScreen(screen) {
     const screens = ['home', 'budget', 'plan', 'recurring', 'analytics', 'burnrate'];
 
@@ -63,7 +52,11 @@ function showScreen(screen) {
 }
 
 function refreshAllViews() {
-    refreshActiveView();
+    if (typeof renderList === 'function') renderList();
+    if (typeof updateAnalytics === 'function') updateAnalytics();
+    if (typeof updateBurnRateTab === 'function') updateBurnRateTab();
+    if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    if (typeof renderPlanningScreens === 'function') renderPlanningScreens();
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -85,7 +78,7 @@ function refreshAllViews() {
 
     if (typeof renderMonthChips === 'function') renderMonthChips();
     if (typeof renderCatGrid === 'function') renderCatGrid();
-    if (typeof processRecurringPayments === 'function') processRecurringPayments({ render: false, sync: false });
+    if (typeof processRecurringPayments === 'function') processRecurringPayments();
     if (typeof renderList === 'function') renderList();
     if (typeof renderSwipeHint === 'function') renderSwipeHint();
     if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
