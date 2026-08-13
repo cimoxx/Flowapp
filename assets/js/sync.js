@@ -42,14 +42,14 @@ function queueMutation(item) {
 
     syncQueue = syncQueue.filter(q => String(q.id) !== mutation.id);
     syncQueue.push(mutation);
-    localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+    persistSyncStateSoon();
     updateSyncUI('ok');
 }
 
 function saveData(syncCats = false) {
     ensureDataIntegrity();
     localStorage.setItem('f_db_v20', JSON.stringify(db));
-    localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+    persistSyncStateNow();
     localStorage.setItem('f_cats_v20', JSON.stringify(categories));
 
     if (syncCats) {
@@ -67,6 +67,23 @@ let syncRetryTimer = null;
 let syncRetryAttempt = 0;
 const SYNC_BATCH_SIZE = 50;
 const SYNC_MAX_RETRY_DELAY = 60000;
+
+let syncStatePersistTimer = null;
+function persistSyncStateSoon() {
+    if (syncStatePersistTimer) return;
+    syncStatePersistTimer = setTimeout(() => {
+        syncStatePersistTimer = null;
+        localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+    }, 50);
+}
+function persistSyncStateNow() {
+    if (syncStatePersistTimer) {
+        clearTimeout(syncStatePersistTimer);
+        syncStatePersistTimer = null;
+    }
+    localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+}
+
 
 function scheduleSyncRetry() {
     if (syncRetryTimer || (syncQueue.length === 0 && !pendingCatSync)) return;
@@ -102,7 +119,7 @@ function removeAcceptedQueueItems(items) {
     syncQueue = syncQueue.filter(item => !acceptedKeys.has(getQueueItemKey(item)));
 
     if (syncQueue.length !== before) {
-        localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+        persistSyncStateSoon();
     }
 }
 
@@ -207,7 +224,7 @@ async function processSyncQueue() {
             }
 
             localStorage.setItem('f_db_v20', JSON.stringify(db));
-            localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+            persistSyncStateSoon();
             updateSyncUI('syncing');
 
             // A conflict can requeue a single local record. Continue immediately.
@@ -269,7 +286,7 @@ function reconcileSyncQueueWithCloud(cloudData) {
     });
 
     if (syncQueue.length !== before) {
-        localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
+        persistSyncStateSoon();
         return true;
     }
 
@@ -325,8 +342,9 @@ async function syncTransactions(action = 'pull') {
             if (!cloud.deleted) merged.push(cloud);
         });
 
+        const cloudIds = new Set(cloudData.map(c => String(c.id)));
         localById.forEach((local, id) => {
-            if (!cloudData.some(c => String(c.id) === id) && !queuedById.has(id) && !local.deleted) {
+            if (!cloudIds.has(id) && !queuedById.has(id) && !local.deleted) {
                 merged.push(local);
                 queueMutation({ ...local, action: 'save' });
             }
@@ -335,11 +353,8 @@ async function syncTransactions(action = 'pull') {
         db = merged;
         saveData(false);
 
-        processRecurringPayments();
-        renderList();
-        updateAnalytics();
-        updateBurnRateTab();
-        if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+        processRecurringPayments({ render: false, sync: false });
+        if (typeof refreshActiveView === 'function') refreshActiveView();
     } catch (e) {
         console.error("Sync pull error:", e);
         syncRetryAttempt++;
@@ -464,22 +479,26 @@ function recurringOccurrenceAmount(plan) {
     return Number(plan.amount) || 0;
 }
 
-function processRecurringPayments() {
-    // Generate real transaction occurrences only from today through 12 months ahead.
-    // The selected transaction filter must never limit recurring generation.
-    if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans) || flowRecurringPlans.length === 0) return;
+function processRecurringPayments(options = {}) {
+    const render = options.render !== false;
+    const sync = options.sync !== false;
+    if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans) || flowRecurringPlans.length === 0) return false;
 
     const today = new Date(); today.setHours(0,0,0,0);
     const horizon = addMonthsSafe(today, 12); horizon.setHours(23,59,59,999);
-    let hasNew = false;
 
-    flowRecurringPlans.filter(p => p.active).forEach(plan => {
-        const dates = recurringOccurrenceDates(plan, today, horizon);
-        dates.forEach(date => {
+    const existing = new Set();
+    for (const x of db) {
+        if (!x.deleted && x.recurringPlanId) existing.add(`${String(x.recurringPlanId)}|${getCleanDateStr(x.date)}`);
+    }
+
+    const newEntries = [];
+    for (const plan of flowRecurringPlans) {
+        if (!plan.active) continue;
+        for (const date of recurringOccurrenceDates(plan, today, horizon)) {
             const targetDateStr = getCleanDateStr(date.toISOString());
-            const exists = db.some(x => !x.deleted && String(x.recurringPlanId || '') === String(plan.id) && getCleanDateStr(x.date) === targetDateStr);
-            if (exists) return;
-
+            const key = `${String(plan.id)}|${targetDateStr}`;
+            if (existing.has(key)) continue;
             const now = new Date().toISOString();
             const entry = {
                 id:createUid('tx'), date:targetDateStr, full_date:`${targetDateStr} 08:00:00`,
@@ -488,17 +507,14 @@ function processRecurringPayments() {
                 isRecurring:true, frequency:plan.frequency, recurringPlanId:plan.id,
                 createdAt:now, updatedAt:now, version:1, deleted:false, action:'save'
             };
-            db.push(entry); queueMutation(entry); hasNew = true;
-        });
-    });
-
-    if (hasNew) {
-        saveData(false);
-        processSyncQueue();
-        renderList();
-        updateAnalytics();
-        updateBurnRateTab();
-        if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+            db.push(entry); syncQueue.push(entry); existing.add(key); newEntries.push(entry);
+        }
     }
-}
+    if (!newEntries.length) return false;
 
+    saveData(false);
+    persistSyncStateNow();
+    if (sync && typeof processSyncQueue === 'function') Promise.resolve().then(() => processSyncQueue());
+    if (render && typeof refreshActiveView === 'function') refreshActiveView();
+    return true;
+}
