@@ -162,7 +162,7 @@ function getBudgetDataset() {
     const expenses = getExpenseItemsForMonth(year, month);
     const incomes = getIncomeItemsForMonth(year, month);
 
-    // v2.35: if the planning engine is available, Budget uses the same annual
+    // v2.36: if the planning engine is available, Budget uses the same annual
     // model as the yearly planner so the two screens cannot drift apart.
     if (typeof getAnnualPlan === 'function') {
         const annual = getAnnualPlan(year);
@@ -194,7 +194,7 @@ function getBudgetDataset() {
                 recurringExpense: monthPlan.recurringExpense,
                 eventExpense: monthPlan.eventExpense,
                 plannedBalance: monthPlan.plannedBalance,
-                modelVersion: typeof FLOW_MODEL_VERSION !== 'undefined' ? FLOW_MODEL_VERSION : 'v2.35'
+                modelVersion: typeof FLOW_MODEL_VERSION !== 'undefined' ? FLOW_MODEL_VERSION : 'v2.36'
             };
         }
     }

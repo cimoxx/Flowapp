@@ -1,4 +1,4 @@
-/* FLOW v2.35 - Annual planning, recurring payments and forecast evaluation. */
+/* FLOW v2.36 - Annual planning, recurring payments, forecast evaluation and model hygiene. */
 
 let flowRecurringPlans = JSON.parse(localStorage.getItem('flow_recurring_plans_v235') || '[]');
 let flowPlannedEvents = JSON.parse(localStorage.getItem('flow_planned_events_v235') || '[]');
@@ -7,7 +7,7 @@ let flowForecastArchive = JSON.parse(localStorage.getItem('flow_forecast_archive
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.35-hybrid-v1';
+const FLOW_MODEL_VERSION = '2.36-hybrid-v2';
 const MONTH_NAMES_SK = ['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 
 function planningPersist() {
@@ -72,13 +72,16 @@ async function savePlanningEntity(type, entity) {
     const idx = list.findIndex(x => String(x.id) === String(normalized.id));
     if (idx > -1) list[idx] = normalized; else list.push(normalized);
     planningPersist();
-    try {
-        await planningPost({ action: 'savePlanning', type, entity: normalized });
-    } catch (error) {
-        console.warn('Planning save queued locally:', error);
-        showToast?.({ type: 'warning', title: 'Uložené lokálne', text: 'Cloud sa zosynchronizuje pri ďalšom pokuse.' });
-    }
+    // v2.36: optimistic UI. The local model is authoritative for immediate UI response;
+    // cloud persistence runs in the background so budget edits do not wait for Apps Script.
     renderPlanningScreens();
+    planningPost({ action: 'savePlanning', type, entity: normalized })
+        .then(() => { window.dispatchEvent(new Event('flow:planning-synced')); })
+        .catch(error => {
+            console.warn('Planning save queued locally:', error);
+            showToast?.({ type: 'warning', title: 'Uložené lokálne', text: 'Cloud sa zosynchronizuje pri ďalšom pokuse.' });
+        });
+    return normalized;
 }
 
 async function deletePlanningEntity(type, id) {
@@ -175,12 +178,41 @@ function getBudgetOverride(category, year, month) {
     return flowBudgetOverrides.find(o => !o.deleted && o.monthKey === key && String(o.category || '') === String(category));
 }
 
+function getForecastClass(item) {
+    return String(item?.forecastClass || '').toLowerCase();
+}
+
+function autoForecastExclude(item, category, year, month, context='baseline') {
+    const cls = getForecastClass(item);
+    if (cls === 'oneoff' || item?.forecastExcluded === true) return true;
+    if (context === 'seasonal' && cls === 'seasonal') return false;
+    if (cls === 'seasonal') return true;
+
+    // Detect an isolated spike without removing it from Actual/Cash-flow.
+    // The same-month seasonal model can still see it through getSeasonalCategorySpend().
+    const monthly = getExpenseItemsForMonth(year, month).filter(x => x.category === category && !x.isRecurring);
+    const total = sumAmount(monthly);
+    if (total <= 0) return false;
+    const history = [];
+    let y = year, m = month;
+    for (let i=0; i<12; i++) {
+        m--; if (m < 0) { m=11; y--; }
+        history.push(sumAmount(getExpenseItemsForMonth(y,m).filter(x => x.category === category && !x.isRecurring)));
+    }
+    const nz = history.filter(v => v > 0);
+    if (nz.length < 3) return false;
+    const med = median(nz);
+    const threshold = Math.max(500, med * 2.75);
+    return total > threshold && context !== 'seasonal';
+}
+
 function getHistoricalCategorySpend(category, targetYear, targetMonth, maxMonths = 6) {
     const rows = [];
     let y = targetYear, m = targetMonth - 1;
     for (let i = 0; i < maxMonths; i++) {
         if (m < 0) { m = 11; y--; }
-        const value = sumAmount(getExpenseItemsForMonth(y, m).filter(x => x.category === category && !x.isRecurring));
+        const items = getExpenseItemsForMonth(y, m).filter(x => x.category === category && !x.isRecurring);
+        const value = items.filter(x => !autoForecastExclude(x, category, y, m, 'baseline')).reduce((a,x)=>a+(Number(x.amount)||0),0);
         rows.push({ year: y, month: m, value });
         m--;
     }
@@ -190,7 +222,7 @@ function getHistoricalCategorySpend(category, targetYear, targetMonth, maxMonths
 function getSeasonalCategorySpend(category, targetYear, targetMonth) {
     const rows = [];
     for (let y = targetYear - 1; y >= Math.max(2000, targetYear - 5); y--) {
-        rows.push(sumAmount(getExpenseItemsForMonth(y, targetMonth).filter(x => x.category === category && !x.isRecurring)));
+        rows.push(sumAmount(getExpenseItemsForMonth(y, targetMonth).filter(x => x.category === category && !x.isRecurring && !autoForecastExclude(x, category, y, targetMonth, 'seasonal'))));
     }
     return rows.filter(v => v > 0);
 }
@@ -403,9 +435,12 @@ async function refreshArchiveEvaluations() {
 }
 
 async function runForecastBackfill() {
+    showToast?.({ type:'info', title:'Vyhodnocujem históriu', text:'Výpočet prebieha na pozadí.' });
+    await new Promise(resolve => (window.requestIdleCallback || window.setTimeout)(resolve, window.requestIdleCallback ? {timeout:120} : 20));
     const rows = buildForecastArchiveBackfill(2);
-    if (!rows.length) return;
+    if (!rows.length) { showToast?.({type:'success',title:'História je aktuálna',text:'Nie sú nové historické predpovede na vyhodnotenie.'}); return; }
     await archiveForecastRows(rows);
+    await new Promise(resolve => setTimeout(resolve, 0));
     showToast?.({ type:'success', title:'Forecast archív aktualizovaný', text:`Vyhodnotených ${rows.length} historických predikcií.` });
     renderPlanningScreens();
 }
