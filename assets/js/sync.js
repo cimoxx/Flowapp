@@ -47,6 +47,7 @@ function queueMutation(item) {
 }
 
 function saveData(syncCats = false) {
+    if (typeof markForecastIndexDirty === 'function') markForecastIndexDirty();
     ensureDataIntegrity();
     localStorage.setItem('f_db_v20', JSON.stringify(db));
     localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));

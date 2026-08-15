@@ -7,7 +7,81 @@ let flowForecastArchive = JSON.parse(localStorage.getItem('flow_forecast_archive
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.37-multi-year-v1';
+const FLOW_MODEL_VERSION = '2.38-multi-year-backtest-v2';
+
+// Fast month/category index. It is rebuilt only when transaction data changes.
+let flowForecastIndex = null;
+let flowForecastIndexSignature = '';
+let flowForecastIndexDirty = true;
+
+function markForecastIndexDirty() { flowForecastIndexDirty = true; }
+
+function getForecastIndexSignature() {
+    const rows = Array.isArray(db) ? db : [];
+    let latest = '';
+    for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const stamp = String(r?.updatedAt || r?.createdAt || r?.date || '');
+        if (stamp > latest) latest = stamp;
+    }
+    return `${rows.length}|${latest}`;
+}
+
+function rebuildForecastIndex(force = false) {
+    // saveData()/sync marks the index dirty. Do not scan the whole DB on every forecast call.
+    if (!force && !flowForecastIndexDirty && flowForecastIndex) return flowForecastIndex;
+    const signature = getForecastIndexSignature();
+
+    const index = { months: Object.create(null), years: Object.create(null) };
+    const rows = Array.isArray(db) ? db : [];
+    rows.forEach(item => {
+        if (!item || item.deleted) return;
+        const clean = getCleanDateStr(item.date);
+        const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(clean || '');
+        if (!match) return;
+        const year = Number(match[1]);
+        const month = Number(match[2]) - 1;
+        if (year < 2000 || month < 0 || month > 11) return;
+        const key = `${year}-${String(month + 1).padStart(2,'0')}`;
+        const category = String(item.category || '');
+        const amount = Number(item.amount) || 0;
+        if (!index.months[key]) index.months[key] = Object.create(null);
+        if (!index.months[key][category]) index.months[key][category] = { variableExpense: 0, recurringExpense: 0, income: 0, totalExpense: 0, count: 0 };
+        const bucket = index.months[key][category];
+        if (item.type === 'income') {
+            bucket.income += amount;
+        } else if (item.type === 'expense') {
+            bucket.totalExpense += amount;
+            if (item.isRecurring) bucket.recurringExpense += amount;
+            else bucket.variableExpense += amount;
+            bucket.count += 1;
+        }
+        if (!index.years[year]) index.years[year] = { monthsWithCategory: Object.create(null), totals: Object.create(null) };
+        if (!index.years[year].monthsWithCategory[category]) index.years[year].monthsWithCategory[category] = new Set();
+        if (item.type === 'expense' && !item.isRecurring && amount > 0) index.years[year].monthsWithCategory[category].add(month);
+        if (item.type === 'expense' && !item.isRecurring) {
+            index.years[year].totals[category] = (index.years[year].totals[category] || 0) + amount;
+        }
+    });
+    flowForecastIndex = index;
+    flowForecastIndexSignature = signature;
+    flowForecastIndexDirty = false;
+    return index;
+}
+
+function getIndexedCategoryValue(year, month, category, field = 'variableExpense') {
+    const index = rebuildForecastIndex();
+    const bucket = index.months[getMonthKey(year, month)]?.[String(category)];
+    return bucket ? Number(bucket[field]) || 0 : 0;
+}
+
+function getIndexedIncome(year, month, category = null) {
+    const index = rebuildForecastIndex();
+    const monthData = index.months[getMonthKey(year, month)] || {};
+    if (category !== null) return Number(monthData[String(category)]?.income) || 0;
+    return Object.values(monthData).reduce((s,b) => s + (Number(b.income)||0), 0);
+}
+
 const MONTH_NAMES_SK = ['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 
 function planningPersist() {
@@ -184,7 +258,7 @@ function getHistoricalCategorySpend(category, targetYear, targetMonth, maxMonths
     for (let i = 0; i < maxMonths; i++) {
         if (m < 0) { m = 11; y--; }
         const isFutureOrCurrent = y > currentYear || (y === currentYear && m >= currentMonth);
-        const value = isFutureOrCurrent ? 0 : sumAmount(getExpenseItemsForMonth(y, m).filter(x => x.category === category && !x.isRecurring));
+        const value = isFutureOrCurrent ? 0 : getIndexedCategoryValue(y, m, category, 'variableExpense');
         rows.push({ year: y, month: m, value });
         m--;
     }
@@ -196,38 +270,70 @@ function getHistoricalDataYears() {
     return getTransactionDataYears().filter(y => y <= currentYear);
 }
 
-function getSeasonalCategorySpend(category, targetYear, targetMonth) {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth();
-    const years = getHistoricalDataYears().filter(y => y < targetYear || (targetYear <= currentYear && y < currentYear)).sort((a,b) => b-a);
+function getHistoricalYearSeasonality(category, targetYear, targetMonth) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const index = rebuildForecastIndex();
+    const years = getHistoricalDataYears()
+        .filter(y => y < targetYear || (targetYear <= currentYear && y < currentYear))
+        .sort((a,b) => b-a);
     const rows = [];
-    years.forEach(y => {
-        if (y === currentYear && targetMonth >= currentMonth) return;
-        const value = sumAmount(getExpenseItemsForMonth(y, targetMonth).filter(x => x.category === category && !x.isRecurring));
-        if (value > 0) rows.push({ year: y, value });
+
+    years.forEach((year, yearRank) => {
+        if (year === currentYear && targetMonth >= currentMonth) return;
+        const months = index.years[year]?.monthsWithCategory?.[String(category)];
+        if (!months || months.size < 3) return;
+        let annualTotal = 0;
+        for (let m = 0; m < 12; m++) annualTotal += getIndexedCategoryValue(year, m, category, 'variableExpense');
+        const annualMonthlyAverage = annualTotal / 12;
+        const targetValue = getIndexedCategoryValue(year, targetMonth, category, 'variableExpense');
+        if (annualMonthlyAverage <= 0) return;
+        const ratio = targetValue / annualMonthlyAverage;
+        if (!Number.isFinite(ratio) || ratio < 0 || ratio > 8) return;
+        // More recent years matter more, but every available year contributes.
+        const weight = Math.max(0.35, 1 - yearRank * 0.12);
+        rows.push({ year, value: targetValue, ratio, weight });
     });
     return rows;
 }
 
-function median(values) {
-    const a = values.filter(v => Number.isFinite(v)).sort((x, y) => x - y);
-    if (!a.length) return 0;
-    const mid = Math.floor(a.length / 2);
-    return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+function weightedMean(rows, valueKey = 'value') {
+    let total = 0, weight = 0;
+    rows.forEach(r => {
+        const v = Number(r?.[valueKey]);
+        const w = Number(r?.weight ?? 1);
+        if (Number.isFinite(v) && Number.isFinite(w) && w > 0) { total += v*w; weight += w; }
+    });
+    return weight ? total/weight : 0;
 }
+
+function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
 
 function getVariableForecast(category, year, month) {
     const historical = getHistoricalCategorySpend(category, year, month, 12);
     const nonZero = historical.filter(x => x.value > 0);
-    if (!nonZero.length) return { value: 0, expected: 0, confidence: 'low', method: 'no-data', dataMonths: 0, dataYears: 0 };
-    const weights = [0.24,0.17,0.13,0.10,0.08,0.07,0.06,0.05,0.04,0.03,0.02,0.01];
-    let weighted = 0, weightTotal = 0;
-    historical.forEach((r, idx) => { if (r.value > 0) { const w = weights[idx] || 0.01; weighted += r.value * w; weightTotal += w; } });
-    const recent = weightTotal ? weighted / weightTotal : median(nonZero.map(x => x.value));
-    const seasonalRows = getSeasonalCategorySpend(category, year, month);
-    const seasonalValues = seasonalRows.map(r => r.value);
-    const seasonalValue = seasonalValues.length >= 2 ? median(seasonalValues) : 0;
-    const expected = seasonalValue > 0 ? recent * 0.55 + seasonalValue * 0.45 : recent;
+    if (!nonZero.length) return { value: 0, expected: 0, confidence: 'low', method: 'no-data', dataMonths: 0, dataYears: 0, seasonalIndex: 1, trendFactor: 1 };
+
+    const recentRows = historical.map((r, idx) => ({ ...r, weight: Math.pow(0.86, idx) })).filter(r => r.value > 0);
+    const recent = weightedMean(recentRows);
+
+    const seasonalRows = getHistoricalYearSeasonality(category, year, month);
+    const seasonalIndex = seasonalRows.length >= 2 ? clamp(weightedMean(seasonalRows, 'ratio'), 0.35, 3.5) : 1;
+
+    // Estimate the level change between the most recent 6 months and the preceding 6 months.
+    const recent6 = historical.slice(0,6).filter(r=>r.value>0).map(r=>r.value);
+    const prior6 = historical.slice(6,12).filter(r=>r.value>0).map(r=>r.value);
+    const recentAvg = recent6.length ? recent6.reduce((a,b)=>a+b,0)/recent6.length : recent;
+    const priorAvg = prior6.length ? prior6.reduce((a,b)=>a+b,0)/prior6.length : recentAvg;
+    const trendFactor = priorAvg > 0 ? clamp(recentAvg / priorAvg, 0.80, 1.25) : 1;
+
+    let expected = recent * seasonalIndex;
+    // If we have enough history, apply a restrained trend adjustment.
+    if (nonZero.length >= 6) expected *= (0.75 + 0.25 * trendFactor);
+
+    // Robust safety buffer based on median absolute deviation. It is a budget buffer,
+    // not part of the central forecast.
     const values = nonZero.map(x => x.value);
     const med = median(values) || expected;
     const mad = median(values.map(v => Math.abs(v - med)));
@@ -235,10 +341,17 @@ function getVariableForecast(category, year, month) {
     const buffer = Math.min(0.15, Math.max(0.03, volatility * 0.35));
     const value = expected * (1 + buffer);
     const dataYears = new Set(nonZero.map(x => x.year)).size;
+    const seasonalYears = seasonalRows.length;
     let confidence = 'low';
-    if (dataYears >= 3 && nonZero.length >= 8) confidence = 'high';
+    if (dataYears >= 4 && nonZero.length >= 10 && seasonalYears >= 3) confidence = 'high';
     else if (dataYears >= 2 || nonZero.length >= 4) confidence = 'medium';
-    return { value: round2(value), expected: round2(expected), bufferPct: round2(buffer * 100), confidence, method: seasonalValues.length >= 2 ? 'multi-year-seasonal' : 'weighted-12m', dataMonths: nonZero.length, dataYears };
+
+    return {
+        value: round2(value), expected: round2(expected), bufferPct: round2(buffer*100), confidence,
+        method: seasonalYears >= 2 ? 'multi-year-seasonal-trend' : 'weighted-12m-trend',
+        dataMonths: nonZero.length, dataYears, seasonalYears,
+        seasonalIndex: round2(seasonalIndex), trendFactor: round2(trendFactor)
+    };
 }
 
 function expensesForCategoryExcludingRecurring(year, month, category) {
@@ -246,25 +359,22 @@ function expensesForCategoryExcludingRecurring(year, month, category) {
 }
 
 function getHistoricalIncomeForecast(targetYear, targetMonth) {
-    const values=[];
-    let y=targetYear,m=targetMonth-1;
-    for(let i=0;i<6;i++){
+    const values = [];
+    let y = targetYear, m = targetMonth - 1;
+    const now = new Date();
+    const currentYear = now.getFullYear(), currentMonth = now.getMonth();
+    for (let i=0;i<12;i++) {
         if(m<0){m=11;y--;}
-        const v=sumAmount(getIncomeItemsForMonth(y,m).filter(x=>!x.isRecurring));
-        if(v>0) values.push(v);
+        const isFutureOrCurrent = y > currentYear || (y === currentYear && m >= currentMonth);
+        if (!isFutureOrCurrent) {
+            const v = getIndexedIncome(y,m);
+            if(v>0) values.push(v);
+        }
         m--;
     }
-    if(!values.length)return {value:0,confidence:'low'};
-    const weights=[0.30,0.22,0.17,0.13,0.10,0.08];
-    let total=0,wt=0,idx=0;
-    let yy=targetYear,mm=targetMonth-1;
-    for(let i=0;i<6;i++){
-        if(mm<0){mm=11;yy--;}
-        const v=sumAmount(getIncomeItemsForMonth(yy,mm).filter(x=>!x.isRecurring));
-        if(v>0){total+=v*weights[idx];wt+=weights[idx];}
-        idx++;mm--;
-    }
-    return {value:round2(wt?total/wt:median(values)),confidence:values.length>=5?'high':values.length>=3?'medium':'low'};
+    if(!values.length) return {value:0,confidence:'low'};
+    const recent = values.reduce((s,v)=>s+v,0)/values.length;
+    return {value:round2(recent),confidence:values.length>=9?'high':values.length>=5?'medium':'low'};
 }
 
 function getAnnualPlan(year) {
@@ -275,13 +385,13 @@ function getAnnualPlan(year) {
         const key = getMonthKey(year, month);
         const isCurrent = year === new Date().getFullYear() && month === new Date().getMonth();
         const closed = new Date(year, month + 1, 0) < new Date(new Date().setHours(0,0,0,0));
-        const actualExpenses = sumAmount(getExpenseItemsForMonth(year, month));
-        const actualIncome = sumAmount(getIncomeItemsForMonth(year, month));
+        const actualExpenses = Object.values(rebuildForecastIndex().months[getMonthKey(year,month)] || {}).reduce((sum,b)=>sum + (Number(b.totalExpense)||0), 0);
+        const actualIncome = getIndexedIncome(year, month);
         const recurring = getRecurringForMonth(year, month);
         const events = getPlannedEventsForMonth(year, month);
 
         const categoryRows = expenseCategories.map(cat => {
-            const actual = sumAmount(getExpenseItemsForMonth(year, month).filter(x => x.category === cat.id));
+            const actual = getIndexedCategoryValue(year, month, cat.id, 'totalExpense');
             const recurringAmount = recurring.filter(p => p.category === cat.id && p.type === 'expense').reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
             const variable = getVariableForecast(cat.id, year, month);
             const override = getBudgetOverride(cat.id, year, month);
@@ -289,8 +399,8 @@ function getAnnualPlan(year) {
             const budget = override ? Number(override.amount) || 0 : round2(base);
             const now = new Date();
             const isCurrent = year === now.getFullYear() && month === now.getMonth();
-            const variableActual = sumAmount(expensesForCategoryExcludingRecurring(year, month, cat.id));
-            const recurringActual = sumAmount(getExpenseItemsForMonth(year, month).filter(x => x.category === cat.id && x.isRecurring));
+            const variableActual = getIndexedCategoryValue(year, month, cat.id, 'variableExpense');
+            const recurringActual = getIndexedCategoryValue(year, month, cat.id, 'recurringExpense');
             let forecast = actual;
             if (!closed) {
                 const remainingVariable = Math.max(0, (variable.expected ?? variable.value) - variableActual);
@@ -309,11 +419,11 @@ function getAnnualPlan(year) {
         const budget = round2(recurringExpense + variableBudget + eventExpense);
         const forecast = closed ? actualExpenses : round2(categoryRows.reduce((s,r) => s + r.forecast, 0) + eventExpense);
         const incomeForecast = getHistoricalIncomeForecast(year, month);
-        const variableIncomeActual = sumAmount(getIncomeItemsForMonth(year, month).filter(x => !x.isRecurring));
+        const variableIncomeActual = getIndexedIncome(year, month);
         let plannedIncome = actualIncome;
         if (!closed) {
             const variableIncomeRemaining = Math.max(0, incomeForecast.value - variableIncomeActual);
-            plannedIncome = round2(actualIncome + variableIncomeRemaining + Math.max(0, recurringIncome - sumAmount(getIncomeItemsForMonth(year, month).filter(x => x.isRecurring))) + eventIncome);
+            plannedIncome = round2(actualIncome + variableIncomeRemaining + Math.max(0, recurringIncome) + eventIncome);
             if (month !== new Date().getMonth() || year !== new Date().getFullYear()) plannedIncome = round2(incomeForecast.value + recurringIncome + eventIncome);
         }
         const plannedBalance = round2(plannedIncome - forecast);
@@ -338,7 +448,18 @@ function calculateForecastMetrics() {
     return { count: rows.length, mae: round2(mae), wape: round2(wape), bias: round2(bias), accuracy: round2(Math.max(0, 100 - wape)), budgetMae:round2(budgetRows.length?budgetAbs.reduce((s,v)=>s+v,0)/budgetRows.length:0), budgetWape:round2(budgetTotal?budgetAbs.reduce((s,v)=>s+v,0)/budgetTotal*100:0) };
 }
 
+function getHistoricalRecurringBaseline(category, targetYear, targetMonth) {
+    const historical = getHistoricalCategorySpend(category, targetYear, targetMonth, 12);
+    const values = [];
+    historical.forEach(r => {
+        if (r.value > 0) values.push(getIndexedCategoryValue(r.year, r.month, category, 'recurringExpense'));
+    });
+    return values.length ? median(values) : 0;
+}
+
 function buildForecastArchiveBackfill() {
+    // True walk-forward backtest: when target is YYYY-MM, the model only sees
+    // transactions strictly before that month. Current recurring plans are NOT used.
     const now = new Date();
     const historicalYears = getHistoricalDataYears();
     const startYear = historicalYears.length ? Math.min(...historicalYears) : now.getFullYear();
@@ -354,12 +475,22 @@ function buildForecastArchiveBackfill() {
                 const key = `${keyMonth}|${cat.id}|${FLOW_MODEL_VERSION}`;
                 if (existing.has(key)) return;
                 const variable = getVariableForecast(cat.id, y, m);
-                const recurring = getRecurringForMonth(y,m).filter(p => p.category === cat.id && p.type === 'expense').reduce((s,p)=>s+getPlanMonthlyAmount(p,y,m),0);
-                const forecast = round2((variable.expected ?? variable.value) + recurring);
-                const budget = round2(variable.value + recurring);
-                const actual = sumAmount(getExpenseItemsForMonth(y,m).filter(x=>x.category===cat.id));
+                const recurringBaseline = getHistoricalRecurringBaseline(cat.id, y, m);
+                const forecast = round2((variable.expected ?? variable.value) + recurringBaseline);
+                const budget = round2(variable.value + recurringBaseline);
+                const actual = getIndexedCategoryValue(y,m,cat.id,'totalExpense');
+                const actualVariable = getIndexedCategoryValue(y,m,cat.id,'variableExpense');
                 if (actual <= 0 && forecast <= 0) return;
-                rows.push({ id:createUid('fa'), targetMonth:keyMonth, category:cat.id, forecastAmount:forecast, actualAmount:actual, budgetAmount:budget, modelVersion:FLOW_MODEL_VERSION, generatedAt:new Date(y,m,1).toISOString(), dataMonths:variable.dataMonths, confidence:variable.confidence, method:variable.method, inputsJson:JSON.stringify({variable:variable.value, recurring}), evaluatedAt:new Date(y,m+1,1).toISOString() });
+                rows.push({
+                    id:createUid('fa'), targetMonth:keyMonth, category:cat.id,
+                    forecastAmount:forecast, budgetAmount:budget, actualAmount:actual,
+                    actualVariableAmount:actualVariable, recurringBaseline:round2(recurringBaseline),
+                    modelVersion:FLOW_MODEL_VERSION, generatedAt:new Date(y,m,1).toISOString(),
+                    dataMonths:variable.dataMonths, dataYears:variable.dataYears, seasonalYears:variable.seasonalYears,
+                    confidence:variable.confidence, method:variable.method,
+                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, seasonalIndex:variable.seasonalIndex, trendFactor:variable.trendFactor}),
+                    evaluatedAt:new Date(y,m+1,1).toISOString(), backtest:'walk-forward'
+                });
             });
         }
     }
@@ -398,7 +529,7 @@ async function refreshArchiveEvaluations() {
         if(!y || !m1) return;
         const periodEnd=new Date(y,m1,1);
         if(periodEnd>new Date()) return;
-        const actual=sumAmount(getExpenseItemsForMonth(y,m1-1).filter(x=>x.category===row.category));
+        const actual=getIndexedCategoryValue(y,m1-1,row.category,'totalExpense');
         const previous=Number(row.actualAmount)||0;
         if(Math.abs(previous-actual)<0.005 && row.errorAmount!==undefined) return;
         const forecast=Number(row.forecastAmount)||0;
@@ -664,21 +795,29 @@ async function submitBudgetOverride(event,key,category){
 }
 
 function renderPlanningScreens() {
-    renderAnnualPlanScreen();
-    renderRecurringScreen();
+    // Do not calculate the entire 12-month model while another tab is visible.
+    const planScreen = document.getElementById('screen-plan');
+    if (planScreen && !planScreen.classList.contains('hidden')) renderAnnualPlanScreen();
+    const recurringScreen = document.getElementById('screen-recurring');
+    if (recurringScreen && !recurringScreen.classList.contains('hidden')) renderRecurringScreen();
     if(window.lucide) lucide.createIcons();
 }
 
 function initPlanning() {
     if (typeof refreshYearSelectors === 'function') refreshYearSelectors();
+    markForecastIndexDirty();
     planningPersist();
-    renderPlanningScreens();
-    loadPlanningData().then(async()=>{
-        if(!flowForecastArchive.length) await runForecastBackfill();
-        await refreshArchiveEvaluations();
-        await archiveCurrentForecastSnapshot();
-        renderPlanningScreens();
+    // Planning data is loaded in the background. Historical backfill is explicit
+    // (button) so first app open remains fast.
+    loadPlanningData().then(()=>{
+        // Re-evaluate only after the app has become idle; never block first paint.
+        const runIdle = window.requestIdleCallback || (cb => setTimeout(cb, 1200));
+        runIdle(async()=>{
+            await refreshArchiveEvaluations();
+            if (document.visibilityState !== 'hidden') renderPlanningScreens();
+        });
     });
 }
 
-window.addEventListener('flow:data-changed', renderPlanningScreens);
+window.addEventListener('flow:data-changed', ()=>{ markForecastIndexDirty(); renderPlanningScreens(); });
+
