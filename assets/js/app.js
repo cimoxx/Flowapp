@@ -52,6 +52,7 @@ function showScreen(screen) {
 }
 
 function refreshAllViews() {
+    if (typeof refreshYearSelectors === 'function') refreshYearSelectors();
     if (typeof renderList === 'function') renderList();
     if (typeof updateAnalytics === 'function') updateAnalytics();
     if (typeof updateBurnRateTab === 'function') updateBurnRateTab();
@@ -61,20 +62,8 @@ function refreshAllViews() {
 }
 
 (function initApp() {
-    const yearSelect = document.getElementById('filter-year');
     const currentYear = new Date().getFullYear();
-
-    if (yearSelect) {
-        yearSelect.innerHTML = '';
-
-        for (let y = currentYear - 2; y <= currentYear + 2; y++) {
-            const opt = document.createElement('option');
-            opt.value = y;
-            opt.innerText = y;
-            if (y === currentYear) opt.selected = true;
-            yearSelect.appendChild(opt);
-        }
-    }
+    if (typeof refreshYearSelectors === 'function') refreshYearSelectors();
 
     if (typeof renderMonthChips === 'function') renderMonthChips();
     if (typeof renderCatGrid === 'function') renderCatGrid();

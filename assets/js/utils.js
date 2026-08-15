@@ -80,3 +80,40 @@ function formatCurrency(value, currency = 'EUR') {
         maximumFractionDigits: 2
     }).format(amount);
 }
+
+
+function getTransactionDataYears() {
+    const years = new Set();
+    const currentYear = new Date().getFullYear();
+    (Array.isArray(db) ? db : []).forEach(item => {
+        if (!item || item.deleted) return;
+        const clean = getCleanDateStr(item.date);
+        const m = /^(\d{4})-\d{2}-\d{2}$/.exec(clean || '');
+        if (!m) return;
+        const year = Number(m[1]);
+        if (year >= 2000 && year <= currentYear) years.add(year);
+    });
+    return Array.from(years).sort((a,b) => a-b);
+}
+
+function getAvailablePlanningYears() {
+    const currentYear = new Date().getFullYear();
+    const years = new Set(getTransactionDataYears());
+    years.add(currentYear);
+    years.add(currentYear + 1);
+    return Array.from(years).sort((a,b) => a-b);
+}
+
+function refreshYearSelectors() {
+    const years = getAvailablePlanningYears();
+    ['filter-year', 'annual-plan-year'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const current = Number(el.value);
+        el.innerHTML = years.map(y => `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`).join('');
+        if (!years.includes(current)) {
+            const preferred = new Date().getFullYear();
+            el.value = String(years.includes(preferred) ? preferred : years[years.length - 1]);
+        }
+    });
+}

@@ -1,4 +1,4 @@
-/* FLOW v2.35 - Annual planning, recurring payments and forecast evaluation. */
+/* FLOW v2.37 - Multi-year data-aware annual planning and forecasting. */
 
 let flowRecurringPlans = JSON.parse(localStorage.getItem('flow_recurring_plans_v235') || '[]');
 let flowPlannedEvents = JSON.parse(localStorage.getItem('flow_planned_events_v235') || '[]');
@@ -7,7 +7,7 @@ let flowForecastArchive = JSON.parse(localStorage.getItem('flow_forecast_archive
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.35-hybrid-v1';
+const FLOW_MODEL_VERSION = '2.37-multi-year-v1';
 const MONTH_NAMES_SK = ['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
 
 function planningPersist() {
@@ -175,24 +175,38 @@ function getBudgetOverride(category, year, month) {
     return flowBudgetOverrides.find(o => !o.deleted && o.monthKey === key && String(o.category || '') === String(category));
 }
 
-function getHistoricalCategorySpend(category, targetYear, targetMonth, maxMonths = 6) {
+function getHistoricalCategorySpend(category, targetYear, targetMonth, maxMonths = 12) {
     const rows = [];
     let y = targetYear, m = targetMonth - 1;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
     for (let i = 0; i < maxMonths; i++) {
         if (m < 0) { m = 11; y--; }
-        const value = sumAmount(getExpenseItemsForMonth(y, m).filter(x => x.category === category && !x.isRecurring));
+        const isFutureOrCurrent = y > currentYear || (y === currentYear && m >= currentMonth);
+        const value = isFutureOrCurrent ? 0 : sumAmount(getExpenseItemsForMonth(y, m).filter(x => x.category === category && !x.isRecurring));
         rows.push({ year: y, month: m, value });
         m--;
     }
     return rows;
 }
 
+function getHistoricalDataYears() {
+    const currentYear = new Date().getFullYear();
+    return getTransactionDataYears().filter(y => y <= currentYear);
+}
+
 function getSeasonalCategorySpend(category, targetYear, targetMonth) {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    const years = getHistoricalDataYears().filter(y => y < targetYear || (targetYear <= currentYear && y < currentYear)).sort((a,b) => b-a);
     const rows = [];
-    for (let y = targetYear - 1; y >= Math.max(2000, targetYear - 5); y--) {
-        rows.push(sumAmount(getExpenseItemsForMonth(y, targetMonth).filter(x => x.category === category && !x.isRecurring)));
-    }
-    return rows.filter(v => v > 0);
+    years.forEach(y => {
+        if (y === currentYear && targetMonth >= currentMonth) return;
+        const value = sumAmount(getExpenseItemsForMonth(y, targetMonth).filter(x => x.category === category && !x.isRecurring));
+        if (value > 0) rows.push({ year: y, value });
+    });
+    return rows;
 }
 
 function median(values) {
@@ -203,34 +217,28 @@ function median(values) {
 }
 
 function getVariableForecast(category, year, month) {
-    const historical = getHistoricalCategorySpend(category, year, month, 6);
+    const historical = getHistoricalCategorySpend(category, year, month, 12);
     const nonZero = historical.filter(x => x.value > 0);
-    if (!nonZero.length) return { value: 0, confidence: 'low', method: 'no-data', dataMonths: 0 };
-
+    if (!nonZero.length) return { value: 0, expected: 0, confidence: 'low', method: 'no-data', dataMonths: 0, dataYears: 0 };
+    const weights = [0.24,0.17,0.13,0.10,0.08,0.07,0.06,0.05,0.04,0.03,0.02,0.01];
     let weighted = 0, weightTotal = 0;
-    const weights = [0.30, 0.22, 0.17, 0.13, 0.10, 0.08];
-    historical.forEach((r, idx) => {
-        if (r.value > 0) { weighted += r.value * weights[idx]; weightTotal += weights[idx]; }
-    });
+    historical.forEach((r, idx) => { if (r.value > 0) { const w = weights[idx] || 0.01; weighted += r.value * w; weightTotal += w; } });
     const recent = weightTotal ? weighted / weightTotal : median(nonZero.map(x => x.value));
-
-    const seasonal = getSeasonalCategorySpend(category, year, month);
-    const seasonalValue = seasonal.length >= 2 ? median(seasonal) : 0;
-    let value = seasonalValue > 0 ? recent * 0.65 + seasonalValue * 0.35 : recent;
-
+    const seasonalRows = getSeasonalCategorySpend(category, year, month);
+    const seasonalValues = seasonalRows.map(r => r.value);
+    const seasonalValue = seasonalValues.length >= 2 ? median(seasonalValues) : 0;
+    const expected = seasonalValue > 0 ? recent * 0.55 + seasonalValue * 0.45 : recent;
     const values = nonZero.map(x => x.value);
-    const med = median(values) || value;
+    const med = median(values) || expected;
     const mad = median(values.map(v => Math.abs(v - med)));
     const volatility = med > 0 ? mad / med : 0;
-    const expected = value;
     const buffer = Math.min(0.15, Math.max(0.03, volatility * 0.35));
-    value = expected * (1 + buffer);
-
+    const value = expected * (1 + buffer);
+    const dataYears = new Set(nonZero.map(x => x.year)).size;
     let confidence = 'low';
-    if (nonZero.length >= 5 && (seasonal.length >= 2 || nonZero.length >= 6)) confidence = 'high';
-    else if (nonZero.length >= 3) confidence = 'medium';
-
-    return { value: round2(value), expected: round2(expected), bufferPct: round2(buffer * 100), confidence, method: seasonal.length >= 2 ? 'hybrid-seasonal' : 'weighted-recent', dataMonths: nonZero.length };
+    if (dataYears >= 3 && nonZero.length >= 8) confidence = 'high';
+    else if (dataYears >= 2 || nonZero.length >= 4) confidence = 'medium';
+    return { value: round2(value), expected: round2(expected), bufferPct: round2(buffer * 100), confidence, method: seasonalValues.length >= 2 ? 'multi-year-seasonal' : 'weighted-12m', dataMonths: nonZero.length, dataYears };
 }
 
 function expensesForCategoryExcludingRecurring(year, month, category) {
@@ -316,7 +324,7 @@ function getAnnualPlan(year) {
 }
 
 function calculateForecastMetrics() {
-    const rows = flowForecastArchive.filter(r => r.actualAmount !== '' && r.actualAmount !== null && r.actualAmount !== undefined && Number.isFinite(Number(r.actualAmount)));
+    const rows = flowForecastArchive.filter(r => String(r.modelVersion || '') === String(FLOW_MODEL_VERSION) && r.actualAmount !== '' && r.actualAmount !== null && r.actualAmount !== undefined && Number.isFinite(Number(r.actualAmount)));
     if (!rows.length) return { count: 0, mae: 0, wape: 0, bias: 0, accuracy: null, budgetMae:0, budgetWape:0 };
     const abs = rows.map(r => Math.abs(Number(r.forecastAmount) - Number(r.actualAmount)));
     const errors = rows.map(r => Number(r.forecastAmount) - Number(r.actualAmount));
@@ -330,9 +338,10 @@ function calculateForecastMetrics() {
     return { count: rows.length, mae: round2(mae), wape: round2(wape), bias: round2(bias), accuracy: round2(Math.max(0, 100 - wape)), budgetMae:round2(budgetRows.length?budgetAbs.reduce((s,v)=>s+v,0)/budgetRows.length:0), budgetWape:round2(budgetTotal?budgetAbs.reduce((s,v)=>s+v,0)/budgetTotal*100:0) };
 }
 
-function buildForecastArchiveBackfill(yearsBack = 2) {
+function buildForecastArchiveBackfill() {
     const now = new Date();
-    const startYear = now.getFullYear() - yearsBack;
+    const historicalYears = getHistoricalDataYears();
+    const startYear = historicalYears.length ? Math.min(...historicalYears) : now.getFullYear();
     const rows = [];
     const existing = new Set(flowForecastArchive.map(r => `${r.targetMonth}|${r.category}|${r.modelVersion}`));
 
@@ -403,7 +412,7 @@ async function refreshArchiveEvaluations() {
 }
 
 async function runForecastBackfill() {
-    const rows = buildForecastArchiveBackfill(2);
+    const rows = buildForecastArchiveBackfill();
     if (!rows.length) return;
     await archiveForecastRows(rows);
     showToast?.({ type:'success', title:'Forecast archív aktualizovaný', text:`Vyhodnotených ${rows.length} historických predikcií.` });
@@ -661,8 +670,7 @@ function renderPlanningScreens() {
 }
 
 function initPlanning() {
-    const yearSelect=document.getElementById('annual-plan-year');
-    if(yearSelect){const y=new Date().getFullYear();yearSelect.innerHTML=[y-1,y,y+1].map(v=>`<option value="${v}" ${v===y?'selected':''}>${v}</option>`).join('');}
+    if (typeof refreshYearSelectors === 'function') refreshYearSelectors();
     planningPersist();
     renderPlanningScreens();
     loadPlanningData().then(async()=>{

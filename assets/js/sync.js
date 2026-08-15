@@ -334,6 +334,7 @@ async function syncTransactions(action = 'pull') {
 
         db = merged;
         saveData(false);
+        if (typeof refreshYearSelectors === 'function') refreshYearSelectors();
 
         processRecurringPayments();
         renderList();
