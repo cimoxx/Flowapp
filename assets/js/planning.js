@@ -7,7 +7,7 @@ let flowForecastArchive = JSON.parse(localStorage.getItem('flow_forecast_archive
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.38.2-multi-year-walkforward';
+const FLOW_MODEL_VERSION = '2.38.6-adaptive-seasonal-v1';
 
 // Fast month/category index. It is rebuilt only when transaction data changes.
 let flowForecastIndex = null;
@@ -357,10 +357,29 @@ function getVariableForecast(category, year, month) {
     // one-off events while retaining the long-term seasonal signal.
     const seasonalRows = getHistoricalYearSeasonality(category,year,month);
     let seasonalIndex = 1;
+    let seasonalDirect = 0;
+    let seasonalOccurrence = 0;
+    let seasonalStrength = 0;
     if(seasonalRows.length>=2){
         const weightedRatio = weightedMean(seasonalRows,'ratio');
         const medianRatio = median(seasonalRows.map(r=>r.ratio));
-        seasonalIndex = clamp((weightedRatio*0.65)+(medianRatio*0.35),0.35,3.5);
+        seasonalIndex = clamp((weightedRatio*0.60)+(medianRatio*0.40),0.20,4.0);
+
+        // Direct same-month history is especially valuable for strongly seasonal
+        // categories (taxes, holidays, annual fees, vacations...).  Years in which
+        // the category did not occur are kept in the sample: this prevents one
+        // exceptional year from being repeated every year.
+        const directMean = weightedMean(seasonalRows,'value');
+        const directMedian = median(seasonalRows.map(r=>Number(r.value)||0));
+        seasonalDirect = (directMean*0.65)+(directMedian*0.35);
+        seasonalOccurrence = seasonalRows.filter(r=>(Number(r.value)||0)>0).length / seasonalRows.length;
+
+        // Strength combines repeatability in the same month and distance from the
+        // category's normal monthly level.  It is deliberately capped so a single
+        // seasonal pattern never fully overrides recent spending behaviour.
+        const indexDistance = Math.min(1, Math.abs(Math.log(Math.max(0.05, seasonalIndex))) / Math.log(3));
+        const sampleStrength = Math.min(1, seasonalRows.length / 5);
+        seasonalStrength = clamp((seasonalOccurrence*0.60 + indexDistance*0.40) * sampleStrength, 0, 1);
     }
 
     // Trend from yearly category levels. Use all available years, but only compare
@@ -383,6 +402,21 @@ function getVariableForecast(category, year, month) {
     let expected=recentLevel*seasonalIndex;
     if(yearly.length>=2) expected*=0.80+0.20*trendFactor;
 
+    // Adaptive seasonal blend.  For categories that repeatedly occur in the same
+    // month across several years, the direct same-month history gets more weight.
+    // For weak/irregular seasonality the model stays close to the recent baseline.
+    if(seasonalRows.length>=3){
+        const directWeight = clamp(0.10 + seasonalStrength*0.65, 0.10, 0.75);
+        const adjustedDirect = seasonalDirect * (yearly.length>=2 ? (0.85+0.15*trendFactor) : 1);
+        expected = expected*(1-directWeight) + adjustedDirect*directWeight;
+
+        // Sparse seasonal categories should not leak a large amount into months
+        // where they historically almost never occur.
+        if(seasonalOccurrence < 0.35 && seasonalIndex < 0.75){
+            expected *= clamp(0.35 + seasonalOccurrence, 0.35, 0.70);
+        }
+    }
+
     const values=nonZero.map(x=>x.value);
     const med=median(values)||expected;
     const mad=median(values.map(v=>Math.abs(v-med)));
@@ -397,8 +431,10 @@ function getVariableForecast(category, year, month) {
     else if(dataYears>=2||nonZero.length>=4) confidence='medium';
 
     return {value:round2(value),expected:round2(expected),bufferPct:round2(buffer*100),confidence,
-        method:seasonalYears>=2?'multi-year-level-seasonal-trend':'multi-year-level-trend',
-        dataMonths:nonZero.length,dataYears,seasonalYears,seasonalIndex:round2(seasonalIndex),trendFactor:round2(trendFactor)};
+        method:seasonalYears>=3&&seasonalStrength>=0.35?'adaptive-seasonal-direct':'multi-year-level-seasonal-trend',
+        dataMonths:nonZero.length,dataYears,seasonalYears,seasonalIndex:round2(seasonalIndex),
+        seasonalOccurrence:round2(seasonalOccurrence*100),seasonalStrength:round2(seasonalStrength),
+        seasonalDirect:round2(seasonalDirect),trendFactor:round2(trendFactor)};
 }
 
 function expensesForCategoryExcludingRecurring(year,month,category){
@@ -637,7 +673,7 @@ function buildForecastArchiveBackfill() {
                     modelVersion:FLOW_MODEL_VERSION, generatedAt:new Date(y,m,1).toISOString(),
                     dataMonths:variable.dataMonths, dataYears:variable.dataYears, seasonalYears:variable.seasonalYears,
                     confidence:variable.confidence, method:variable.method,
-                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, seasonalIndex:variable.seasonalIndex, trendFactor:variable.trendFactor}),
+                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, seasonalIndex:variable.seasonalIndex, seasonalOccurrence:variable.seasonalOccurrence, seasonalStrength:variable.seasonalStrength, seasonalDirect:variable.seasonalDirect, trendFactor:variable.trendFactor}),
                     evaluatedAt:new Date(y,m+1,1).toISOString(), backtest:'walk-forward'
                 });
             });

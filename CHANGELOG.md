@@ -1,5 +1,25 @@
 # Flow – CHANGELOG
 
+## v2.38.6 – Adaptive Seasonal Forecast
+
+### Added
+- Adaptívny sezónny forecast pre silne sezónne kategórie.
+- Pri kategóriách, ktoré sa opakujú v rovnakom mesiaci naprieč rokmi, model kombinuje celkový trend so skutočnými hodnotami rovnakého mesiaca.
+- Meranie `seasonalOccurrence`, `seasonalStrength` a priameho historického sezónneho odhadu.
+- Aktuálny changelog priamo v aplikácii cez ikonu ⓘ vpravo hore.
+
+### Improved
+- Silná sezónnosť dostáva vyššiu váhu iba vtedy, keď sa opakuje vo viacerých rokoch.
+- Jednorazový výkyv v jednom roku má menšiu šancu skresliť budúci forecast.
+- Riedke sezónne kategórie sa menej „rozlievajú“ do mesiacov, v ktorých sa historicky takmer nevyskytovali.
+
+### Unchanged
+- Google Apps Script sa v tejto verzii nemení.
+- 12-mesačný limit generovania pravidelných platieb zostáva zachovaný.
+- UI Ročného plánu a diagnostiky zostáva zachované.
+
+---
+
 ## v2.38.5 – Forecast Diagnostics & Annual Plan Mobile Fix
 
 ### Added

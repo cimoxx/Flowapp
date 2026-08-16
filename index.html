@@ -420,14 +420,48 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.37</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.38.6</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
-                    <li>Pridaný Ročný plán s priebežným 12-mesačným forecastom a manuálnymi plánovanými udalosťami.</li>
-                    <li>Pridaný samostatný tab Pravidelné pre záväzky a plánované opakovania.</li>
-                    <li>Forecast kombinuje historický trend, sezónnosť, pravidelné platby a používateľské úpravy.</li>
-                    <li>Pridaný interný archív predikcií a spätné meranie presnosti forecastov.</li>
+                    <li>Nový adaptívny sezónny forecast pre kategórie s výraznou sezónnosťou.</li>
+                    <li>Pri opakujúcich sa sezónnych kategóriách sa viac využíva história rovnakého mesiaca naprieč rokmi.</li>
+                    <li>Jednorazový sezónny výkyv sa už automaticky neopakuje v každom roku.</li>
+                    <li>Do backtest archívu sa ukladajú aj údaje o sile a opakovateľnosti sezónnosti.</li>
+                    <li>Changelog je aktualizovaný priamo v aplikácii pod ikonou ⓘ.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.5</span></div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Pridaná diagnostika forecastu podľa kategórií, mesiacov, rokov a typu výdavkov.</li>
+                    <li>WAPE používa iba unikátne walk-forward backtesty.</li>
+                    <li>Opravené mobilné rozloženie súhrnných kariet Ročného plánu.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.4</span></div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Pridaný samostatný filter roku pre Grafy a Burn Rate.</li>
+                    <li>Grafy, Burn Rate a Transakcie majú nezávislé filtre.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.3</span></div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Rýchly filter kategórií a podkategórií sa zobrazuje iba v Transakciách.</li>
+                    <li>Opravené prepínanie kategórie → podkategórie a kombinované filtrovanie.</li>
+                </ul>
+            </div>
+
+            <div class="pb-1">
+                <div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.2</span></div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Multi-year forecast a korektný walk-forward backtest bez budúcich dát.</li>
+                    <li>Optimalizované indexovanie historických transakcií.</li>
                 </ul>
             </div>
         </div>
