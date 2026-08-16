@@ -480,19 +480,124 @@ function getAnnualPlan(year) {
     return result;
 }
 
+function getEvaluatedBacktestRows() {
+    // Accuracy metrics must measure one historical prediction per category/month.
+    // Live snapshots are intentionally excluded because several snapshots of the
+    // same month would overweight that period and distort WAPE.
+    const unique = new Map();
+    flowForecastArchive.forEach(row => {
+        if (String(row.modelVersion || '') !== String(FLOW_MODEL_VERSION)) return;
+        if (String(row.backtest || '') !== 'walk-forward') return;
+        if (row.actualAmount === '' || row.actualAmount === null || row.actualAmount === undefined || !Number.isFinite(Number(row.actualAmount))) return;
+        const key = `${row.targetMonth}|${row.category}|${row.modelVersion}`;
+        const previous = unique.get(key);
+        if (!previous || String(row.generatedAt || '') < String(previous.generatedAt || '')) unique.set(key, row);
+    });
+    return [...unique.values()];
+}
+
+function summarizeForecastRows(rows) {
+    if (!rows.length) return { count:0, mae:0, wape:0, bias:0, accuracy:null, budgetMae:0, budgetWape:0, actualTotal:0 };
+    let absoluteError = 0, signedError = 0, actualTotal = 0;
+    let budgetAbsoluteError = 0, budgetActualTotal = 0, budgetCount = 0;
+    rows.forEach(r => {
+        const actual = Number(r.actualAmount) || 0;
+        const forecast = Number(r.forecastAmount) || 0;
+        const error = forecast - actual;
+        absoluteError += Math.abs(error);
+        signedError += error;
+        actualTotal += Math.abs(actual);
+        if (r.budgetAmount !== '' && r.budgetAmount !== null && r.budgetAmount !== undefined && Number.isFinite(Number(r.budgetAmount))) {
+            budgetAbsoluteError += Math.abs(Number(r.budgetAmount) - actual);
+            budgetActualTotal += Math.abs(actual);
+            budgetCount++;
+        }
+    });
+    const wape = actualTotal > 0 ? absoluteError / actualTotal * 100 : 0;
+    return {
+        count: rows.length,
+        mae: round2(absoluteError / rows.length),
+        wape: round2(wape),
+        bias: round2(signedError / rows.length),
+        accuracy: round2(Math.max(0, 100 - wape)),
+        budgetMae: round2(budgetCount ? budgetAbsoluteError / budgetCount : 0),
+        budgetWape: round2(budgetActualTotal ? budgetAbsoluteError / budgetActualTotal * 100 : 0),
+        actualTotal: round2(actualTotal)
+    };
+}
+
 function calculateForecastMetrics() {
-    const rows = flowForecastArchive.filter(r => String(r.modelVersion || '') === String(FLOW_MODEL_VERSION) && r.actualAmount !== '' && r.actualAmount !== null && r.actualAmount !== undefined && Number.isFinite(Number(r.actualAmount)));
-    if (!rows.length) return { count: 0, mae: 0, wape: 0, bias: 0, accuracy: null, budgetMae:0, budgetWape:0 };
-    const abs = rows.map(r => Math.abs(Number(r.forecastAmount) - Number(r.actualAmount)));
-    const errors = rows.map(r => Number(r.forecastAmount) - Number(r.actualAmount));
-    const actualTotal = rows.reduce((s,r) => s + Math.abs(Number(r.actualAmount)), 0);
-    const mae = abs.reduce((s,v) => s + v, 0) / rows.length;
-    const wape = actualTotal > 0 ? abs.reduce((s,v) => s + v, 0) / actualTotal * 100 : 0;
-    const bias = errors.reduce((s,v) => s + v, 0) / rows.length;
-    const budgetRows = rows.filter(r => r.budgetAmount !== '' && Number.isFinite(Number(r.budgetAmount)));
-    const budgetAbs = budgetRows.map(r=>Math.abs(Number(r.budgetAmount)-Number(r.actualAmount)));
-    const budgetTotal = budgetRows.reduce((s,r)=>s+Math.abs(Number(r.actualAmount)),0);
-    return { count: rows.length, mae: round2(mae), wape: round2(wape), bias: round2(bias), accuracy: round2(Math.max(0, 100 - wape)), budgetMae:round2(budgetRows.length?budgetAbs.reduce((s,v)=>s+v,0)/budgetRows.length:0), budgetWape:round2(budgetTotal?budgetAbs.reduce((s,v)=>s+v,0)/budgetTotal*100:0) };
+    return summarizeForecastRows(getEvaluatedBacktestRows());
+}
+
+function groupForecastDiagnostics(rows, keyFn, labelFn) {
+    const groups = new Map();
+    rows.forEach(row => {
+        const key = keyFn(row);
+        if (key === null || key === undefined || key === '') return;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+    });
+    return [...groups.entries()].map(([key, groupRows]) => ({
+        key,
+        label: labelFn ? labelFn(key, groupRows) : String(key),
+        ...summarizeForecastRows(groupRows)
+    }));
+}
+
+function getForecastDiagnostics() {
+    const rows = getEvaluatedBacktestRows();
+    const overall = summarizeForecastRows(rows);
+    const byCategory = groupForecastDiagnostics(rows, r => String(r.category || ''), key => key)
+        .filter(x => x.count >= 2)
+        .sort((a,b) => b.wape - a.wape);
+    const byMonth = groupForecastDiagnostics(rows, r => Number(String(r.targetMonth || '').slice(5,7)), key => MONTH_NAMES_SK[Math.max(0, Number(key)-1)] || String(key))
+        .sort((a,b) => b.wape - a.wape);
+    const byYear = groupForecastDiagnostics(rows, r => String(r.targetMonth || '').slice(0,4), key => String(key))
+        .sort((a,b) => Number(a.key) - Number(b.key));
+    const byStructure = groupForecastDiagnostics(rows, r => {
+        const forecast = Math.abs(Number(r.forecastAmount) || 0);
+        const recurring = Math.abs(Number(r.recurringBaseline) || 0);
+        const ratio = forecast > 0 ? recurring / forecast : 0;
+        if (ratio >= 0.70) return 'recurring';
+        if (ratio <= 0.15) return 'variable';
+        return 'mixed';
+    }, key => ({recurring:'Prevažne pravidelné', variable:'Prevažne variabilné', mixed:'Zmiešané'}[key] || key));
+    return { overall, byCategory, byMonth, byYear, byStructure, rows };
+}
+
+function forecastQualityLabel(wape) {
+    const n = Number(wape);
+    if (!Number.isFinite(n)) return 'Bez dát';
+    if (n <= 10) return 'Výborná';
+    if (n <= 20) return 'Dobrá';
+    if (n <= 35) return 'Stredná';
+    return 'Slabá';
+}
+
+function diagnosticRowsHtml(rows, limit = 6) {
+    return rows.slice(0, limit).map(r => `<div class="forecast-diagnostic-row"><span>${escPlanning(r.label)}</span><b>${r.wape}%</b><small>${r.count} vzoriek · MAE ${formatCurrency(r.mae)}</small></div>`).join('') || '<div class="planning-muted">Zatiaľ nie je dosť dát.</div>';
+}
+
+function openForecastDiagnostics() {
+    const d = getForecastDiagnostics();
+    const bestCategories = [...d.byCategory].sort((a,b)=>a.wape-b.wape);
+    const worstCategories = d.byCategory;
+    const worstMonths = d.byMonth;
+    const body = `
+      <div class="forecast-diagnostic-summary">
+        <div><span>Forecast WAPE</span><b>${d.overall.count ? d.overall.wape + '%' : '—'}</b><small>${forecastQualityLabel(d.overall.wape)}</small></div>
+        <div><span>Budget WAPE</span><b>${d.overall.count ? d.overall.budgetWape + '%' : '—'}</b><small>${d.overall.count} unikátnych backtestov</small></div>
+        <div><span>MAE</span><b>${d.overall.count ? formatCurrency(d.overall.mae) : '—'}</b><small>Priemerná absolútna chyba</small></div>
+        <div><span>Bias</span><b>${d.overall.count ? formatCurrency(d.overall.bias) : '—'}</b><small>${d.overall.bias > 0 ? 'Model skôr nadhodnocuje' : d.overall.bias < 0 ? 'Model skôr podhodnocuje' : 'Bez systematického biasu'}</small></div>
+      </div>
+      <div class="forecast-diagnostic-section"><h4>Najväčší priestor na zlepšenie</h4>${diagnosticRowsHtml(worstCategories)}</div>
+      <div class="forecast-diagnostic-section"><h4>Najpresnejšie kategórie</h4>${diagnosticRowsHtml(bestCategories)}</div>
+      <div class="forecast-diagnostic-section"><h4>Najťažšie mesiace</h4>${diagnosticRowsHtml(worstMonths)}</div>
+      <div class="forecast-diagnostic-section"><h4>Presnosť podľa typu výdavkov</h4>${diagnosticRowsHtml(d.byStructure)}</div>
+      <div class="forecast-diagnostic-section"><h4>Vývoj podľa rokov</h4>${diagnosticRowsHtml(d.byYear, 20)}</div>
+      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Priebežné live snapshoty sa do WAPE nezapočítavajú, aby jeden mesiac nemal väčšiu váhu len preto, že bol archivovaný viackrát.</div>`;
+    showPlanningModal('Diagnostika forecastu', `Model ${FLOW_MODEL_VERSION}`, body);
 }
 
 function getHistoricalRecurringBaseline(category,targetYear,targetMonth){
@@ -587,11 +692,12 @@ async function refreshArchiveEvaluations() {
 }
 
 async function runForecastBackfill() {
+    await refreshArchiveEvaluations();
     const rows = buildForecastArchiveBackfill();
-    if (!rows.length) return;
-    await archiveForecastRows(rows);
-    showToast?.({ type:'success', title:'Forecast archív aktualizovaný', text:`Vyhodnotených ${rows.length} historických predikcií.` });
+    if (rows.length) await archiveForecastRows(rows);
+    showToast?.({ type:'success', title:'Vyhodnotenie histórie hotové', text: rows.length ? `Doplnených ${rows.length} historických predikcií.` : 'Historický backtest je aktuálny.' });
     renderPlanningScreens();
+    setTimeout(() => openForecastDiagnostics(), 0);
 }
 
 function escPlanning(value) {
@@ -617,7 +723,7 @@ function renderAnnualPlanScreen() {
         <div class="annual-hero-card tone-${totalBalance >= 0 ? 'good':'danger'}"><div class="annual-label">Očakávaný zostatok</div><div class="annual-value">${formatCurrency(totalBalance)}</div><div class="annual-sub">Príjem mínus forecast</div></div>
       </div>
       <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Kombinuje pravidelné záväzky, historický trend, sezónnosť, plánované udalosti a manuálne úpravy.</div></div><button type="button" onclick="runForecastBackfill()" class="planning-small-btn">Vyhodnotiť históriu</button></div>
-      <div class="planning-metrics-row"><span>Archív: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>Priem. chyba: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span></div>
+      <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
       <div class="annual-month-list">
       ${months.map(m => `
         <div class="annual-month-card ${m.isCurrent ? 'current':''}">
