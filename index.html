@@ -175,6 +175,11 @@
             </div>
 
             <div class="analytics-toolbar space-y-1.5">
+                <div class="flex items-center gap-2">
+                    <label for="chart-year-filter" class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Rok</label>
+                    <select id="chart-year-filter" onchange="setAnalyticsYear(this.value)" class="w-auto min-w-[88px] text-[11px] font-bold p-1.5 outline-none rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    </select>
+                </div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie Grafu</label>
                 <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
                     <button type="button" onclick="setChartPeriod('current_month')" id="p-chip-current_month" class="period-chip active">Tento mesiac</button>
@@ -239,6 +244,11 @@
             </div>
 
             <div class="analytics-toolbar space-y-1.5">
+                <div class="flex items-center gap-2">
+                    <label for="burn-year-filter" class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Rok</label>
+                    <select id="burn-year-filter" onchange="setAnalyticsYear(this.value)" class="w-auto min-w-[88px] text-[11px] font-bold p-1.5 outline-none rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    </select>
+                </div>
                 <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie Analýzy</label>
                 <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
                     <button type="button" onclick="setChartPeriod('current_month')" id="bp-chip-current_month" class="period-chip active">Tento mesiac</button>

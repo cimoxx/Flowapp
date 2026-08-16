@@ -1,3 +1,39 @@
+
+function getAnalyticsYears() {
+    if (typeof getAvailablePlanningYears === 'function') return getAvailablePlanningYears();
+    const currentYear = new Date().getFullYear();
+    const years = new Set([currentYear, currentYear + 1]);
+    db.forEach(d => {
+        const clean = getCleanDateStr(d.date);
+        const m = /^(\d{4})-\d{2}-\d{2}$/.exec(clean || '');
+        if (m) {
+            const y = Number(m[1]);
+            if (y >= 2000 && y <= currentYear) years.add(y);
+        }
+    });
+    return Array.from(years).sort((a,b) => a-b);
+}
+
+function refreshAnalyticsYearSelectors() {
+    const years = getAnalyticsYears();
+    const currentYear = new Date().getFullYear();
+    if (!years.includes(Number(selectedAnalyticsYear))) selectedAnalyticsYear = currentYear;
+    ['chart-year-filter', 'burn-year-filter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+        el.value = String(selectedAnalyticsYear);
+    });
+}
+
+function setAnalyticsYear(year) {
+    const y = Number(year);
+    if (!Number.isFinite(y)) return;
+    selectedAnalyticsYear = y;
+    refreshAnalyticsYearSelectors();
+    updateAnalytics();
+    updateBurnRateTab();
+}
 function setAnalyticsDataMode(scope, mode) {
     if (scope === 'chart') {
         const input = document.getElementById('chart-data-mode');
@@ -67,111 +103,67 @@ function setChartPeriod(period) {
 
 function getAnalyticsDataForPeriod(periodOverride = null, monthsOverride = null) {
     const now = new Date();
-    const curYear = now.getFullYear();
-    const curMonth = now.getMonth();
-
+    const selectedYear = Number(selectedAnalyticsYear) || now.getFullYear();
     const activePeriod = periodOverride || selectedChartPeriod;
     const activeMonths = monthsOverride || selectedChartMonths;
+    const anchorMonth = now.getMonth();
+
+    const matchesYearMonth = (itemYear, itemMonth, months) => {
+        return itemYear === selectedYear && months.includes(itemMonth);
+    };
 
     return db.filter(d => {
         const cleanD = getCleanDateStr(d.date);
         const parts = cleanD.split('-');
         if (parts.length !== 3) return false;
-
         const itemYear = parseInt(parts[0], 10);
         const itemMonth = parseInt(parts[1], 10) - 1;
-        const itemDate = new Date(itemYear, itemMonth, parseInt(parts[2], 10));
 
-        if (activeMonths.length > 0) {
-            // Month chips represent months within the currently selected year.
-            // Without the year check, selecting e.g. Jan would aggregate Jan
-            // from every year in the database.
-            const yearEl = document.getElementById('filter-year');
-            const selectedYear = parseInt(yearEl?.value || curYear, 10);
-            return itemYear === selectedYear && activeMonths.includes(itemMonth);
-        }
+        if (activeMonths.length > 0) return matchesYearMonth(itemYear, itemMonth, activeMonths);
 
         if (activePeriod === 'current_month') {
-            return itemYear === curYear && itemMonth === curMonth;
+            return itemYear === selectedYear && itemMonth === anchorMonth;
         }
 
-        if (activePeriod === '3m') {
-            const cutoff = new Date();
-            cutoff.setMonth(now.getMonth() - 3);
-            return itemDate >= cutoff;
+        if (activePeriod === '3m' || activePeriod === '6m') {
+            const count = activePeriod === '3m' ? 3 : 6;
+            const start = Math.max(0, anchorMonth - count + 1);
+            return itemYear === selectedYear && itemMonth >= start && itemMonth <= anchorMonth;
         }
 
-        if (activePeriod === '6m') {
-            const cutoff = new Date();
-            cutoff.setMonth(now.getMonth() - 6);
-            return itemDate >= cutoff;
+        if (activePeriod === 'year' || activePeriod === 'all') {
+            return itemYear === selectedYear;
         }
 
-        if (activePeriod === 'year') {
-            return itemYear === curYear;
-        }
-
-        return true;
+        return itemYear === selectedYear;
     });
 }
 
 function getPreviousPeriodData() {
     const now = new Date();
-    const curMonth = now.getMonth();
+    const selectedYear = Number(selectedAnalyticsYear) || now.getFullYear();
+    const anchorMonth = now.getMonth();
 
     if (selectedChartMonths.length > 0) {
-        const prevMonths = selectedChartMonths
-            .map(m => (m - 1 + 12) % 12)
-            .filter((m, idx, arr) => arr.indexOf(m) === idx);
-
+        const prevMonths = selectedChartMonths.map(m => m - 1).filter(m => m >= 0);
         return getAnalyticsDataForPeriod(selectedChartPeriod, prevMonths);
     }
 
-    if (selectedChartPeriod === 'current_month') {
+    let months = [];
+    if (selectedChartPeriod === 'current_month') months = [anchorMonth - 1];
+    if (selectedChartPeriod === '3m') months = [anchorMonth - 3, anchorMonth - 2, anchorMonth - 1];
+    if (selectedChartPeriod === '6m') months = [anchorMonth - 6, anchorMonth - 5, anchorMonth - 4, anchorMonth - 3, anchorMonth - 2, anchorMonth - 1];
+
+    if (months.length) {
+        months = months.filter(m => m >= 0 && m < 12);
+        return getAnalyticsDataForPeriod('year', months);
+    }
+
+    if (selectedChartPeriod === 'year' || selectedChartPeriod === 'all') {
         return db.filter(d => {
             const cleanD = getCleanDateStr(d.date);
             const parts = cleanD.split('-');
-            if (parts.length !== 3) return false;
-
-            const itemYear = parseInt(parts[0], 10);
-            const itemMonth = parseInt(parts[1], 10) - 1;
-            const prevMonth = (curMonth - 1 + 12) % 12;
-            const prevYear = curMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
-
-            return itemYear === prevYear && itemMonth === prevMonth;
-        });
-    }
-
-    if (selectedChartPeriod === '3m') {
-        const prevEnd = new Date();
-        prevEnd.setMonth(now.getMonth() - 3);
-        const prevStart = new Date();
-        prevStart.setMonth(now.getMonth() - 6);
-
-        return db.filter(d => {
-            const itemDate = new Date(getCleanDateStr(d.date));
-            return itemDate >= prevStart && itemDate < prevEnd;
-        });
-    }
-
-    if (selectedChartPeriod === '6m') {
-        const prevEnd = new Date();
-        prevEnd.setMonth(now.getMonth() - 6);
-        const prevStart = new Date();
-        prevStart.setMonth(now.getMonth() - 12);
-
-        return db.filter(d => {
-            const itemDate = new Date(getCleanDateStr(d.date));
-            return itemDate >= prevStart && itemDate < prevEnd;
-        });
-    }
-
-    if (selectedChartPeriod === 'year') {
-        const prevYear = now.getFullYear() - 1;
-        return db.filter(d => {
-            const cleanD = getCleanDateStr(d.date);
-            const parts = cleanD.split('-');
-            return parts.length === 3 && parseInt(parts[0], 10) === prevYear;
+            return parts.length === 3 && parseInt(parts[0], 10) === selectedYear - 1;
         });
     }
 
@@ -187,13 +179,19 @@ function getDaysCountForPeriod(filteredItems) {
     if (selectedChartPeriod === '6m') return 180;
 
     if (selectedChartPeriod === 'year') {
-        const startOfYear = new Date(now.getFullYear(), 0, 1);
-        const diffTime = Math.abs(now - startOfYear);
-        return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        const selectedYear = Number(selectedAnalyticsYear) || now.getFullYear();
+        if (selectedYear === now.getFullYear()) {
+            const startOfYear = new Date(selectedYear, 0, 1);
+            const diffTime = Math.abs(now - startOfYear);
+            return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        }
+        return ((new Date(selectedYear + 1, 0, 1) - new Date(selectedYear, 0, 1)) / (1000 * 60 * 60 * 24));
     }
 
     if (selectedChartPeriod === 'all') {
         if (filteredItems.length === 0) return 1;
+        const selectedYear = Number(selectedAnalyticsYear) || now.getFullYear();
+        if (selectedYear !== now.getFullYear()) return ((new Date(selectedYear + 1, 0, 1) - new Date(selectedYear, 0, 1)) / (1000 * 60 * 60 * 24));
 
         const timestamps = filteredItems
             .map(i => new Date(getCleanDateStr(i.date)).getTime())
@@ -416,6 +414,7 @@ function renderAnalyticsSummaryCards(filtered, sums, dataMode) {
 }
 
 function updateAnalytics() {
+    refreshAnalyticsYearSelectors();
     if (document.getElementById('screen-analytics').classList.contains('hidden')) return;
 
     try {
@@ -559,6 +558,7 @@ function renderBurnInsightCards(total, previousTotal, forecast, daysLeft) {
 }
 
 function updateBurnRateTab() {
+    refreshAnalyticsYearSelectors();
     if (document.getElementById('screen-burnrate').classList.contains('hidden')) return;
 
     try {
