@@ -1,5 +1,23 @@
 # Flow – CHANGELOG
 
+## v2.38.8 – Cloud-first Forecast Archive
+
+### Fixed
+- Opravené zlyhanie `QuotaExceededError` pri spustení „Vyhodnotiť históriu“.
+- Celý forecast archív sa už neukladá do `localStorage`; zdrojom pravdy je Google Sheets.
+- Pri štarte sa odstráni starý veľký lokálny kľúč `flow_forecast_archive_v235`, čím sa uvoľní miesto v prehliadači.
+- Načítanie planning dát sťahuje iba archív aktuálnej verzie forecast modelu, nie všetky historické modely.
+
+### Performance
+- Menší objem dát v localStorage.
+- Menší planning payload z Google Apps Script pri viacerých verziách modelu.
+- Backtest zostáva dávkovaný po blokoch a po uložení funguje diagnostika z dát načítaných v pamäti.
+
+### Google Apps Script
+- **Vyžaduje aktualizáciu backendu** na `Flowapp-Google-Apps-Script-v2.38.8.gs`.
+
+---
+
 ## v2.38.7 – Backtest Repair & Reliable Archive Sync
 
 ### Fixed

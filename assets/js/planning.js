@@ -3,11 +3,14 @@
 let flowRecurringPlans = JSON.parse(localStorage.getItem('flow_recurring_plans_v235') || '[]');
 let flowPlannedEvents = JSON.parse(localStorage.getItem('flow_planned_events_v235') || '[]');
 let flowBudgetOverrides = JSON.parse(localStorage.getItem('flow_budget_overrides_v235') || '[]');
-let flowForecastArchive = JSON.parse(localStorage.getItem('flow_forecast_archive_v235') || '[]');
+// Forecast archive is cloud-first. Do not keep the full archive in localStorage;
+// multi-year walk-forward history can exceed browser storage quotas.
+let flowForecastArchive = [];
+try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.38.7-adaptive-seasonal-v2';
+const FLOW_MODEL_VERSION = '2.38.8-adaptive-seasonal-v2';
 
 // Fast month/category index. It is rebuilt only when transaction data changes.
 let flowForecastIndex = null;
@@ -88,13 +91,12 @@ function planningPersist() {
     localStorage.setItem('flow_recurring_plans_v235', JSON.stringify(flowRecurringPlans));
     localStorage.setItem('flow_planned_events_v235', JSON.stringify(flowPlannedEvents));
     localStorage.setItem('flow_budget_overrides_v235', JSON.stringify(flowBudgetOverrides));
-    localStorage.setItem('flow_forecast_archive_v235', JSON.stringify(flowForecastArchive));
     localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState));
 }
 
 function planningGetUrl() {
     const token = encodeURIComponent(typeof getSyncToken === 'function' ? getSyncToken() : '');
-    return `${GOOGLE_URL}?get=planning&token=${token}`;
+    return `${GOOGLE_URL}?get=planning&token=${token}&archiveModel=${encodeURIComponent(FLOW_MODEL_VERSION)}`;
 }
 
 async function loadPlanningData() {
