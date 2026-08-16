@@ -432,56 +432,52 @@ function renderSummary(sums, currentFiltered) {
     const container = document.getElementById('category-summary');
     if (!container) return;
 
-    const sortedKeys = Object.keys(sums).sort((a, b) => sums[b] - sums[a]);
-
-    if (sortedKeys.length === 0) {
+    // Rýchly filter patrí výhradne do obrazovky Transakcie.
+    const homeScreen = document.getElementById('screen-home');
+    if (!homeScreen || homeScreen.classList.contains('hidden')) {
         container.innerHTML = '';
         return;
     }
 
-    let html = '<div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1">';
+    let html = '';
 
-    sortedKeys.forEach(k => {
-        if (activeCategoryFilter === null) {
-            html += `
-                <div onclick="toggleFilter('${String(k).replace(/'/g, "\\'")}')" class="summary-card p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
-                    <span class="text-[9px] font-black uppercase text-slate-400 truncate">${k}</span>
-                    <span class="text-[13px] font-extrabold mt-1">${sums[k].toFixed(2)} €</span>
-                </div>
-            `;
-        } else {
-            const isActive = window.activeSubFilter === k;
-            html += `
-                <div onclick="toggleSubFilter('${String(k).replace(/'/g, "\\'")}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
-                    <span class="text-[9px] font-black uppercase text-slate-400 truncate">${k}</span>
-                    <span class="text-[13px] font-extrabold mt-1">${sums[k].toFixed(2)} €</span>
-                </div>
-            `;
+    // 1) Bez vybratej kategórie: zobraz iba kategórie.
+    if (activeCategoryFilter === null) {
+        const sortedCategories = Object.keys(sums).sort((a, b) => sums[b] - sums[a]);
+        if (sortedCategories.length > 0) {
+            html += '<div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1">';
+            sortedCategories.forEach(category => {
+                const safe = String(category).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                html += `
+                    <button type="button" onclick="toggleFilter('${safe}')" class="summary-card p-2.5 cursor-pointer flex flex-col justify-between shrink-0 text-left">
+                        <span class="text-[9px] font-black uppercase text-slate-400 truncate">${category}</span>
+                        <span class="text-[13px] font-extrabold mt-1">${sums[category].toFixed(2)} €</span>
+                    </button>
+                `;
+            });
+            html += '</div>';
         }
-    });
-
-    html += '</div>';
-
-    if (activeCategoryFilter !== null) {
+    } else {
+        // 2) Po výbere kategórie zobraz iba jej podkategórie.
         const subSums = {};
         currentFiltered.forEach(item => {
             if (item.type === 'expense' && item.category === activeCategoryFilter) {
                 const subName = item.sub || 'Nezaradené';
-                if (!subSums[subName]) subSums[subName] = 0;
-                subSums[subName] += item.amount;
+                subSums[subName] = (subSums[subName] || 0) + Number(item.amount || 0);
             }
         });
 
         const sortedSubs = Object.keys(subSums).sort((a, b) => subSums[b] - subSums[a]);
         if (sortedSubs.length > 0) {
-            html += '<div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1 mt-1 border-t border-slate-100 dark:border-slate-800/60 pt-2">';
+            html += '<div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1">';
             sortedSubs.forEach(sub => {
-                const isSubActive = window.activeSubFilter === sub;
+                const safe = String(sub).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const isActive = window.activeSubFilter === sub;
                 html += `
-                    <div onclick="toggleSubFilter('${String(sub).replace(/'/g, "\\'")}')" class="summary-card ${isSubActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0">
+                    <button type="button" onclick="toggleSubFilter('${safe}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0 text-left">
                         <span class="text-[9px] font-black uppercase text-amber-500/80 truncate">${sub}</span>
                         <span class="text-[13px] font-extrabold mt-1">${subSums[sub].toFixed(2)} €</span>
-                    </div>
+                    </button>
                 `;
             });
             html += '</div>';
@@ -503,6 +499,7 @@ function toggleFilter(cat) {
 }
 
 function toggleSubFilter(sub) {
+    if (!activeCategoryFilter) return;
     if (window.activeSubFilter === sub) {
         window.activeSubFilter = null;
     } else {
@@ -586,7 +583,7 @@ function renderList() {
     }
 
     updateTotals(currentFiltered);
-    document.getElementById('clear-cat-filter').classList.toggle('hidden', !activeCategoryFilter);
+    document.getElementById('clear-cat-filter').classList.toggle('hidden', !(activeCategoryFilter || window.activeSubFilter));
 
     const sortedItems = [...currentFiltered].sort((a, b) => {
         const dateA = getCleanDateStr(a.date);
