@@ -10,7 +10,7 @@ try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.38.8-adaptive-seasonal-v2';
+const FLOW_MODEL_VERSION = '2.39.0-category-adaptive-v1';
 
 // Fast month/category index. It is rebuilt only when transaction data changes.
 let flowForecastIndex = null;
@@ -59,7 +59,8 @@ function rebuildForecastIndex(force = false) {
             else bucket.variableExpense += amount;
             bucket.count += 1;
         }
-        if (!index.years[year]) index.years[year] = { monthsWithCategory: Object.create(null), totals: Object.create(null) };
+        if (!index.years[year]) index.years[year] = { monthsWithCategory: Object.create(null), totals: Object.create(null), observedMonths: new Set() };
+        index.years[year].observedMonths.add(month);
         if (!index.years[year].monthsWithCategory[category]) index.years[year].monthsWithCategory[category] = new Set();
         if (item.type === 'expense' && !item.isRecurring && amount > 0) index.years[year].monthsWithCategory[category].add(month);
         if (item.type === 'expense' && !item.isRecurring) {
@@ -343,20 +344,189 @@ function weightedMean(rows, valueKey='value') {
 
 function clamp(value,min,max){return Math.min(max,Math.max(min,value));}
 
-function getVariableForecast(category, year, month) {
-    const historical = getHistoricalCategorySpend(category, year, month);
-    const nonZero = historical.filter(x=>x.value>0);
-    if(!nonZero.length) return {value:0,expected:0,confidence:'low',method:'no-data',dataMonths:0,dataYears:0,seasonalYears:0,seasonalIndex:1,trendFactor:1};
+function monthSerial(year, month) {
+    return Number(year) * 12 + Number(month);
+}
 
-    // Multi-year level: all available observations contribute, with exponential
-    // recency weighting. This lets 5-7 years of data improve the estimate without
-    // allowing very old spending to dominate recent behaviour.
+function robustBlend(values, meanWeight = 0.55) {
+    const nums = (Array.isArray(values) ? values : []).map(Number).filter(v => Number.isFinite(v) && v >= 0);
+    if (!nums.length) return 0;
+    const mean = nums.reduce((s,v)=>s+v,0) / nums.length;
+    const med = median(nums);
+    return mean * meanWeight + med * (1 - meanWeight);
+}
+
+function getCategoryPatternStats(category, targetYear, targetMonth, historical = null) {
+    const rows = historical || getHistoricalCategorySpend(category, targetYear, targetMonth);
+    const chronological = [...rows].sort((a,b)=>monthSerial(a.year,a.month)-monthSerial(b.year,b.month));
+    const nonZero = chronological.filter(r => Number(r.value) > 0);
+    const totalMonths = chronological.length;
+    const activeMonths = nonZero.length;
+    const activeRatio = totalMonths ? activeMonths / totalMonths : 0;
+    const dataYears = new Set(chronological.map(r=>r.year)).size;
+
+    const monthActive = Array(12).fill(0);
+    const monthObserved = Array(12).fill(0);
+    const monthAmounts = Array(12).fill(0);
+    chronological.forEach(r => {
+        monthObserved[r.month] += 1;
+        if ((Number(r.value)||0) > 0) {
+            monthActive[r.month] += 1;
+            monthAmounts[r.month] += Number(r.value)||0;
+        }
+    });
+
+    const activeByYear = new Map();
+    nonZero.forEach(r => activeByYear.set(r.year, (activeByYear.get(r.year)||0) + 1));
+    const observedYears = [...new Set(chronological.map(r=>r.year))];
+    const activeMonthsPerYear = observedYears.map(y=>activeByYear.get(y)||0);
+    const medianActiveMonthsPerYear = median(activeMonthsPerYear);
+
+    const totalActive = monthActive.reduce((s,v)=>s+v,0);
+    const totalAmount = monthAmounts.reduce((s,v)=>s+v,0);
+    const top3OccurrenceShare = totalActive ? [...monthActive].sort((a,b)=>b-a).slice(0,3).reduce((s,v)=>s+v,0) / totalActive : 0;
+    const top3AmountShare = totalAmount ? [...monthAmounts].sort((a,b)=>b-a).slice(0,3).reduce((s,v)=>s+v,0) / totalAmount : 0;
+    const concentration = Math.max(top3OccurrenceShare, top3AmountShare);
+
+    const occurrenceRates = monthObserved.map((n,m)=>n ? monthActive[m] / n : 0);
+    const maxOccurrenceRate = Math.max(0, ...occurrenceRates);
+    const repeatedMonthEvents = monthActive.reduce((s,n)=>s+(n>=2?n:0),0);
+    const repeatedMonthShare = totalActive ? repeatedMonthEvents / totalActive : 0;
+    const exactOccurrence = occurrenceRates[targetMonth] || 0;
+    const prevOccurrence = occurrenceRates[(targetMonth+11)%12] || 0;
+    const nextOccurrence = occurrenceRates[(targetMonth+1)%12] || 0;
+    // A small adjacent-month allowance helps categories that drift by a few weeks
+    // between years (holidays, annual insurance, school expenses...).
+    const calendarAffinity = clamp(exactOccurrence*0.70 + prevOccurrence*0.15 + nextOccurrence*0.15, 0, 1);
+
+    const sameMonthPositive = chronological.filter(r=>r.month===targetMonth && Number(r.value)>0);
+    const windowPositive = chronological.filter(r=>{
+        if ((Number(r.value)||0) <= 0) return false;
+        const d = Math.min((r.month-targetMonth+12)%12, (targetMonth-r.month+12)%12);
+        return d <= 1;
+    });
+
+    const positiveSerials = nonZero.map(r=>monthSerial(r.year,r.month));
+    const gaps = [];
+    for (let i=1;i<positiveSerials.length;i++) {
+        const gap = positiveSerials[i]-positiveSerials[i-1];
+        if (gap > 0) gaps.push(gap);
+    }
+    const medianGap = median(gaps);
+    const lastPositive = nonZero.length ? nonZero[nonZero.length-1] : null;
+    const monthsSinceLast = lastPositive ? monthSerial(targetYear,targetMonth)-monthSerial(lastPositive.year,lastPositive.month) : null;
+    let dueScore = activeRatio;
+    if (medianGap > 0 && monthsSinceLast !== null && monthsSinceLast >= 0) {
+        const ratio = monthsSinceLast / medianGap;
+        // Peaks around the typical interval and falls when far too early/late.
+        dueScore = clamp(1 - Math.abs(ratio-1)*0.75, 0, 1);
+    }
+
+    let patternType = 'variable';
+    if (activeRatio >= 0.65) patternType = 'dense';
+    else if (dataYears >= 3 && medianActiveMonthsPerYear <= 5 && concentration >= 0.55 && (repeatedMonthShare >= 0.50 || maxOccurrenceRate >= 0.45)) patternType = 'sparse-seasonal';
+    else if (activeRatio <= 0.42 || medianActiveMonthsPerYear <= 4) patternType = 'intermittent';
+
+    return {
+        patternType, totalMonths, activeMonths, activeRatio, dataYears,
+        medianActiveMonthsPerYear, concentration, exactOccurrence, calendarAffinity,
+        maxOccurrenceRate, repeatedMonthShare, sameMonthPositive, windowPositive, nonZero, medianGap, monthsSinceLast, dueScore,
+        occurrenceRates
+    };
+}
+
+function getAmountTrendFactor(nonZero) {
+    const byYear = new Map();
+    nonZero.forEach(r=>{
+        const cur=byYear.get(r.year)||[];
+        cur.push(Number(r.value)||0);
+        byYear.set(r.year,cur);
+    });
+    const yearly=[...byYear.entries()].map(([year,values])=>({year,level:robustBlend(values,0.50)})).filter(x=>x.level>0).sort((a,b)=>a.year-b.year);
+    let trendFactor=1;
+    if(yearly.length>=2){
+        const recent=yearly[yearly.length-1].level;
+        const olderMedian=median(yearly.slice(0,-1).map(x=>x.level));
+        if(olderMedian>0) trendFactor=clamp(recent/olderMedian,0.78,1.28);
+    }
+    return {trendFactor, yearly};
+}
+
+function getIntermittentForecast(category, year, month, historical, pattern) {
+    const nonZero = pattern.nonZero;
+    const {trendFactor} = getAmountTrendFactor(nonZero);
+
+    const globalRecent = nonZero.map((r,idx)=>({...r,weight:Math.pow(0.94, Math.max(0, nonZero.length-1-idx))}));
+    const globalMean = weightedMean(globalRecent,'value');
+    const globalMedian = median(nonZero.map(r=>Number(r.value)||0));
+    const globalEventAmount = globalMean*0.55 + globalMedian*0.45;
+
+    const directPool = pattern.sameMonthPositive.length >= 2 ? pattern.sameMonthPositive : pattern.windowPositive;
+    const directRows = directPool.map(r=>({ ...r, weight: Math.max(0.30, Math.pow(0.86, Math.max(0, year-r.year))) }));
+    const directMean = directRows.length ? weightedMean(directRows,'value') : 0;
+    const directMedian = directRows.length ? median(directRows.map(r=>Number(r.value)||0)) : 0;
+    const directAmount = directRows.length ? directMean*0.60 + directMedian*0.40 : globalEventAmount;
+
+    const eventAmount = clamp((directAmount*0.65 + globalEventAmount*0.35) * (0.88 + 0.12*trendFactor), 0, Math.max(directAmount,globalEventAmount,1)*1.6);
+    const overallOccurrence = pattern.activeRatio;
+
+    let occurrenceProbability;
+    let method;
+    if (pattern.patternType === 'sparse-seasonal') {
+        const sampleWeight = clamp(pattern.dataYears / 5, 0.30, 1);
+        const seasonalP = pattern.calendarAffinity;
+        occurrenceProbability = clamp(seasonalP*sampleWeight + overallOccurrence*(1-sampleWeight), 0, 1);
+        method = 'sparse-seasonal-hurdle';
+    } else {
+        // Intermittent demand: combine month-of-year information with an event
+        // interval/hazard signal. This is related to Croston-style forecasting,
+        // but keeps a zero forecast when an event is not currently likely.
+        occurrenceProbability = clamp(pattern.calendarAffinity*0.35 + pattern.dueScore*0.40 + overallOccurrence*0.25, 0, 1);
+        method = 'intermittent-hazard';
+    }
+
+    // Central forecast answers "what is most likely to happen this month?" rather
+    // than smearing every occasional expense across all months. Budget still keeps
+    // a probability-weighted reserve for uncertain events.
+    let expected = 0;
+    // For absolute-error metrics (MAE/WAPE), the statistically sensible point
+    // forecast for a zero-vs-event process is the most likely state. Therefore we
+    // predict the event only above 50% probability; otherwise the central forecast
+    // stays at zero. The budget can still reserve the probability-weighted amount.
+    if (occurrenceProbability >= 0.50) expected = eventAmount;
+
+    const reserveExpected = pattern.patternType === 'intermittent'
+        ? eventAmount * (pattern.medianGap > 0 ? Math.min(1, 0.95 / pattern.medianGap) : overallOccurrence)
+        : eventAmount * occurrenceProbability;
+    const eventValues = nonZero.map(r=>Number(r.value)||0);
+    const med = median(eventValues) || eventAmount;
+    const mad = median(eventValues.map(v=>Math.abs(v-med)));
+    const volatility = med>0 ? mad/med : 0;
+    const buffer = clamp(0.04 + volatility*0.16, 0.04, 0.14);
+    const budgetBase = Math.max(expected, reserveExpected);
+    const value = budgetBase * (1 + buffer);
+
+    let confidence='low';
+    if(pattern.dataYears>=5 && directPool.length>=4) confidence='high';
+    else if(pattern.dataYears>=3 || nonZero.length>=6) confidence='medium';
+
+    return {
+        value:round2(value), expected:round2(expected), bufferPct:round2(buffer*100), confidence,
+        method, patternType:pattern.patternType, dataMonths:nonZero.length, dataYears:pattern.dataYears,
+        seasonalYears:new Set(pattern.sameMonthPositive.map(r=>r.year)).size,
+        seasonalIndex:round2(pattern.calendarAffinity), seasonalOccurrence:round2(pattern.calendarAffinity*100),
+        seasonalStrength:round2(pattern.concentration), seasonalDirect:round2(directAmount), trendFactor:round2(trendFactor),
+        occurrenceProbability:round2(occurrenceProbability*100), activeRatio:round2(pattern.activeRatio*100),
+        concentration:round2(pattern.concentration*100), medianGap:round2(pattern.medianGap||0),
+        monthsSinceLast:pattern.monthsSinceLast===null?null:round2(pattern.monthsSinceLast), eventAmount:round2(eventAmount)
+    };
+}
+
+function getDenseVariableForecast(category, year, month, historical, pattern) {
+    const nonZero = historical.filter(x=>x.value>0);
     const recentRows = historical.map((r,idx)=>({...r,weight:Math.pow(0.965,idx)}));
     const recentLevel = weightedMean(recentRows,'value');
 
-    // Seasonal component: compare the target month across every available year
-    // with that year's own annual level. A weighted median/mean blend is robust to
-    // one-off events while retaining the long-term seasonal signal.
     const seasonalRows = getHistoricalYearSeasonality(category,year,month);
     let seasonalIndex = 1;
     let seasonalDirect = 0;
@@ -365,66 +535,30 @@ function getVariableForecast(category, year, month) {
     if(seasonalRows.length>=2){
         const weightedRatio = weightedMean(seasonalRows,'ratio');
         const medianRatio = median(seasonalRows.map(r=>r.ratio));
-        seasonalIndex = clamp((weightedRatio*0.60)+(medianRatio*0.40),0.20,4.0);
-
-        // Direct same-month history is especially valuable for strongly seasonal
-        // categories (taxes, holidays, annual fees, vacations...).  Years in which
-        // the category did not occur are kept in the sample: this prevents one
-        // exceptional year from being repeated every year.
+        seasonalIndex = clamp((weightedRatio*0.60)+(medianRatio*0.40),0.25,3.5);
         const directMean = weightedMean(seasonalRows,'value');
         const directMedian = median(seasonalRows.map(r=>Number(r.value)||0));
-        seasonalDirect = (directMean*0.65)+(directMedian*0.35);
+        seasonalDirect = directMean*0.60+directMedian*0.40;
         seasonalOccurrence = seasonalRows.filter(r=>(Number(r.value)||0)>0).length / seasonalRows.length;
-
-        // Strength combines repeatability in the same month and distance from the
-        // category's normal monthly level.  It is deliberately capped so a single
-        // seasonal pattern never fully overrides recent spending behaviour.
         const indexDistance = Math.min(1, Math.abs(Math.log(Math.max(0.05, seasonalIndex))) / Math.log(3));
         const sampleStrength = Math.min(1, seasonalRows.length / 5);
-        seasonalStrength = clamp((seasonalOccurrence*0.60 + indexDistance*0.40) * sampleStrength, 0, 1);
+        seasonalStrength = clamp((seasonalOccurrence*0.55 + indexDistance*0.45) * sampleStrength, 0, 1);
     }
 
-    // Trend from yearly category levels. Use all available years, but only compare
-    // years with sufficient data so partial years cannot create artificial growth.
-    const byYear = new Map();
-    nonZero.forEach(r=>{
-        const cur=byYear.get(r.year)||{sum:0,count:0};
-        cur.sum+=r.value; cur.count++;
-        byYear.set(r.year,cur);
-    });
-    const yearly = [...byYear.entries()].map(([y,v])=>({year:y,avg:v.count>=4?v.sum/v.count:null})).filter(x=>x.avg!=null).sort((a,b)=>a.year-b.year);
-    let trendFactor=1;
-    if(yearly.length>=2){
-        const recentYear=yearly[yearly.length-1].avg;
-        const older=yearly.slice(0,-1).map(x=>x.avg);
-        const olderMedian=median(older);
-        if(olderMedian>0) trendFactor=clamp(recentYear/olderMedian,0.85,1.20);
-    }
-
+    const {trendFactor, yearly}=getAmountTrendFactor(nonZero);
     let expected=recentLevel*seasonalIndex;
-    if(yearly.length>=2) expected*=0.80+0.20*trendFactor;
-
-    // Adaptive seasonal blend.  For categories that repeatedly occur in the same
-    // month across several years, the direct same-month history gets more weight.
-    // For weak/irregular seasonality the model stays close to the recent baseline.
+    if(yearly.length>=2) expected*=0.82+0.18*trendFactor;
     if(seasonalRows.length>=3){
-        const directWeight = clamp(0.10 + seasonalStrength*0.65, 0.10, 0.75);
-        const adjustedDirect = seasonalDirect * (yearly.length>=2 ? (0.85+0.15*trendFactor) : 1);
-        expected = expected*(1-directWeight) + adjustedDirect*directWeight;
-
-        // Sparse seasonal categories should not leak a large amount into months
-        // where they historically almost never occur.
-        if(seasonalOccurrence < 0.35 && seasonalIndex < 0.75){
-            expected *= clamp(0.35 + seasonalOccurrence, 0.35, 0.70);
-        }
+        const directWeight=clamp(0.08+seasonalStrength*0.45,0.08,0.55);
+        const adjustedDirect=seasonalDirect*(yearly.length>=2?(0.88+0.12*trendFactor):1);
+        expected=expected*(1-directWeight)+adjustedDirect*directWeight;
     }
 
     const values=nonZero.map(x=>x.value);
     const med=median(values)||expected;
     const mad=median(values.map(v=>Math.abs(v-med)));
     const volatility=med>0?mad/med:0;
-    // Buffer is deliberately modest; central forecast remains the expected value.
-    const buffer=Math.min(0.12,Math.max(0.02,volatility*0.25));
+    const buffer=clamp(0.02+volatility*0.20,0.02,0.10);
     const value=expected*(1+buffer);
     const dataYears=new Set(nonZero.map(x=>x.year)).size;
     const seasonalYears=seasonalRows.length;
@@ -433,10 +567,26 @@ function getVariableForecast(category, year, month) {
     else if(dataYears>=2||nonZero.length>=4) confidence='medium';
 
     return {value:round2(value),expected:round2(expected),bufferPct:round2(buffer*100),confidence,
-        method:seasonalYears>=3&&seasonalStrength>=0.35?'adaptive-seasonal-direct':'multi-year-level-seasonal-trend',
+        method:pattern.patternType==='dense'?'dense-seasonal-trend':'variable-multiyear', patternType:pattern.patternType,
         dataMonths:nonZero.length,dataYears,seasonalYears,seasonalIndex:round2(seasonalIndex),
         seasonalOccurrence:round2(seasonalOccurrence*100),seasonalStrength:round2(seasonalStrength),
-        seasonalDirect:round2(seasonalDirect),trendFactor:round2(trendFactor)};
+        seasonalDirect:round2(seasonalDirect),trendFactor:round2(trendFactor),
+        occurrenceProbability:round2(pattern.activeRatio*100), activeRatio:round2(pattern.activeRatio*100),
+        concentration:round2(pattern.concentration*100), medianGap:round2(pattern.medianGap||0),
+        monthsSinceLast:pattern.monthsSinceLast===null?null:round2(pattern.monthsSinceLast)
+    };
+}
+
+function getVariableForecast(category, year, month) {
+    const historical = getHistoricalCategorySpend(category, year, month);
+    const nonZero = historical.filter(x=>x.value>0);
+    if(!nonZero.length) return {value:0,expected:0,confidence:'low',method:'no-data',patternType:'no-data',dataMonths:0,dataYears:0,seasonalYears:0,seasonalIndex:1,trendFactor:1,occurrenceProbability:0};
+
+    const pattern = getCategoryPatternStats(category, year, month, historical);
+    if(pattern.patternType==='sparse-seasonal' || pattern.patternType==='intermittent') {
+        return getIntermittentForecast(category, year, month, historical, pattern);
+    }
+    return getDenseVariableForecast(category, year, month, historical, pattern);
 }
 
 function expensesForCategoryExcludingRecurring(year,month,category){
@@ -592,7 +742,15 @@ function getForecastDiagnostics() {
     const byMonth = groupForecastDiagnostics(rows, r => Number(String(r.targetMonth || '').slice(5,7)), key => MONTH_NAMES_SK[Math.max(0, Number(key)-1)] || String(key))
         .sort((a,b) => b.wape - a.wape);
     const byYear = groupForecastDiagnostics(rows, r => String(r.targetMonth || '').slice(0,4), key => String(key))
+        .map(x => ({...x, reliable:x.count >= 24}))
         .sort((a,b) => Number(a.key) - Number(b.key));
+    const byMethod = groupForecastDiagnostics(rows, r => String(r.method || 'unknown'), key => ({
+        'dense-seasonal-trend':'Stabilné / husté',
+        'variable-multiyear':'Variabilné',
+        'sparse-seasonal-hurdle':'Riedke sezónne',
+        'intermittent-hazard':'Nepravidelné / intervalové',
+        'no-data':'Bez dát'
+    }[key] || key)).filter(x => x.count >= 3).sort((a,b)=>a.wape-b.wape);
     const byStructure = groupForecastDiagnostics(rows, r => {
         const forecast = Math.abs(Number(r.forecastAmount) || 0);
         const recurring = Math.abs(Number(r.recurringBaseline) || 0);
@@ -601,7 +759,7 @@ function getForecastDiagnostics() {
         if (ratio <= 0.15) return 'variable';
         return 'mixed';
     }, key => ({recurring:'Prevažne pravidelné', variable:'Prevažne variabilné', mixed:'Zmiešané'}[key] || key));
-    return { overall, byCategory, byMonth, byYear, byStructure, rows };
+    return { overall, byCategory, byMonth, byYear, byMethod, byStructure, rows };
 }
 
 function forecastQualityLabel(wape) {
@@ -614,7 +772,10 @@ function forecastQualityLabel(wape) {
 }
 
 function diagnosticRowsHtml(rows, limit = 6) {
-    return rows.slice(0, limit).map(r => `<div class="forecast-diagnostic-row"><span>${escPlanning(r.label)}</span><b>${r.wape}%</b><small>${r.count} vzoriek · MAE ${formatCurrency(r.mae)}</small></div>`).join('') || '<div class="planning-muted">Zatiaľ nie je dosť dát.</div>';
+    return rows.slice(0, limit).map(r => {
+        const lowSample = r.reliable === false;
+        return `<div class="forecast-diagnostic-row"><span>${escPlanning(r.label)}</span><b>${lowSample ? 'málo dát' : r.wape + '%'}</b><small>${r.count} vzoriek · MAE ${formatCurrency(r.mae)}</small></div>`;
+    }).join('') || '<div class="planning-muted">Zatiaľ nie je dosť dát.</div>';
 }
 
 function openForecastDiagnostics() {
@@ -633,8 +794,10 @@ function openForecastDiagnostics() {
       <div class="forecast-diagnostic-section"><h4>Najpresnejšie kategórie</h4>${diagnosticRowsHtml(bestCategories)}</div>
       <div class="forecast-diagnostic-section"><h4>Najťažšie mesiace</h4>${diagnosticRowsHtml(worstMonths)}</div>
       <div class="forecast-diagnostic-section"><h4>Presnosť podľa typu výdavkov</h4>${diagnosticRowsHtml(d.byStructure)}</div>
+      <div class="forecast-diagnostic-section"><h4>Presnosť podľa použitého modelu</h4>${diagnosticRowsHtml(d.byMethod)}</div>
       <div class="forecast-diagnostic-section"><h4>Vývoj podľa rokov</h4>${diagnosticRowsHtml(d.byYear, 20)}</div>
-      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Priebežné live snapshoty sa do WAPE nezapočítavajú, aby jeden mesiac nemal väčšiu váhu len preto, že bol archivovaný viackrát.</div>`;
+      <div class="forecast-diagnostic-section"><h4>Ako čítať metriky</h4><div class="planning-helper"><b>WAPE</b> = celková percentuálna chyba vzhľadom na objem skutočných výdavkov. Čím menej, tým lepšie.<br><b>MAE</b> = priemerná absolútna chyba jednej predikcie v eurách.<br><b>Bias</b> = smer chyby. Záporný znamená, že model skôr podhodnocuje; kladný, že skôr nadhodnocuje.</div></div>
+      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Roky s menej než 24 vzorkami sú označené ako „málo dát“, aby náhodne dobrý výsledok nepôsobil ako spoľahlivá presnosť.</div>`;
     showPlanningModal('Diagnostika forecastu', `Model ${FLOW_MODEL_VERSION}`, body);
 }
 
@@ -675,7 +838,7 @@ function buildForecastArchiveBackfill() {
                     modelVersion:FLOW_MODEL_VERSION, generatedAt:new Date(y,m,1).toISOString(),
                     dataMonths:variable.dataMonths, dataYears:variable.dataYears, seasonalYears:variable.seasonalYears,
                     confidence:variable.confidence, method:variable.method,
-                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, seasonalIndex:variable.seasonalIndex, seasonalOccurrence:variable.seasonalOccurrence, seasonalStrength:variable.seasonalStrength, seasonalDirect:variable.seasonalDirect, trendFactor:variable.trendFactor}),
+                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, patternType:variable.patternType, occurrenceProbability:variable.occurrenceProbability, activeRatio:variable.activeRatio, concentration:variable.concentration, medianGap:variable.medianGap, monthsSinceLast:variable.monthsSinceLast, eventAmount:variable.eventAmount, seasonalIndex:variable.seasonalIndex, seasonalOccurrence:variable.seasonalOccurrence, seasonalStrength:variable.seasonalStrength, seasonalDirect:variable.seasonalDirect, trendFactor:variable.trendFactor}),
                     evaluatedAt:new Date(y,m+1,1).toISOString(), backtest:'walk-forward'
                 });
             });

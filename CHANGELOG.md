@@ -1,5 +1,38 @@
 # Flow – CHANGELOG
 
+## v2.39.0 – Category-Adaptive Forecast
+
+### Added
+- Automatická klasifikácia kategórií na **stabilné/husté**, **variabilné**, **riedko sezónne** a **nepravidelné/intervalové**.
+- Riedko sezónny model používa pravdepodobnosť výdavku v konkrétnom období a typickú sumu udalosti.
+- Nepravidelný model využíva typickú medzeru medzi udalosťami (hazard/intermittent princíp) a kalendárnu pravdepodobnosť.
+- Forecast už pri riedkych kategóriách nerozlieva veľký jednorazový alebo ročný výdavok rovnomerne do všetkých mesiacov.
+- Budget pri neistých udalostiach používa pravdepodobnostnú rezervu, zatiaľ čo forecast sa snaží vyjadriť najpravdepodobnejší mesačný scenár.
+- Diagnostika presnosti podľa použitého forecast modelu.
+- Priamo v diagnostike je vysvetlenie WAPE, MAE a Bias.
+
+### Improved
+- Sezónny model toleruje posun udalosti približne o jeden mesiac medzi rokmi.
+- Novšie historické udalosti majú vyššiu váhu pri odhade typickej sumy.
+- Trend sumy udalosti je obmedzený, aby jeden extrémny rok nespôsobil prudký skok forecastu.
+- Roky s menej než 24 backtestov sú v diagnostike označené ako **málo dát**.
+
+### Analytics / Backtest
+- Nová verzia modelu: `2.39.0-category-adaptive-v1`.
+- Backtest sa archivuje oddelene od starších modelov, takže je možné objektívne porovnať výsledok s v2.38.8.
+- Do diagnostických vstupov sa ukladajú aj typ modelu, pravdepodobnosť udalosti, aktivita kategórie, koncentrácia sezónnosti a typická medzera medzi udalosťami.
+
+### Google Apps Script
+- **Bez zmeny backendu.** Používa sa existujúci Google Apps Script v2.38.8.
+
+### Unchanged
+- Cloud-first Forecast Archive zostáva zachovaný.
+- Pravidelné platby sa stále generujú maximálne 12 mesiacov dopredu.
+- Rýchly filter kategórií/podkategórií zostáva iba v Transakciách.
+- Filtre rokov v Grafoch a Burn Rate zostávajú zachované.
+
+---
+
 ## v2.38.8 – Cloud-first Forecast Archive
 
 ### Fixed
