@@ -1,5 +1,22 @@
 # Flow – CHANGELOG
 
+## v2.38.7 – Backtest Repair & Reliable Archive Sync
+
+### Fixed
+- Opravené vyhodnotenie histórie po prechode na model 2.38.6.
+- Backend teraz ukladá príznak `backtest: walk-forward`, takže sa historické výsledky po opätovnom načítaní nestratia z metrík.
+- Staré neúplné archívne riadky už neblokujú vytvorenie nového korektného backtestu.
+- Vyhodnotenie histórie zobrazuje priebeh a chybu namiesto tichého zlyhania.
+- Historické predikcie sa do Google Sheets odosielajú v dávkach po 100 riadkoch.
+
+### Google Apps Script
+- **Vyžaduje aktualizáciu backendu** na `Flowapp-Google-Apps-Script-v2.38.7.gs`.
+- `FlowForecastArchive` dostáva doplnkové stĺpce pre backtest a sezónnu diagnostiku. Existujúce dáta zostávajú zachované.
+
+### Unchanged
+- Adaptive seasonal forecast z v2.38.6 zostáva zachovaný.
+- Limit pravidelných platieb maximálne 12 mesiacov dopredu zostáva nezmenený.
+
 ## v2.38.6 – Adaptive Seasonal Forecast
 
 ### Added

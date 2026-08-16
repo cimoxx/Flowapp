@@ -7,7 +7,7 @@ let flowForecastArchive = JSON.parse(localStorage.getItem('flow_forecast_archive
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.38.6-adaptive-seasonal-v1';
+const FLOW_MODEL_VERSION = '2.38.7-adaptive-seasonal-v2';
 
 // Fast month/category index. It is rebuilt only when transaction data changes.
 let flowForecastIndex = null;
@@ -649,7 +649,7 @@ function buildForecastArchiveBackfill() {
     const historicalYears = getHistoricalDataYears();
     const startYear = historicalYears.length ? Math.min(...historicalYears) : now.getFullYear();
     const rows = [];
-    const existing = new Set(flowForecastArchive.map(r => `${r.targetMonth}|${r.category}|${r.modelVersion}`));
+    const existing = new Set(flowForecastArchive.filter(r => String(r.backtest || '') === 'walk-forward').map(r => `${r.targetMonth}|${r.category}|${r.modelVersion}`));
 
     for (let y = startYear; y <= now.getFullYear(); y++) {
         for (let m = 0; m < 12; m++) {
@@ -682,15 +682,29 @@ function buildForecastArchiveBackfill() {
     return rows;
 }
 
-async function archiveForecastRows(rows) {
-    if (!rows.length) return;
+async function archiveForecastRows(rows, options = {}) {
+    if (!rows.length) return { saved:0, failed:0 };
+    const chunkSize = Math.max(25, Math.min(150, Number(options.chunkSize) || 100));
     rows.forEach(row => flowForecastArchive.push(row));
     planningPersist();
-    try {
-        await planningPost({ action: 'archiveForecasts', rows });
-    } catch (error) {
-        console.warn('Forecast archive cloud save failed:', error);
+
+    let saved = 0;
+    let failed = 0;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize);
+        try {
+            const result = await planningPost({ action: 'archiveForecasts', rows: chunk });
+            saved += Number(result?.saved) || chunk.length;
+        } catch (error) {
+            failed += chunk.length;
+            console.warn('Forecast archive cloud save failed:', error);
+        }
+        if (typeof options.onProgress === 'function') {
+            options.onProgress(Math.min(rows.length, i + chunk.length), rows.length, saved, failed);
+        }
+        await new Promise(resolve => setTimeout(resolve, 0));
     }
+    return { saved, failed };
 }
 
 async function archiveCurrentForecastSnapshot() {
@@ -728,12 +742,42 @@ async function refreshArchiveEvaluations() {
 }
 
 async function runForecastBackfill() {
-    await refreshArchiveEvaluations();
-    const rows = buildForecastArchiveBackfill();
-    if (rows.length) await archiveForecastRows(rows);
-    showToast?.({ type:'success', title:'Vyhodnotenie histórie hotové', text: rows.length ? `Doplnených ${rows.length} historických predikcií.` : 'Historický backtest je aktuálny.' });
-    renderPlanningScreens();
-    setTimeout(() => openForecastDiagnostics(), 0);
+    const button = document.querySelector('[data-forecast-backfill-btn]');
+    const originalText = button?.textContent || 'Vyhodnotiť históriu';
+    try {
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Pripravujem…';
+            button.classList.add('opacity-70','cursor-wait');
+        }
+        showToast?.({ type:'info', title:'Vyhodnocujem históriu', text:'Pripravujem walk-forward backtest.' });
+        await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
+        await refreshArchiveEvaluations();
+        const rows = buildForecastArchiveBackfill();
+        if (!rows.length) {
+            showToast?.({ type:'success', title:'Vyhodnotenie histórie hotové', text:'Historický backtest je aktuálny.' });
+        } else {
+            if (button) button.textContent = `Ukladám 0/${rows.length}`;
+            const result = await archiveForecastRows(rows, {
+                chunkSize: 100,
+                onProgress: (done,total) => { if (button) button.textContent = `Ukladám ${done}/${total}`; }
+            });
+            const suffix = result.failed ? `, ${result.failed} sa nepodarilo uložiť do cloudu` : '';
+            showToast?.({ type:result.failed?'warning':'success', title:'Vyhodnotenie histórie hotové', text:`Doplnených ${rows.length} historických predikcií${suffix}.` });
+        }
+        renderPlanningScreens();
+        setTimeout(() => openForecastDiagnostics(), 0);
+    } catch (error) {
+        console.error('Forecast backfill failed:', error);
+        showToast?.({ type:'error', title:'Vyhodnotenie zlyhalo', text:String(error?.message || error) });
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+            button.classList.remove('opacity-70','cursor-wait');
+        }
+    }
 }
 
 function escPlanning(value) {
@@ -758,7 +802,7 @@ function renderAnnualPlanScreen() {
         <div class="annual-hero-card"><div class="annual-label">Príjem</div><div class="annual-value">${formatCurrency(totalIncome)}</div><div class="annual-sub">Dostupné dáta + plán</div></div>
         <div class="annual-hero-card tone-${totalBalance >= 0 ? 'good':'danger'}"><div class="annual-label">Očakávaný zostatok</div><div class="annual-value">${formatCurrency(totalBalance)}</div><div class="annual-sub">Príjem mínus forecast</div></div>
       </div>
-      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Kombinuje pravidelné záväzky, historický trend, sezónnosť, plánované udalosti a manuálne úpravy.</div></div><button type="button" onclick="runForecastBackfill()" class="planning-small-btn">Vyhodnotiť históriu</button></div>
+      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Kombinuje pravidelné záväzky, historický trend, sezónnosť, plánované udalosti a manuálne úpravy.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
       <div class="annual-month-list">
       ${months.map(m => `
