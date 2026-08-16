@@ -7,7 +7,7 @@ let flowForecastArchive = JSON.parse(localStorage.getItem('flow_forecast_archive
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.38-multi-year-backtest-v2';
+const FLOW_MODEL_VERSION = '2.38.2-multi-year-walkforward';
 
 // Fast month/category index. It is rebuilt only when transaction data changes.
 let flowForecastIndex = null;
@@ -249,113 +249,160 @@ function getBudgetOverride(category, year, month) {
     return flowBudgetOverrides.find(o => !o.deleted && o.monthKey === key && String(o.category || '') === String(category));
 }
 
-function getHistoricalCategorySpend(category, targetYear, targetMonth, maxMonths = 12) {
-    const rows = [];
-    let y = targetYear, m = targetMonth - 1;
+function monthStart(year, month) {
+    return new Date(year, month, 1).getTime();
+}
+
+function getDataCutoffForTarget(targetYear, targetMonth) {
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    for (let i = 0; i < maxMonths; i++) {
-        if (m < 0) { m = 11; y--; }
-        const isFutureOrCurrent = y > currentYear || (y === currentYear && m >= currentMonth);
-        const value = isFutureOrCurrent ? 0 : getIndexedCategoryValue(y, m, category, 'variableExpense');
-        rows.push({ year: y, month: m, value });
-        m--;
-    }
+    const currentMonthStart = monthStart(now.getFullYear(), now.getMonth());
+    const targetMonthStart = monthStart(targetYear, targetMonth);
+    return Math.min(currentMonthStart, targetMonthStart);
+}
+
+function isHistoricalMonthAvailable(year, month, targetYear, targetMonth) {
+    return monthStart(year, month) < getDataCutoffForTarget(targetYear, targetMonth);
+}
+
+function getHistoricalCategorySpend(category, targetYear, targetMonth) {
+    const index = rebuildForecastIndex();
+    const rows = [];
+    const cutoff = getDataCutoffForTarget(targetYear, targetMonth);
+    Object.keys(index.months).forEach(key => {
+        const [y, m1] = key.split('-').map(Number);
+        const m = m1 - 1;
+        if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+        if (monthStart(y, m) >= cutoff) return;
+        const value = getIndexedCategoryValue(y, m, category, 'variableExpense');
+        rows.push({ year:y, month:m, value });
+    });
+    rows.sort((a,b) => monthStart(b.year,b.month) - monthStart(a.year,a.month));
     return rows;
 }
 
 function getHistoricalDataYears() {
     const currentYear = new Date().getFullYear();
-    return getTransactionDataYears().filter(y => y <= currentYear);
+    return getTransactionDataYears().filter(y => y <= currentYear).sort((a,b)=>a-b);
 }
 
 function getHistoricalYearSeasonality(category, targetYear, targetMonth) {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
     const index = rebuildForecastIndex();
-    const years = getHistoricalDataYears()
-        .filter(y => y < targetYear || (targetYear <= currentYear && y < currentYear))
-        .sort((a,b) => b-a);
+    const years = getHistoricalDataYears();
     const rows = [];
 
-    years.forEach((year, yearRank) => {
-        if (year === currentYear && targetMonth >= currentMonth) return;
+    years.forEach(year => {
+        if (!isHistoricalMonthAvailable(year, targetMonth, targetYear, targetMonth)) return;
+        // A historical year should only contribute if it has enough observations
+        // to establish a stable annual baseline. Partial current years are allowed
+        // only when the target is in the future and the data is already available.
         const months = index.years[year]?.monthsWithCategory?.[String(category)];
-        if (!months || months.size < 3) return;
+        if (!months || months.size < 4) return;
+
         let annualTotal = 0;
-        for (let m = 0; m < 12; m++) annualTotal += getIndexedCategoryValue(year, m, category, 'variableExpense');
-        const annualMonthlyAverage = annualTotal / 12;
-        const targetValue = getIndexedCategoryValue(year, targetMonth, category, 'variableExpense');
-        if (annualMonthlyAverage <= 0) return;
-        const ratio = targetValue / annualMonthlyAverage;
+        let annualMonths = 0;
+        for (let m = 0; m < 12; m++) {
+            if (!isHistoricalMonthAvailable(year, m, targetYear, targetMonth)) continue;
+            annualTotal += getIndexedCategoryValue(year, m, category, 'variableExpense');
+            annualMonths++;
+        }
+        if (annualMonths < 4 || annualTotal <= 0) return;
+
+        const annualAverage = annualTotal / annualMonths;
+        const targetValue = isHistoricalMonthAvailable(year, targetMonth, targetYear, targetMonth)
+            ? getIndexedCategoryValue(year, targetMonth, category, 'variableExpense')
+            : 0;
+        const ratio = targetValue / annualAverage;
         if (!Number.isFinite(ratio) || ratio < 0 || ratio > 8) return;
-        // More recent years matter more, but every available year contributes.
-        const weight = Math.max(0.35, 1 - yearRank * 0.12);
-        rows.push({ year, value: targetValue, ratio, weight });
+
+        const yearAge = Math.max(0, new Date().getFullYear() - year);
+        // Every available year contributes; recent years are more informative.
+        const weight = Math.max(0.25, Math.pow(0.82, yearAge));
+        rows.push({ year, value:targetValue, ratio, weight, annualAverage, months:annualMonths });
     });
     return rows;
 }
 
-function weightedMean(rows, valueKey = 'value') {
-    let total = 0, weight = 0;
-    rows.forEach(r => {
-        const v = Number(r?.[valueKey]);
-        const w = Number(r?.weight ?? 1);
-        if (Number.isFinite(v) && Number.isFinite(w) && w > 0) { total += v*w; weight += w; }
-    });
-    return weight ? total/weight : 0;
+function median(values) {
+    const nums = (Array.isArray(values) ? values : [])
+        .map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
+    if (!nums.length) return 0;
+    const mid=Math.floor(nums.length/2);
+    return nums.length%2 ? nums[mid] : (nums[mid-1]+nums[mid])/2;
 }
 
-function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+function weightedMean(rows, valueKey='value') {
+    let total=0, weight=0;
+    rows.forEach(r=>{
+        const v=Number(r?.[valueKey]), w=Number(r?.weight ?? 1);
+        if(Number.isFinite(v)&&Number.isFinite(w)&&w>0){total+=v*w;weight+=w;}
+    });
+    return weight?total/weight:0;
+}
+
+function clamp(value,min,max){return Math.min(max,Math.max(min,value));}
 
 function getVariableForecast(category, year, month) {
-    const historical = getHistoricalCategorySpend(category, year, month, 12);
-    const nonZero = historical.filter(x => x.value > 0);
-    if (!nonZero.length) return { value: 0, expected: 0, confidence: 'low', method: 'no-data', dataMonths: 0, dataYears: 0, seasonalIndex: 1, trendFactor: 1 };
+    const historical = getHistoricalCategorySpend(category, year, month);
+    const nonZero = historical.filter(x=>x.value>0);
+    if(!nonZero.length) return {value:0,expected:0,confidence:'low',method:'no-data',dataMonths:0,dataYears:0,seasonalYears:0,seasonalIndex:1,trendFactor:1};
 
-    const recentRows = historical.map((r, idx) => ({ ...r, weight: Math.pow(0.86, idx) })).filter(r => r.value > 0);
-    const recent = weightedMean(recentRows);
+    // Multi-year level: all available observations contribute, with exponential
+    // recency weighting. This lets 5-7 years of data improve the estimate without
+    // allowing very old spending to dominate recent behaviour.
+    const recentRows = historical.map((r,idx)=>({...r,weight:Math.pow(0.965,idx)}));
+    const recentLevel = weightedMean(recentRows,'value');
 
-    const seasonalRows = getHistoricalYearSeasonality(category, year, month);
-    const seasonalIndex = seasonalRows.length >= 2 ? clamp(weightedMean(seasonalRows, 'ratio'), 0.35, 3.5) : 1;
+    // Seasonal component: compare the target month across every available year
+    // with that year's own annual level. A weighted median/mean blend is robust to
+    // one-off events while retaining the long-term seasonal signal.
+    const seasonalRows = getHistoricalYearSeasonality(category,year,month);
+    let seasonalIndex = 1;
+    if(seasonalRows.length>=2){
+        const weightedRatio = weightedMean(seasonalRows,'ratio');
+        const medianRatio = median(seasonalRows.map(r=>r.ratio));
+        seasonalIndex = clamp((weightedRatio*0.65)+(medianRatio*0.35),0.35,3.5);
+    }
 
-    // Estimate the level change between the most recent 6 months and the preceding 6 months.
-    const recent6 = historical.slice(0,6).filter(r=>r.value>0).map(r=>r.value);
-    const prior6 = historical.slice(6,12).filter(r=>r.value>0).map(r=>r.value);
-    const recentAvg = recent6.length ? recent6.reduce((a,b)=>a+b,0)/recent6.length : recent;
-    const priorAvg = prior6.length ? prior6.reduce((a,b)=>a+b,0)/prior6.length : recentAvg;
-    const trendFactor = priorAvg > 0 ? clamp(recentAvg / priorAvg, 0.80, 1.25) : 1;
+    // Trend from yearly category levels. Use all available years, but only compare
+    // years with sufficient data so partial years cannot create artificial growth.
+    const byYear = new Map();
+    nonZero.forEach(r=>{
+        const cur=byYear.get(r.year)||{sum:0,count:0};
+        cur.sum+=r.value; cur.count++;
+        byYear.set(r.year,cur);
+    });
+    const yearly = [...byYear.entries()].map(([y,v])=>({year:y,avg:v.count>=4?v.sum/v.count:null})).filter(x=>x.avg!=null).sort((a,b)=>a.year-b.year);
+    let trendFactor=1;
+    if(yearly.length>=2){
+        const recentYear=yearly[yearly.length-1].avg;
+        const older=yearly.slice(0,-1).map(x=>x.avg);
+        const olderMedian=median(older);
+        if(olderMedian>0) trendFactor=clamp(recentYear/olderMedian,0.85,1.20);
+    }
 
-    let expected = recent * seasonalIndex;
-    // If we have enough history, apply a restrained trend adjustment.
-    if (nonZero.length >= 6) expected *= (0.75 + 0.25 * trendFactor);
+    let expected=recentLevel*seasonalIndex;
+    if(yearly.length>=2) expected*=0.80+0.20*trendFactor;
 
-    // Robust safety buffer based on median absolute deviation. It is a budget buffer,
-    // not part of the central forecast.
-    const values = nonZero.map(x => x.value);
-    const med = median(values) || expected;
-    const mad = median(values.map(v => Math.abs(v - med)));
-    const volatility = med > 0 ? mad / med : 0;
-    const buffer = Math.min(0.15, Math.max(0.03, volatility * 0.35));
-    const value = expected * (1 + buffer);
-    const dataYears = new Set(nonZero.map(x => x.year)).size;
-    const seasonalYears = seasonalRows.length;
-    let confidence = 'low';
-    if (dataYears >= 4 && nonZero.length >= 10 && seasonalYears >= 3) confidence = 'high';
-    else if (dataYears >= 2 || nonZero.length >= 4) confidence = 'medium';
+    const values=nonZero.map(x=>x.value);
+    const med=median(values)||expected;
+    const mad=median(values.map(v=>Math.abs(v-med)));
+    const volatility=med>0?mad/med:0;
+    // Buffer is deliberately modest; central forecast remains the expected value.
+    const buffer=Math.min(0.12,Math.max(0.02,volatility*0.25));
+    const value=expected*(1+buffer);
+    const dataYears=new Set(nonZero.map(x=>x.year)).size;
+    const seasonalYears=seasonalRows.length;
+    let confidence='low';
+    if(dataYears>=5&&nonZero.length>=18&&seasonalYears>=4) confidence='high';
+    else if(dataYears>=2||nonZero.length>=4) confidence='medium';
 
-    return {
-        value: round2(value), expected: round2(expected), bufferPct: round2(buffer*100), confidence,
-        method: seasonalYears >= 2 ? 'multi-year-seasonal-trend' : 'weighted-12m-trend',
-        dataMonths: nonZero.length, dataYears, seasonalYears,
-        seasonalIndex: round2(seasonalIndex), trendFactor: round2(trendFactor)
-    };
+    return {value:round2(value),expected:round2(expected),bufferPct:round2(buffer*100),confidence,
+        method:seasonalYears>=2?'multi-year-level-seasonal-trend':'multi-year-level-trend',
+        dataMonths:nonZero.length,dataYears,seasonalYears,seasonalIndex:round2(seasonalIndex),trendFactor:round2(trendFactor)};
 }
 
-function expensesForCategoryExcludingRecurring(year, month, category) {
-    return getExpenseItemsForMonth(year, month).filter(x => x.category === category && !x.isRecurring);
+function expensesForCategoryExcludingRecurring(year,month,category){
+    return getExpenseItemsForMonth(year,month).filter(x=>x.category===category&&!x.isRecurring);
 }
 
 function getHistoricalIncomeForecast(targetYear, targetMonth) {
@@ -448,13 +495,10 @@ function calculateForecastMetrics() {
     return { count: rows.length, mae: round2(mae), wape: round2(wape), bias: round2(bias), accuracy: round2(Math.max(0, 100 - wape)), budgetMae:round2(budgetRows.length?budgetAbs.reduce((s,v)=>s+v,0)/budgetRows.length:0), budgetWape:round2(budgetTotal?budgetAbs.reduce((s,v)=>s+v,0)/budgetTotal*100:0) };
 }
 
-function getHistoricalRecurringBaseline(category, targetYear, targetMonth) {
-    const historical = getHistoricalCategorySpend(category, targetYear, targetMonth, 12);
-    const values = [];
-    historical.forEach(r => {
-        if (r.value > 0) values.push(getIndexedCategoryValue(r.year, r.month, category, 'recurringExpense'));
-    });
-    return values.length ? median(values) : 0;
+function getHistoricalRecurringBaseline(category,targetYear,targetMonth){
+    const historical=getHistoricalCategorySpend(category,targetYear,targetMonth);
+    const values=historical.map(r=>getIndexedCategoryValue(r.year,r.month,category,'recurringExpense')).filter(v=>v>0);
+    return values.length?median(values):0;
 }
 
 function buildForecastArchiveBackfill() {
@@ -819,5 +863,5 @@ function initPlanning() {
     });
 }
 
-window.addEventListener('flow:data-changed', ()=>{ markForecastIndexDirty(); renderPlanningScreens(); });
+window.addEventListener('flow:data-changed', ()=>{ markForecastIndexDirty(); if(document.getElementById('screen-plan')?.classList.contains('hidden') && document.getElementById('screen-recurring')?.classList.contains('hidden')) return; renderPlanningScreens(); });
 

@@ -54,6 +54,7 @@ function getPastClosedMonths(targetYear, targetMonth, count = 3) {
 }
 
 function getCategoryMonthlyExpense(year, month, categoryId) {
+    if (typeof getIndexedCategoryValue === 'function') return getIndexedCategoryValue(year, month, categoryId, 'totalExpense');
     return getExpenseItemsForMonth(year, month)
         .filter(item => item.category === categoryId)
         .reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
