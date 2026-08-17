@@ -20,12 +20,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Find ZIP
+      - name: Find uploaded ZIP
         id: pkg
         shell: bash
         run: |
@@ -35,59 +35,76 @@ jobs:
             | grep '^deploy/.*\.zip$' \
             | tail -1 || true)"
 
-          [ -n "$ZIP" ] || {
-            echo "Nenasiel sa novy ZIP v deploy/"
+          if [ -z "$ZIP" ]; then
+            echo "CHYBA: Nenasiel sa novy ZIP v deploy/"
             exit 1
-          }
+          fi
+
+          if [ ! -f "$ZIP" ]; then
+            echo "CHYBA: ZIP subor neexistuje: $ZIP"
+            exit 1
+          fi
 
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "Pouziva sa balik: $ZIP"
 
-      - name: Extract and validate
+      - name: Extract package
         shell: bash
         run: |
           set -euo pipefail
 
-          rm -rf /tmp/flow
-          mkdir /tmp/flow
+          rm -rf /tmp/flow-package
+          mkdir -p /tmp/flow-package
 
-          unzip -q "${{ steps.pkg.outputs.zip }}" -d /tmp/flow
+          unzip -q "${{ steps.pkg.outputs.zip }}" -d /tmp/flow-package
 
-          APP="/tmp/flow"
+          APP_ROOT="/tmp/flow-package"
 
-          if [ ! -f "$APP/index.html" ]; then
-            DIR="$(find "$APP" -mindepth 1 -maxdepth 1 -type d | head -1 || true)"
+          # Ak je obsah ZIP-u zabaleny este v jednom nadradenom priecinku,
+          # najdeme ho automaticky.
+          if [ ! -f "$APP_ROOT/index.html" ]; then
+            FIRST_DIR="$(find "$APP_ROOT" -mindepth 1 -maxdepth 1 -type d | head -1 || true)"
 
-            if [ -n "$DIR" ] && [ -f "$DIR/index.html" ]; then
-              APP="$DIR"
+            if [ -n "$FIRST_DIR" ] && [ -f "$FIRST_DIR/index.html" ]; then
+              APP_ROOT="$FIRST_DIR"
             fi
           fi
 
-          test -f "$APP/index.html" || {
-            echo "CHYBA: chyba index.html"
-            exit 1
-          }
+          echo "APP_ROOT=$APP_ROOT" >> "$GITHUB_ENV"
 
-          test -d "$APP/assets" || {
-            echo "CHYBA: chyba assets/"
-            exit 1
-          }
-
-          test -f "$APP/sw.js" || {
-            echo "CHYBA: chyba sw.js"
-            exit 1
-          }
-
-          test -f "$APP/manifest.json" || {
-            echo "CHYBA: chyba manifest.json"
-            exit 1
-          }
-
-          echo "APP=$APP" >> "$GITHUB_ENV"
-
-      - name: Deploy Flow
+      - name: Validate Flow package
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ ! -f "$APP_ROOT/index.html" ]; then
+            echo "CHYBA: chyba index.html"
+            exit 1
+          fi
+
+          if [ ! -d "$APP_ROOT/assets" ]; then
+            echo "CHYBA: chyba assets/"
+            exit 1
+          fi
+
+          if [ ! -f "$APP_ROOT/sw.js" ]; then
+            echo "CHYBA: chyba sw.js"
+            exit 1
+          fi
+
+          if [ ! -f "$APP_ROOT/manifest.json" ]; then
+            echo "CHYBA: chyba manifest.json"
+            exit 1
+          fi
+
+          echo "Balik Flow je v poriadku."
+
+      - name: Replace production frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Odstranujem staru frontend verziu..."
 
           rm -rf assets
 
@@ -101,10 +118,28 @@ jobs:
           rm -f V2.*-SCENARE.md
           rm -f V2.*-OPRAVY.md
 
-          cp -a "$APP"/. ./
+          echo "Kopirujem novu verziu..."
 
-          rm -rf deploy
+          cp -a "$APP_ROOT"/. ./
 
+      - name: Preserve deploy folder
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Zmazeme iba ZIP, ktory spustil deployment.
+          rm -f "${{ steps.pkg.outputs.zip }}"
+
+          # Priecinok deploy zostane v repozitari.
+          mkdir -p deploy
+          touch deploy/.gitkeep
+
+      - name: Protect GitHub workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Release ZIP nesmie prepisat .github/workflows
           git checkout -- .github 2>/dev/null || true
 
       - name: Commit deployed version
@@ -118,11 +153,14 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "Ziadne zmeny."
+            echo "Ziadne zmeny na commit."
             exit 0
           fi
 
           PACKAGE="$(basename "${{ steps.pkg.outputs.zip }}")"
 
           git commit -m "Deploy $PACKAGE"
+
           git push origin HEAD:main
+
+          echo "Flow bol nasadeny do main."
