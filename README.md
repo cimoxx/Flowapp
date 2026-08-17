@@ -1,8 +1,8 @@
-# Flow v2.42.0
+# Flow v2.42.1
 
 ## Category Champions + Income Intelligence
 
-Flow v2.42.0 upravuje výdavkový forecast podľa výsledkov doterajších walk-forward scenárov. Hlavná zmena je jednoduchá:
+Flow v2.42.1 vychádza z v2.42.0 a upravuje výdavkový forecast podľa výsledkov doterajších walk-forward scenárov. Hlavná zmena je jednoduchá:
 
 **každá kategória má stabilného championa a model sa už agresívne neprepína podľa kalendárneho mesiaca.**
 
@@ -74,7 +74,7 @@ Automatické generovanie transakcií zostáva striktne limitované na **maximál
 
 ## Nasadenie
 
-1. Nahraj celý frontend v2.42.0 na GitHub Pages.
+1. Nahraj celý frontend v2.42.1 na GitHub Pages.
 2. Google Apps Script nemeníš – zostáva backend v2.38.8.
 3. Otvor Ročný plán.
 4. Spusti Vyhodnotiť históriu.
@@ -82,3 +82,9 @@ Automatické generovanie transakcií zostáva striktne limitované na **maximál
 6. Income metriky by mali zostať približne na úrovni v2.41.0, pretože príjmový model sa nemenil.
 
 Podrobnosti sú v `V2.42.0-IMPLEMENTACIA.md` a `CHANGELOG.md`.
+
+
+## v2.42.1 Dark mode
+- UI-only oprava čitateľnosti Budgetu a Ročného plánu.
+- Forecast model ostáva `2.42.0-category-champions-v1`.
+- Income Engine a Google Apps Script sa nemenia.

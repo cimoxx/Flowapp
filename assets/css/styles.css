@@ -1571,3 +1571,235 @@ textarea:focus-visible {
 .planning-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.planning-detail-grid>div{padding:10px;border-radius:13px;background:#f8fafc}.dark .planning-detail-grid>div{background:#1e293b}.planning-detail-grid span{display:block;font-size:8px;font-weight:900;color:#94a3b8;text-transform:uppercase}.planning-detail-grid b{display:block;margin-top:4px;font-size:12px}
 .planning-category-row{display:grid;grid-template-columns:1fr auto 30px;align-items:center;gap:8px;padding:10px 11px;border-radius:13px;background:#f8fafc}.dark .planning-category-row{background:#1e293b}.planning-category-row b{font-size:10px}.planning-category-row small{display:block;font-size:8px;font-weight:700;color:#94a3b8;margin-top:2px}.planning-category-row strong{font-size:11px}.planning-edit-icon{width:30px;height:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid #e2e8f0;color:#64748b}.dark .planning-edit-icon{background:#0f172a;border-color:#334155;color:#cbd5e1}
 .budget-method-card{padding:0!important;overflow:hidden}.budget-method-summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px;font-size:11px;font-weight:900;cursor:pointer}.budget-method-summary::-webkit-details-marker{display:none}.budget-method-body{padding:0 14px 14px;display:grid;gap:8px}.budget-method-body>div{display:grid;grid-template-columns:78px 1fr;gap:8px;font-size:9px;line-height:1.45}.budget-method-body b{font-size:9px}.budget-method-body span{font-weight:700;color:#94a3b8}
+
+/* =========================================================
+   FLOW v2.42.1 — Dark mode readability hotfix
+   Budget + Annual Plan. Supports both OS dark mode and a
+   possible explicit .dark class without changing app logic.
+   ========================================================= */
+
+@media (prefers-color-scheme: dark) {
+    /* Budget surfaces */
+    #screen-budget .budget-period-card,
+    #screen-budget .budget-hero-card,
+    #screen-budget .budget-risk-summary,
+    #screen-budget .budget-section-card,
+    #screen-budget .budget-cat-card,
+    #screen-budget .budget-insight-card {
+        background: #161d2f;
+        border-color: #2b3854;
+        box-shadow: 0 10px 26px rgba(0,0,0,.22);
+    }
+
+    #screen-budget .budget-hero-card.tone-good,
+    #screen-budget .budget-risk-summary.tone-good,
+    #screen-budget .budget-insight-card.tone-good {
+        background: linear-gradient(180deg, rgba(6,78,59,.34), rgba(22,29,47,.98));
+        border-color: rgba(52,211,153,.34);
+    }
+
+    #screen-budget .budget-hero-card.tone-warn,
+    #screen-budget .budget-risk-summary.tone-warn,
+    #screen-budget .budget-insight-card.tone-warn {
+        background: linear-gradient(180deg, rgba(120,53,15,.28), rgba(22,29,47,.98));
+        border-color: rgba(251,191,36,.30);
+    }
+
+    #screen-budget .budget-hero-card.tone-danger,
+    #screen-budget .budget-risk-summary.tone-danger,
+    #screen-budget .budget-insight-card.tone-danger {
+        background: linear-gradient(180deg, rgba(127,29,29,.27), rgba(22,29,47,.98));
+        border-color: rgba(251,113,133,.30);
+    }
+
+    #screen-budget .budget-insight-card.tone-info {
+        background: linear-gradient(180deg, rgba(30,58,138,.26), rgba(22,29,47,.98));
+        border-color: rgba(96,165,250,.28);
+    }
+
+    #screen-budget .budget-period-title,
+    #screen-budget .budget-hero-value,
+    #screen-budget .budget-risk-text,
+    #screen-budget .budget-section-title,
+    #screen-budget .budget-cat-name,
+    #screen-budget .budget-mini-value,
+    #screen-budget .forecast-row-name,
+    #screen-budget .forecast-row-value,
+    #screen-budget .budget-insight-title,
+    #screen-budget .budget-method-summary,
+    #screen-budget .budget-method-body b {
+        color: #f1f5f9;
+    }
+
+    #screen-budget .budget-period-label,
+    #screen-budget .budget-hero-label,
+    #screen-budget .budget-section-label,
+    #screen-budget .budget-mini-label {
+        color: #94a3b8;
+    }
+
+    #screen-budget .budget-period-sub,
+    #screen-budget .budget-hero-sub,
+    #screen-budget .budget-risk-title,
+    #screen-budget .budget-cat-confidence,
+    #screen-budget .budget-progress-head,
+    #screen-budget .forecast-row-sub,
+    #screen-budget .budget-method-body span {
+        color: #a8b5c8;
+    }
+
+    #screen-budget .budget-insight-text {
+        color: #cbd5e1;
+    }
+
+    #screen-budget .budget-mini-stat,
+    #screen-budget .forecast-row {
+        background: #101827;
+        border-color: #293650;
+    }
+
+    #screen-budget .budget-progress-bar {
+        background: #26334b;
+    }
+
+    #screen-budget .budget-insight-icon {
+        background: rgba(15,23,42,.78);
+        border: 1px solid rgba(71,85,105,.55);
+    }
+
+    #screen-budget .budget-insight-icon i {
+        color: #e2e8f0;
+    }
+
+    #screen-budget .budget-cat-status.tone-neutral {
+        color: #cbd5e1;
+        background: rgba(148,163,184,.16);
+    }
+
+    /* Annual Plan */
+    #screen-plan #annual-plan-year {
+        color: #e2e8f0;
+        background: #161d2f;
+        border: 1px solid #2b3854;
+        border-radius: 14px;
+    }
+
+    #screen-plan #annual-plan-year option {
+        color: #e2e8f0;
+        background: #161d2f;
+    }
+
+    #screen-plan .annual-hero-card {
+        background: #161d2f;
+        border-color: #2b3854;
+        box-shadow: 0 8px 22px rgba(0,0,0,.18);
+    }
+
+    #screen-plan .annual-hero-card.tone-good {
+        background: linear-gradient(180deg, rgba(6,78,59,.30), #161d2f 72%);
+        border-color: rgba(52,211,153,.34);
+    }
+
+    #screen-plan .annual-hero-card.tone-danger {
+        background: linear-gradient(180deg, rgba(127,29,29,.25), #161d2f 72%);
+        border-color: rgba(251,113,133,.30);
+    }
+
+    #screen-plan .annual-label,
+    #screen-plan .annual-sub,
+    #screen-plan .planning-muted,
+    #screen-plan .planning-metrics-row,
+    #screen-plan .annual-month-grid span {
+        color: #94a3b8;
+    }
+
+    #screen-plan .annual-value,
+    #screen-plan .annual-month-name,
+    #screen-plan .annual-month-total,
+    #screen-plan .annual-month-grid b,
+    #screen-plan .planning-info-card strong,
+    #screen-plan .planning-metrics-row b {
+        color: #f1f5f9;
+    }
+
+    #screen-plan .planning-info-card {
+        background: linear-gradient(180deg, rgba(6,78,59,.28), rgba(15,23,42,.80));
+        border-color: rgba(52,211,153,.28);
+    }
+
+    #screen-plan .planning-small-btn {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    #screen-plan .annual-month-card {
+        background: #121a2a;
+        border-color: #293650;
+        box-shadow: 0 5px 18px rgba(0,0,0,.16);
+    }
+
+    #screen-plan .annual-month-card.current {
+        border-color: rgba(52,211,153,.48);
+        box-shadow: 0 0 0 1px rgba(52,211,153,.10), 0 6px 20px rgba(0,0,0,.16);
+    }
+
+    #screen-plan .annual-month-grid > div,
+    #screen-plan .planning-detail-grid > div,
+    #screen-plan .planning-category-row,
+    #screen-plan .planning-helper,
+    #screen-plan .planning-change-summary {
+        background: #1b263a;
+        border-color: #2b3854;
+        color: #e2e8f0;
+    }
+
+    #screen-plan .annual-event-chip {
+        background: #233049;
+        color: #dbe5f2;
+        border: 1px solid #33445f;
+    }
+
+    #screen-plan .annual-month-actions button {
+        border-color: #33445f;
+        background: #101827;
+        color: #d6e0ee;
+    }
+
+    #screen-plan .annual-month-actions button:active {
+        background: #1b263a;
+    }
+
+    #screen-plan .planning-metrics-button:hover b {
+        color: #34d399;
+    }
+}
+
+/* Explicit .dark fallback for environments configured with Tailwind class mode. */
+.dark #screen-budget .budget-period-card,
+.dark #screen-budget .budget-hero-card,
+.dark #screen-budget .budget-risk-summary,
+.dark #screen-budget .budget-section-card,
+.dark #screen-budget .budget-cat-card,
+.dark #screen-budget .budget-insight-card { background:#161d2f; border-color:#2b3854; }
+.dark #screen-budget .budget-period-title,
+.dark #screen-budget .budget-hero-value,
+.dark #screen-budget .budget-risk-text,
+.dark #screen-budget .budget-section-title,
+.dark #screen-budget .budget-cat-name,
+.dark #screen-budget .budget-mini-value,
+.dark #screen-budget .forecast-row-name,
+.dark #screen-budget .forecast-row-value,
+.dark #screen-budget .budget-insight-title,
+.dark #screen-budget .budget-method-summary,
+.dark #screen-budget .budget-method-body b { color:#f1f5f9; }
+.dark #screen-budget .budget-mini-stat,
+.dark #screen-budget .forecast-row { background:#101827; border-color:#293650; }
+.dark #screen-budget .budget-insight-text { color:#cbd5e1; }
+.dark #screen-plan #annual-plan-year { color:#e2e8f0; background:#161d2f; border:1px solid #2b3854; border-radius:14px; }
+.dark #screen-plan .annual-hero-card { background:#161d2f; border-color:#2b3854; }
+.dark #screen-plan .annual-value,
+.dark #screen-plan .annual-month-name,
+.dark #screen-plan .annual-month-total,
+.dark #screen-plan .annual-month-grid b,
+.dark #screen-plan .planning-info-card strong { color:#f1f5f9; }
+.dark #screen-plan .planning-info-card { background:rgba(6,78,59,.26); border-color:rgba(52,211,153,.28); }

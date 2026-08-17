@@ -1,5 +1,21 @@
 # Flow – CHANGELOG
 
+## v2.42.1 – Dark Mode Readability
+
+### Fixed
+- Kompletná čitateľnosť tabu **Budget** v dark mode.
+- Tmavé povrchy, texty, štatistiky, forecast riadky, insighty a vysvetlenie výpočtu používajú kontrastné dark-mode farby.
+- Kompletná čitateľnosť tabu **Ročný plán** v dark mode.
+- Opravené hero karty, mesačné karty, mini štatistiky, plánovacie udalosti, tlačidlá a výber roku.
+- Dark mode funguje pri systémovom `prefers-color-scheme: dark` aj pri explicitnej `.dark` triede.
+
+### Unchanged
+- Forecast model zostáva **2.42.0-category-champions-v1** – nový backtest nie je potrebný.
+- Income Engine zostáva bez zmeny.
+- Google Apps Script zostáva v2.38.8.
+
+---
+
 ## v2.42.0 – Category Champions
 
 ### Forecast / model selection
