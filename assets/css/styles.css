@@ -1951,14 +1951,92 @@ textarea:focus-visible {
 }
 
 
-/* FLOW v2.42.3 — Semantic signed result colors */
-.result-positive { color: #059669 !important; }
-.result-negative { color: #e11d48 !important; }
-.result-neutral { color: var(--text-main) !important; }
+
+
+/* =========================================================
+   FLOW v2.42.4 — Balance hierarchy & semantic UX
+   ========================================================= */
+.result-positive { color:#047857 !important; }
+.result-negative { color:#be123c !important; }
+.result-neutral { color:var(--text-main) !important; }
+
+.result-surface-positive {
+    background:rgba(16,185,129,.075) !important;
+    border-color:rgba(16,185,129,.26) !important;
+}
+.result-surface-negative {
+    background:rgba(244,63,94,.07) !important;
+    border-color:rgba(244,63,94,.25) !important;
+}
+.result-surface-neutral {
+    background:var(--bg-soft) !important;
+    border-color:var(--border) !important;
+}
+
+.balance-result-card {
+    position:relative;
+    box-shadow:none !important;
+}
+.balance-result-cell {
+    border-width:1px !important;
+    border-style:solid !important;
+}
+.balance-result-card .budget-hero-value,
+.balance-result-card .annual-value,
+.balance-result-cell .budget-mini-value,
+.balance-result-cell b {
+    font-variant-numeric:tabular-nums;
+}
+.balance-status {
+    display:inline-flex;
+    align-items:center;
+    gap:.38rem;
+    width:fit-content;
+    margin-top:.45rem;
+    padding:.28rem .5rem;
+    border-radius:999px;
+    font-size:9px;
+    line-height:1;
+    font-weight:900;
+    letter-spacing:.035em;
+    text-transform:uppercase;
+    background:rgba(148,163,184,.10);
+}
+.balance-status-dot {
+    width:.42rem;
+    height:.42rem;
+    border-radius:999px;
+    background:currentColor;
+    flex:0 0 auto;
+}
+.balance-result-card .budget-hero-sub,
+.balance-result-card .annual-sub {
+    margin-top:.55rem;
+}
+#screen-plan .annual-month-grid > .balance-result-cell,
+#screen-budget .budget-mini-stat.balance-result-cell {
+    border:1px solid;
+}
 
 @media (prefers-color-scheme: dark) {
-    .result-positive { color: #34d399 !important; }
-    .result-negative { color: #fb7185 !important; }
+    .result-positive { color:#6ee7b7 !important; }
+    .result-negative { color:#fda4af !important; }
+    .result-surface-positive {
+        background:rgba(6,78,59,.28) !important;
+        border-color:rgba(52,211,153,.30) !important;
+    }
+    .result-surface-negative {
+        background:rgba(127,29,29,.24) !important;
+        border-color:rgba(251,113,133,.30) !important;
+    }
 }
-.dark .result-positive { color: #34d399 !important; }
-.dark .result-negative { color: #fb7185 !important; }
+.dark .result-positive { color:#6ee7b7 !important; }
+.dark .result-negative { color:#fda4af !important; }
+.dark .result-surface-positive {
+    background:rgba(6,78,59,.28) !important;
+    border-color:rgba(52,211,153,.30) !important;
+}
+.dark .result-surface-negative {
+    background:rgba(127,29,29,.24) !important;
+    border-color:rgba(251,113,133,.30) !important;
+}

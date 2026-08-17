@@ -1,5 +1,27 @@
 # Flow – CHANGELOG
 
+## v2.42.4 – Balance UI/UX Hierarchy
+
+### Budget
+- `Safe to spend` používa zelenú/červenú/neutrálnu semantiku podľa výsledku.
+- Karta zobrazuje aj textový stav `V pluse`, `V mínuse` alebo `Na nule`.
+- `Zostáva` pri každej kategórii má jemné semantické pozadie, border a farebnú hodnotu.
+
+### Ročný plán
+- `Očakávaný zostatok` používa rovnakú semantiku ako Budget.
+- Mesačný `Zostatok` je zvýraznený jemným zeleným/červeným/neutrálnym povrchom.
+
+### UI/UX
+- Farba nie je jediný nosič informácie.
+- Výsledok ostáva dominantný, farebná plocha je iba jemná podpora.
+- Light a dark mode majú samostatne nastavený kontrast.
+- Použité sú tabular numerals pre stabilnejšie porovnanie finančných hodnôt.
+
+### Model / backend
+- Forecast model ostáva `2.42.0-category-champions-v1`.
+- Income Engine sa nemení.
+- Google Apps Script zostáva v2.38.8.
+
 ## v2.42.3 – Signed Result Colors + Changelog
 
 ### UI

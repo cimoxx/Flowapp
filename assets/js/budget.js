@@ -341,6 +341,20 @@ function getSignedResultClass(value) {
     return 'result-neutral';
 }
 
+function getSignedResultSurfaceClass(value) {
+    const amount = Number(value) || 0;
+    if (amount > 0) return 'result-surface-positive';
+    if (amount < 0) return 'result-surface-negative';
+    return 'result-surface-neutral';
+}
+
+function getSignedResultStatus(value) {
+    const amount = Number(value) || 0;
+    if (amount > 0) return 'V pluse';
+    if (amount < 0) return 'V mínuse';
+    return 'Na nule';
+}
+
 function renderBudgetHeroCards(data) {
     const el = document.getElementById('budget-hero-cards');
     if (!el) return;
@@ -373,9 +387,10 @@ function renderBudgetHeroCards(data) {
     ];
 
     el.innerHTML = cards.map(card => `
-        <div class="budget-hero-card tone-${card.tone}">
+        <div class="budget-hero-card tone-${card.tone} ${card.label === 'Safe to spend' ? `balance-result-card ${getSignedResultSurfaceClass(data.safeToSpend)}` : ''}">
             <div class="budget-hero-label">${card.label}</div>
             <div class="budget-hero-value ${card.label === 'Safe to spend' ? getSignedResultClass(data.safeToSpend) : ''}">${card.value}</div>
+            ${card.label === 'Safe to spend' ? `<div class="balance-status ${getSignedResultClass(data.safeToSpend)}"><span class="balance-status-dot"></span>${getSignedResultStatus(data.safeToSpend)}</div>` : ''}
             <div class="budget-hero-sub">${card.sub}</div>
         </div>
     `).join('');
@@ -431,7 +446,7 @@ function renderBudgetCategoryList(data) {
                     <div class="budget-mini-label">Forecast</div>
                     <div class="budget-mini-value">${formatCurrency(row.forecast)}</div>
                 </div>
-                <div class="budget-mini-stat">
+                <div class="budget-mini-stat balance-result-cell ${getSignedResultSurfaceClass(row.safe)}">
                     <div class="budget-mini-label">Zostáva</div>
                     <div class="budget-mini-value ${getSignedResultClass(row.safe)}">${formatCurrency(row.safe)}</div>
                 </div>
