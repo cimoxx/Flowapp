@@ -1,23 +1,26 @@
-name: Deploy Flow ZIP
+name: Flow Mobile ZIP Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'deploy/*.zip'
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+  actions: read
 
 concurrency:
-  group: flow-zip-deploy
+  group: flow-production
   cancel-in-progress: false
 
 jobs:
   deploy:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
 
     steps:
       - name: Checkout repository
@@ -30,77 +33,109 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          ZIP="$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" \
-            | grep '^deploy/.*\.zip$' \
-            | tail -1 || true)"
-
-          if [ -z "$ZIP" ]; then
-            echo "CHYBA: Nenasiel sa novy ZIP v deploy/"
+          ZIP="$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | grep '^deploy/.*\.zip$' | tail -1 || true)"
+          if [ -z "$ZIP" ] || [ ! -f "$ZIP" ]; then
+            echo "CHYBA: Nenasiel sa novy ZIP v deploy/."
             exit 1
           fi
-
-          if [ ! -f "$ZIP" ]; then
-            echo "CHYBA: ZIP subor neexistuje: $ZIP"
-            exit 1
-          fi
-
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
-          echo "Pouziva sa balik: $ZIP"
 
-      - name: Extract package
+      - name: Extract ZIP
         shell: bash
         run: |
           set -euo pipefail
-
-          rm -rf /tmp/flow-package
-          mkdir -p /tmp/flow-package
-
-          unzip -q "${{ steps.pkg.outputs.zip }}" -d /tmp/flow-package
-
-          APP_ROOT="/tmp/flow-package"
-
-          # Ak je obsah ZIP-u zabaleny este v jednom nadradenom priecinku,
-          # najdeme ho automaticky.
+          rm -rf /tmp/flow-release
+          mkdir -p /tmp/flow-release
+          unzip -q "${{ steps.pkg.outputs.zip }}" -d /tmp/flow-release
+          APP_ROOT="/tmp/flow-release"
           if [ ! -f "$APP_ROOT/index.html" ]; then
             FIRST_DIR="$(find "$APP_ROOT" -mindepth 1 -maxdepth 1 -type d | head -1 || true)"
-
             if [ -n "$FIRST_DIR" ] && [ -f "$FIRST_DIR/index.html" ]; then
               APP_ROOT="$FIRST_DIR"
             fi
           fi
-
           echo "APP_ROOT=$APP_ROOT" >> "$GITHUB_ENV"
 
-      - name: Validate Flow package
+      - name: Validate package
         shell: bash
         run: |
           set -euo pipefail
+          test -f "$APP_ROOT/index.html" || exit 1
+          test -d "$APP_ROOT/assets" || exit 1
+          test -f "$APP_ROOT/sw.js" || exit 1
+          test -f "$APP_ROOT/manifest.json" || exit 1
 
-          if [ ! -f "$APP_ROOT/index.html" ]; then
-            echo "CHYBA: chyba index.html"
-            exit 1
-          fi
-
-          if [ ! -d "$APP_ROOT/assets" ]; then
-            echo "CHYBA: chyba assets/"
-            exit 1
-          fi
-
-          if [ ! -f "$APP_ROOT/sw.js" ]; then
-            echo "CHYBA: chyba sw.js"
-            exit 1
-          fi
-
-          if [ ! -f "$APP_ROOT/manifest.json" ]; then
-            echo "CHYBA: chyba manifest.json"
-            exit 1
-          fi
-
-          echo "Balik Flow je v poriadku."
-
-      - name: Replace production frontend
+      - name: Update repository
         shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf assets
+          rm -f index.html sw.js manifest.json CHANGELOG.md README.md
+          rm -f V2.*-IMPLEMENTACIA.md V2.*-SCENARE.md V2.*-OPRAVY.md
+          cp -a "$APP_ROOT"/. ./
+          git checkout -- .github 2>/dev/null || true
+          rm -f "${{ steps.pkg.outputs.zip }}"
+          mkdir -p deploy
+          touch deploy/.gitkeep
+
+      - name: Commit released version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Deploy $(basename '${{ steps.pkg.outputs.zip }}')"
+            git push origin HEAD:main
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ env.APP_ROOT }}
+
+      - name: Deploy attempt 1
+        id: deploy1
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait 30s
+        if: steps.deploy1.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy attempt 2
+        id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait 60s
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 60
+
+      - name: Deploy attempt 3
+        id: deploy3
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Verify deployment
+        if: always()
+        shell: bash
+        run: |
+          D1="${{ steps.deploy1.outcome }}"
+          D2="${{ steps.deploy2.outcome }}"
+          D3="${{ steps.deploy3.outcome }}"
+          if [ "$D1" = "success" ] || [ "$D2" = "success" ] || [ "$D3" = "success" ]; then
+            echo "Flow bol uspesne nasadeny."
+            exit 0
+          fi
+          echo "CHYBA: GitHub Pages zlyhal vo vsetkych troch pokusoch."
+          exit 1
         run: |
           set -euo pipefail
 
