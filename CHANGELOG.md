@@ -1,5 +1,22 @@
 # Flow – CHANGELOG
 
+## v2.42.3 – Signed Result Colors + Changelog
+
+### UI
+- Plusové výsledky v Budgete a Ročnom pláne sú zelené.
+- Mínusové výsledky sú červené.
+- Nulové výsledky zostávajú neutrálne.
+- Pravidlo sa používa pre `Safe to spend`, zostávajúci budget, mesačný zostatok a očakávaný ročný zostatok.
+- Farby majú samostatný kontrast pre light a dark mode.
+
+### Changelog
+- Doplnená chýbajúca položka v2.42.2 aj do changelog modalu v aplikácii.
+
+### Model / backend
+- Forecast model sa nemení (`2.42.0-category-champions-v1`).
+- Income Engine sa nemení.
+- Google Apps Script zostáva v2.38.8.
+
 ## v2.42.2 – Dark Mode Contrast Fix
 
 ### Fixed

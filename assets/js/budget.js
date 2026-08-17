@@ -334,6 +334,13 @@ function getBudgetRiskSummary(data) {
     };
 }
 
+function getSignedResultClass(value) {
+    const amount = Number(value) || 0;
+    if (amount > 0) return 'result-positive';
+    if (amount < 0) return 'result-negative';
+    return 'result-neutral';
+}
+
 function renderBudgetHeroCards(data) {
     const el = document.getElementById('budget-hero-cards');
     if (!el) return;
@@ -368,7 +375,7 @@ function renderBudgetHeroCards(data) {
     el.innerHTML = cards.map(card => `
         <div class="budget-hero-card tone-${card.tone}">
             <div class="budget-hero-label">${card.label}</div>
-            <div class="budget-hero-value">${card.value}</div>
+            <div class="budget-hero-value ${card.label === 'Safe to spend' ? getSignedResultClass(data.safeToSpend) : ''}">${card.value}</div>
             <div class="budget-hero-sub">${card.sub}</div>
         </div>
     `).join('');
@@ -426,7 +433,7 @@ function renderBudgetCategoryList(data) {
                 </div>
                 <div class="budget-mini-stat">
                     <div class="budget-mini-label">Zostáva</div>
-                    <div class="budget-mini-value ${row.safe < 0 ? 'text-rose-500' : 'text-emerald-600'}">${formatCurrency(row.safe)}</div>
+                    <div class="budget-mini-value ${getSignedResultClass(row.safe)}">${formatCurrency(row.safe)}</div>
                 </div>
             </div>
 

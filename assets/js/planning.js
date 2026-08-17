@@ -1739,6 +1739,13 @@ async function runForecastBackfill() {
     }
 }
 
+function getPlanningSignedClass(value) {
+    const amount = Number(value) || 0;
+    if (amount > 0) return 'result-positive';
+    if (amount < 0) return 'result-negative';
+    return 'result-neutral';
+}
+
 function escPlanning(value) {
     return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -1759,7 +1766,7 @@ function renderAnnualPlanScreen() {
         <div class="annual-hero-card"><div class="annual-label">Ročný budget</div><div class="annual-value">${formatCurrency(totalBudget)}</div><div class="annual-sub">Plán výdavkov na ${year}</div></div>
         <div class="annual-hero-card"><div class="annual-label">Forecast</div><div class="annual-value">${formatCurrency(totalForecast)}</div><div class="annual-sub">Priebežne prepočítavaný</div></div>
         <div class="annual-hero-card"><div class="annual-label">Príjem</div><div class="annual-value">${formatCurrency(totalIncome)}</div><div class="annual-sub">Dostupné dáta + plán</div></div>
-        <div class="annual-hero-card tone-${totalBalance >= 0 ? 'good':'danger'}"><div class="annual-label">Očakávaný zostatok</div><div class="annual-value">${formatCurrency(totalBalance)}</div><div class="annual-sub">Príjem mínus forecast</div></div>
+        <div class="annual-hero-card tone-${totalBalance >= 0 ? 'good':'danger'}"><div class="annual-label">Očakávaný zostatok</div><div class="annual-value ${getPlanningSignedClass(totalBalance)}">${formatCurrency(totalBalance)}</div><div class="annual-sub">Príjem mínus forecast</div></div>
       </div>
       <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Výdavky používajú stabilného championa pre každú kategóriu; challenger ho nahradí iba pri jasnom zlepšení. Príjmový model zostáva nezmenený.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
@@ -1767,7 +1774,7 @@ function renderAnnualPlanScreen() {
       ${months.map(m => `
         <div class="annual-month-card ${m.isCurrent ? 'current':''}">
           <div class="annual-month-top"><div><div class="annual-month-name">${m.monthName}</div><div class="planning-muted">${m.closed ? 'Uzavretý mesiac' : m.isCurrent ? 'Aktuálny mesiac' : 'Forecast'}</div></div><div class="annual-month-total">${formatCurrency(m.budget)}</div></div>
-          <div class="annual-month-grid"><div><span>Forecast</span><b>${formatCurrency(m.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(m.plannedIncome)}</b></div><div><span>Zostatok</span><b class="${m.plannedBalance >= 0 ? 'text-emerald-600':'text-rose-500'}">${formatCurrency(m.plannedBalance)}</b></div></div>
+          <div class="annual-month-grid"><div><span>Forecast</span><b>${formatCurrency(m.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(m.plannedIncome)}</b></div><div><span>Zostatok</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b></div></div>
           ${m.events.length ? `<div class="annual-event-list">${m.events.map(e=>`<div class="annual-event-chip"><span>${escPlanning(e.title)}</span><b>${e.type==='income'?'+':'−'}${formatCurrency(Math.abs(e.amount))}</b></div>`).join('')}</div>`:''}
           <div class="annual-month-actions"><button type="button" onclick="openPlanningEventModal('${m.key}')">＋ Udalosť</button><button type="button" onclick="openMonthPlanDetail('${m.key}')">Detail mesiaca</button></div>
         </div>`).join('')}

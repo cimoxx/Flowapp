@@ -1949,3 +1949,16 @@ textarea:focus-visible {
         background: linear-gradient(180deg, rgba(127,29,29,.27), var(--bg-card)) !important;
     }
 }
+
+
+/* FLOW v2.42.3 — Semantic signed result colors */
+.result-positive { color: #059669 !important; }
+.result-negative { color: #e11d48 !important; }
+.result-neutral { color: var(--text-main) !important; }
+
+@media (prefers-color-scheme: dark) {
+    .result-positive { color: #34d399 !important; }
+    .result-negative { color: #fb7185 !important; }
+}
+.dark .result-positive { color: #34d399 !important; }
+.dark .result-negative { color: #fb7185 !important; }
