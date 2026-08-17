@@ -1,63 +1,84 @@
-# Flow v2.41.0
+# Flow v2.42.0
 
-## Meta Forecast + Income Intelligence
+## Category Champions + Income Intelligence
 
-Flow v2.41.0 nadväzuje na Champion/Challenger forecast a pridáva dve hlavné zmeny:
+Flow v2.42.0 upravuje výdavkový forecast podľa výsledkov doterajších walk-forward scenárov. Hlavná zmena je jednoduchá:
 
-1. **Meta výber výdavkového modelu podľa kategórie aj kalendárneho mesiaca.**
-2. **Nový prediktívny model príjmov**, ktorý oddeľuje stabilné, variabilné a riedke zdroje a zabraňuje dvojitému započítaniu pravidelného príjmu.
+**každá kategória má stabilného championa a model sa už agresívne neprepína podľa kalendárneho mesiaca.**
+
+Income Engine z v2.41.0 zostáva nezmenený.
 
 Aktuálny forecast model:
 
-`2.41.0-meta-income-v1`
+`2.42.0-category-champions-v1`
 
-## Prečo sa menil forecast príjmov
+## Prečo sa zmenil výdavkový selector
 
-Doterajšia logika počítala príjem ako jednoduchý priemer posledných kladných uzavretých mesiacov. To malo tri zásadné nevýhody:
+Diagnostika v2.41.0 ukázala, že mesačný meta-selector vedel pomôcť niektorým kategóriám, ale pri riedkych a sezónnych kategóriách sa mohol preučiť na malej vzorke.
 
-- ignorovalo nulové mesiace pri nepravidelných príjmoch,
-- nepoznalo sezónnosť bonusov/predajov,
-- historický príjem a pravidelný príjmový plán sa mohli započítať súčasne.
+Doterajší archív scenárov preto slúži ako počiatočný prior pre jednotlivé kategórie. Flow následne priebežne kontroluje, či iný kandidát nie je výrazne lepší.
 
-V2.41.0 modeluje príjem po zdrojoch/podkategóriách a explicitný pravidelný príjem má prednosť pred historickým odhadom rovnakého zdroja.
+## Kandidátne modely
 
-## Vyhodnotenie príjmov
+- legacy-adaptive
+- recent-robust
+- multi-year-trend
+- same-month
+- seasonal-window
+- last-year
+- seasonal-index
+- event-calendar
+- zero-baseline
 
-Po spustení **Ročný plán → Vyhodnotiť históriu** sa v diagnostike zobrazia samostatne:
+`multi-year-trend` vracia do kandidátov overený multi-year level + seasonality + trend princíp z línie v2.38.2.
 
-- Income WAPE,
-- Income MAE,
-- Income Bias,
-- počet mesačných income backtestov.
+## Počiatoční category championi
 
-Doterajší súbor scenárov obsahoval backtesty výdavkov, nie samostatné predikcie príjmov. V2.41.0 ich začne archivovať, takže ďalšie ladenie príjmov už bude možné robiť z reálnych meraní rovnako ako pri výdavkoch.
+Na základe doterajšieho experimentálneho archívu sú ako priory použité napríklad:
 
-## Pravidelné príjmy
+- Strava → recent robust
+- Osobná starostlivosť → recent robust
+- Domácnosť → multi-year trend
+- Darčeky → multi-year trend
+- Deti → multi-year trend
+- Domáce zvieratá → multi-year trend
+- Poistenie → minulý rok
+- Dane → sezónny index
+- Iné → recent robust
 
-V tabe **Pravidelné** môže byť položka typu:
+Pri kategóriách s nejednoznačným výsledkom alebo nízkou vzorkou zostáva konzervatívny adaptívny prior.
 
-- Výdavok
-- Príjem
+## Challenger pravidlá
 
-Pri príjme je možné zvoliť napríklad `Prijem / Vyplata`. Známy pravidelný príjem sa používa priamo v ročnom pláne a historický model rovnakého zdroja sa už nepripočíta navyše.
+Category prior nie je navždy zamknutý.
 
-Automaticky generované transakcie sú stále obmedzené na **maximálne 12 mesiacov dopredu**.
+- minimálne 12 validačných období pred aktívnym challenger výberom,
+- pri menšej vzorke musí challenger zlepšiť skóre aspoň o 8 %,
+- pri 36+ validačných obdobiach stačí 5 %,
+- nulový baseline má dodatočnú ochranu proti falošnému víťazstvu v riedkych kategóriách,
+- výber používa iba walk-forward históriu dostupnú pred predikovaným obdobím.
+
+## Income Engine
+
+**Bez zmeny oproti v2.41.0.**
+
+Príjmy sa naďalej:
+- modelujú podľa zdrojov/podkategórií,
+- delia na stabilné, variabilné a riedke,
+- pri pravidelnom príjme používajú explicitný plán pred historickým odhadom,
+- vyhodnocujú cez Income WAPE, MAE, Bias a Accuracy.
+
+## Pravidelné platby
+
+Automatické generovanie transakcií zostáva striktne limitované na **maximálne 12 mesiacov dopredu**.
 
 ## Nasadenie
 
-1. Nahraj celý frontend v2.41.0 na GitHub Pages.
-2. Google Apps Script **nemeníš** – zostáva backend v2.38.8.
-3. Po načítaní otvor **Ročný plán**.
-4. Spusti **Vyhodnotiť históriu**.
-5. V diagnostike skontroluj Forecast WAPE aj novú sekciu **Predikcia príjmov**.
+1. Nahraj celý frontend v2.42.0 na GitHub Pages.
+2. Google Apps Script nemeníš – zostáva backend v2.38.8.
+3. Otvor Ročný plán.
+4. Spusti Vyhodnotiť históriu.
+5. Porovnaj Forecast WAPE s v2.41.0 a skontroluj sekciu presnosti podľa použitého modelu.
+6. Income metriky by mali zostať približne na úrovni v2.41.0, pretože príjmový model sa nemenil.
 
-## Model governance
-
-- bez future leakage,
-- mesačný modelový signál sa nepoužíva bez minimálnej historickej vzorky,
-- mesačné skóre je shrinkované smerom ku kategóriovému skóre,
-- explicitné plány majú prednosť pred odhadom,
-- nové modely sa merajú cez walk-forward backtest,
-- Forecast Archive zostáva cloud-first.
-
-Podrobnosti sú v `V2.41.0-IMPLEMENTACIA.md` a `CHANGELOG.md`.
+Podrobnosti sú v `V2.42.0-IMPLEMENTACIA.md` a `CHANGELOG.md`.

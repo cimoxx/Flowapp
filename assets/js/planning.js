@@ -10,7 +10,7 @@ try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.41.0-meta-income-v1';
+const FLOW_MODEL_VERSION = '2.42.0-category-champions-v1';
 if (flowModelState?.forecastModelVersion !== FLOW_MODEL_VERSION) {
     flowModelState = {...(flowModelState || {}), forecastModelVersion:FLOW_MODEL_VERSION, champions:{}};
 }
@@ -802,16 +802,111 @@ function predictEventCalendar(rows, year, month) {
     });
 }
 
+
+function predictMultiYearTrend(rows, year, month) {
+    const historical=rowsChronological(rows).slice().reverse(); // newest first, like v2.38.2
+    const nonZero=historical.filter(r=>(Number(r.value)||0)>0);
+    if(!nonZero.length) return makeCandidateResult(0,0,'multi-year-trend',rows);
+
+    // Proven v2.38.2 level model: all observed months contribute with recency decay.
+    const recentRows=historical.map((r,idx)=>({...r,weight:Math.pow(0.965,idx)}));
+    const recentLevel=weightedMean(recentRows,'value');
+
+    // Seasonal index by historical year. Require at least 4 positive months in the
+    // year so a partial/very sparse year does not create a fake seasonal pattern.
+    const byYear=new Map();
+    historical.forEach(r=>{
+        const list=byYear.get(Number(r.year))||[];
+        list.push({year:Number(r.year),month:Number(r.month),value:Number(r.value)||0});
+        byYear.set(Number(r.year),list);
+    });
+    const seasonalRows=[];
+    [...byYear.entries()].forEach(([histYear,yearRows])=>{
+        const observed=new Map(yearRows.map(r=>[r.month,Number(r.value)||0]));
+        const positiveMonths=[...observed.values()].filter(v=>v>0).length;
+        if(observed.size<4 || positiveMonths<4) return;
+        let total=0; observed.forEach(v=>total+=v);
+        if(total<=0) return;
+        const annualAverage=total/observed.size;
+        const targetValue=observed.has(month)?observed.get(month):0;
+        const ratio=annualAverage>0?targetValue/annualAverage:0;
+        if(!Number.isFinite(ratio)||ratio<0||ratio>8) return;
+        const yearAge=Math.max(0,Number(year)-histYear);
+        seasonalRows.push({year:histYear,value:targetValue,ratio,weight:Math.max(0.25,Math.pow(0.82,yearAge))});
+    });
+    let seasonalIndex=1;
+    if(seasonalRows.length>=2){
+        seasonalIndex=clamp(weightedMean(seasonalRows,'ratio')*0.65+median(seasonalRows.map(r=>r.ratio))*0.35,0.35,3.5);
+    }
+
+    // Conservative trend from historical yearly category levels.
+    const levels=new Map();
+    nonZero.forEach(r=>{
+        const cur=levels.get(Number(r.year))||{sum:0,count:0};
+        cur.sum+=Number(r.value)||0; cur.count++;
+        levels.set(Number(r.year),cur);
+    });
+    const yearly=[...levels.entries()]
+        .map(([histYear,v])=>({year:histYear,avg:v.count>=4?v.sum/v.count:null}))
+        .filter(x=>x.avg!==null)
+        .sort((a,b)=>a.year-b.year);
+    let trendFactor=1;
+    if(yearly.length>=2){
+        const recentYear=yearly[yearly.length-1].avg;
+        const olderMedian=median(yearly.slice(0,-1).map(x=>x.avg));
+        if(olderMedian>0) trendFactor=clamp(recentYear/olderMedian,0.85,1.20);
+    }
+
+    let expected=recentLevel*seasonalIndex;
+    if(yearly.length>=2) expected*=0.80+0.20*trendFactor;
+    const buffer=getCandidateBuffer(nonZero.map(r=>r.value),expected,0.02,0.12);
+    return makeCandidateResult(expected,expected*(1+buffer),'multi-year-trend',rows,{
+        seasonalYears:seasonalRows.length,
+        seasonalIndex:round2(seasonalIndex),
+        trendFactor:round2(trendFactor),
+        bufferPct:round2(buffer*100)
+    });
+}
+
 function predictLegacyAdaptive(rows, category, year, month) {
     const result=getCategoryAdaptiveLegacyForecast(category,year,month,rows);
     return {...result,method:'legacy-adaptive'};
 }
 
-const FLOW_FORECAST_CANDIDATES = ['legacy-adaptive','recent-robust','same-month','seasonal-window','last-year','seasonal-index','event-calendar','zero-baseline'];
+const FLOW_FORECAST_CANDIDATES = ['legacy-adaptive','recent-robust','multi-year-trend','same-month','seasonal-window','last-year','seasonal-index','event-calendar','zero-baseline'];
+
+// Priors derived from the accumulated walk-forward scenario archive.
+// They are category-level anchors, not permanent hard locks. A challenger may
+// replace the prior only when the category's own validation data shows a clear,
+// sustained improvement. This avoids the month-level overfitting seen in v2.41.
+const FLOW_CATEGORY_CHAMPION_PRIORS = {
+    'strava':'recent-robust',
+    'zabava / dovolenky / dovolenky':'legacy-adaptive',
+    'doprava':'legacy-adaptive',
+    'osobna starostlivost':'recent-robust',
+    'darceky':'multi-year-trend',
+    'domacnost':'multi-year-trend',
+    'ine':'recent-robust',
+    'deti':'multi-year-trend',
+    'domace zvierata':'multi-year-trend',
+    'poistenie':'last-year',
+    'dane':'seasonal-index',
+    'uspory':'legacy-adaptive'
+};
+
+function normalizeForecastCategory(value) {
+    return String(value||'').trim().toLocaleLowerCase('sk-SK').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+
+function getCategoryChampionPrior(category) {
+    return FLOW_CATEGORY_CHAMPION_PRIORS[normalizeForecastCategory(category)] || null;
+}
+
 
 function predictForecastCandidate(candidate, rows, category, year, month) {
     if(candidate==='legacy-adaptive') return predictLegacyAdaptive(rows,category,year,month);
     if(candidate==='recent-robust') return predictRecentRobust(rows,year,month);
+    if(candidate==='multi-year-trend') return predictMultiYearTrend(rows,year,month);
     if(candidate==='same-month') return predictSameMonth(rows,year,month);
     if(candidate==='seasonal-window') return predictSeasonalWindow(rows,year,month);
     if(candidate==='last-year') return predictLastYear(rows,year,month);
@@ -935,39 +1030,80 @@ function createOnlineChampionState() {
     };
 }
 
-function rankOnlineChampionState(state, targetMonth) {
+function rankOnlineChampionState(state) {
     const positives=state.history.filter(r=>r.value>0).map(r=>r.value);
     const typicalPositive=median(positives)||1;
-    const monthBucket=state.monthStats?.[targetMonth] || createEmptyCandidateStats();
-    return Object.values(state.stats).map(st=>{
-        const base=candidateStatMetrics(st,typicalPositive);
-        const mst=candidateStatMetrics(monthBucket[st.candidate],typicalPositive);
-        const monthCount=monthBucket[st.candidate]?.count||0;
-        const monthWeight=monthCount>=2 ? monthCount/(monthCount+8) : 0;
-        const selectionScore=base.score*(1-monthWeight)+mst.score*monthWeight;
-        return {...base,monthWape:mst.wape,monthCount,monthWeight:round2(monthWeight),selectionScore:round2(selectionScore)};
-    }).sort((a,b)=>a.selectionScore-b.selectionScore);
+    return Object.values(state.stats)
+        .map(st=>{
+            const base=candidateStatMetrics(st,typicalPositive);
+            return {...base,selectionScore:base.score};
+        })
+        .sort((a,b)=>a.selectionScore-b.selectionScore);
 }
 
-function selectOnlineChampion(state, targetMonth) {
-    if(state.validationCount<8 || state.history.length<12){
-        return {candidate:'legacy-adaptive',reason:'insufficient-validation',validationCount:state.validationCount,ranking:[]};
+function selectOnlineChampion(state, category) {
+    const priorCandidate=getCategoryChampionPrior(category);
+    const fallbackCandidate=priorCandidate && FLOW_FORECAST_CANDIDATES.includes(priorCandidate)
+        ? priorCandidate
+        : 'legacy-adaptive';
+
+    // Use the scenario-derived category prior until we have enough true
+    // walk-forward evidence to challenge it. This is deliberately category-wide:
+    // v2.41 showed that month-specific winners were too easy to overfit.
+    if(state.validationCount<12 || state.history.length<18){
+        return {
+            candidate:fallbackCandidate,
+            priorCandidate:fallbackCandidate,
+            reason:'category-prior',
+            validationCount:state.validationCount,
+            ranking:[]
+        };
     }
-    const ranking=rankOnlineChampionState(state,targetMonth);
-    const baseline=ranking.find(r=>r.candidate==='legacy-adaptive')||ranking[0];
-    let winner=ranking[0]||baseline;
-    if(winner&&baseline&&winner.candidate!=='legacy-adaptive' && !(winner.selectionScore<baseline.selectionScore*0.97)) winner=baseline;
+
+    const ranking=rankOnlineChampionState(state);
+    const prior=ranking.find(r=>r.candidate===fallbackCandidate)
+        || ranking.find(r=>r.candidate==='legacy-adaptive')
+        || ranking[0];
+    let winner=ranking[0]||prior;
+
+    // A challenger must beat the established category prior by a meaningful margin.
+    // With 36+ validation months 5% is enough; with less evidence demand 8%.
+    const minImprovement=state.validationCount>=36 ? 0.05 : 0.08;
+    if(winner && prior && winner.candidate!==prior.candidate){
+        if(!(winner.selectionScore < prior.selectionScore*(1-minImprovement))) winner=prior;
+    }
+
+    // Do not allow a zero model to win merely because a sparse category contains
+    // many zeros, unless it is decisively better than the best positive model.
     if(winner?.candidate==='zero-baseline'){
-        const positive=ranking.find(r=>r.candidate!=='zero-baseline'&&r.positiveCount>=2);
-        if(positive && winner.selectionScore>positive.selectionScore*0.90) winner=positive;
+        const positive=ranking.find(r=>r.candidate!=='zero-baseline'&&r.positiveCount>=3);
+        if(positive && !(winner.selectionScore < positive.selectionScore*0.82)) winner=positive;
     }
+
     return {
-        candidate:winner?.candidate||'legacy-adaptive',validationCount:state.validationCount,
-        validationWape:winner?.wape??null,validationBudgetWape:winner?.budgetWape??null,validationBias:winner?.bias??null,
-        monthValidationCount:winner?.monthCount||0,monthValidationWape:winner?.monthWape??null,
-        baselineWape:baseline?.wape??null,baselineScore:baseline?.selectionScore??null,winnerScore:winner?.selectionScore??null,
-        improvementPct:baseline&&winner&&baseline.selectionScore>0?round2((baseline.selectionScore-winner.selectionScore)/baseline.selectionScore*100):0,
-        ranking:ranking.slice(0,4).map(r=>({candidate:r.candidate,wape:r.wape,monthWape:r.monthWape,monthCount:r.monthCount,budgetWape:r.budgetWape,score:r.selectionScore}))
+        candidate:winner?.candidate||fallbackCandidate,
+        priorCandidate:fallbackCandidate,
+        reason:winner?.candidate===fallbackCandidate?'category-prior-confirmed':'category-challenger',
+        validationCount:state.validationCount,
+        validationWape:winner?.wape??null,
+        validationBudgetWape:winner?.budgetWape??null,
+        validationBias:winner?.bias??null,
+        monthValidationCount:0,
+        monthValidationWape:null,
+        baselineWape:prior?.wape??null,
+        baselineScore:prior?.selectionScore??prior?.score??null,
+        winnerScore:winner?.selectionScore??winner?.score??null,
+        improvementPct:prior&&winner&&prior.selectionScore>0
+            ? round2((prior.selectionScore-winner.selectionScore)/prior.selectionScore*100)
+            : 0,
+        ranking:ranking.slice(0,5).map(r=>({
+            candidate:r.candidate,
+            wape:r.wape,
+            budgetWape:r.budgetWape,
+            bias:r.bias,
+            count:r.count,
+            score:r.selectionScore
+        }))
     };
 }
 
@@ -1003,11 +1139,11 @@ function getChampionSelection(category, year, month, historical) {
     const cutoffMs=getDataCutoffForTarget(year,month);
     const cutoffDate=new Date(cutoffMs);
     const cutoffKey=`${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth()+1).padStart(2,'0')}`;
-    const cacheKey=`${category}|m${month}|${cutoffKey}`;
+    const cacheKey=`${category}|${cutoffKey}`;
     if(flowChampionCache.has(cacheKey)) return flowChampionCache.get(cacheKey);
 
     const signature=getForecastIndexSignature();
-    const championKey=`${String(category)}|m${month}`;
+    const championKey=String(category);
     const stored=flowModelState?.champions?.[championKey];
     if(stored && stored.cutoff===cutoffKey && stored.signature===signature && FLOW_FORECAST_CANDIDATES.includes(stored.candidate)){
         const restored={...stored};
@@ -1015,8 +1151,6 @@ function getChampionSelection(category, year, month, historical) {
         return restored;
     }
 
-    // Build the validation state once per category/cutoff. All 12 calendar-month
-    // selections then reuse it, avoiding 12 full backtests when Annual Plan opens.
     const stateKey=`${String(category)}|${cutoffKey}|${signature}`;
     let state=flowChampionStateCache.get(stateKey);
     if(!state){
@@ -1024,7 +1158,8 @@ function getChampionSelection(category, year, month, historical) {
         rowsChronological(historical).forEach(r=>updateOnlineChampionState(state,category,r.year,r.month,Number(r.value)||0));
         flowChampionStateCache.set(stateKey,state);
     }
-    const selection=selectOnlineChampion(state,month);
+
+    const selection=selectOnlineChampion(state,category);
     flowChampionCache.set(cacheKey,selection);
     flowModelState.champions=flowModelState.champions||{};
     flowModelState.champions[championKey]={...selection,cutoff:cutoffKey,signature,updatedAt:new Date().toISOString()};
@@ -1331,6 +1466,7 @@ function getForecastDiagnostics() {
         const labels = {
             'champion-legacy-adaptive':'Champion · pôvodný adaptívny',
             'champion-recent-robust':'Champion · recent robust',
+            'champion-multi-year-trend':'Champion · multi-year trend',
             'champion-same-month':'Champion · rovnaký mesiac',
             'champion-seasonal-window':'Champion · sezónne okno ±1 mesiac',
             'champion-last-year':'Champion · minulý rok',
@@ -1400,7 +1536,7 @@ function openForecastDiagnostics() {
       <div class="forecast-diagnostic-section"><h4>Presnosť podľa použitého modelu</h4>${diagnosticRowsHtml(d.byMethod)}</div>
       <div class="forecast-diagnostic-section"><h4>Vývoj podľa rokov</h4>${diagnosticRowsHtml(d.byYear, 20)}</div>
       <div class="forecast-diagnostic-section"><h4>Ako čítať metriky</h4><div class="planning-helper"><b>WAPE</b> = celková percentuálna chyba vzhľadom na objem skutočných výdavkov. Čím menej, tým lepšie.<br><b>MAE</b> = priemerná absolútna chyba jednej predikcie v eurách.<br><b>Bias</b> = smer chyby. Záporný znamená, že model skôr podhodnocuje; kladný, že skôr nadhodnocuje.</div></div>
-      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Výber modelu zohľadňuje kategóriu aj kalendárny mesiac, pričom mesačné skóre je tlmené smerom ku kategóriovému skóre, aby sa nepreučilo na malej vzorke. Príjem sa backtestuje samostatne. Roky s menej než 24 výdavkovými vzorkami sú označené ako „málo dát“.</div>`;
+      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Výdavkový model má stabilného championa pre každú kategóriu; challenger ho nahradí iba pri jasnom zlepšení na vlastnej historickej validácii kategórie. Príjmový model je nezmenený a backtestuje sa samostatne. Roky s menej než 24 výdavkovými vzorkami sú označené ako „málo dát“.</div>`;
     showPlanningModal('Diagnostika forecastu', `Model ${FLOW_MODEL_VERSION}`, body);
 }
 
@@ -1411,10 +1547,9 @@ function getHistoricalRecurringBaseline(category,targetYear,targetMonth){
 }
 
 async function buildForecastArchiveBackfill(onProgress = null) {
-    // Linear walk-forward champion/challenger backtest. Each category keeps an
-    // online validation state, so we never re-run the whole historical validation
-    // window for every target month. This preserves strict no-leakage while making
-    // multi-year backtests practical on mobile devices.
+    // Linear category-champion walk-forward backtest. Each category keeps one
+    // online validation state and one stable champion. This preserves strict
+    // no-leakage while avoiding month-level model switching/overfitting.
     const now = new Date();
     const historicalYears = getHistoricalDataYears();
     const startYear = historicalYears.length ? Math.min(...historicalYears) : now.getFullYear();
@@ -1435,7 +1570,7 @@ async function buildForecastArchiveBackfill(onProgress = null) {
         const keyMonth = getMonthKey(y,m);
         for (const cat of expenseCategories) {
             const state=onlineStates.get(String(cat.id));
-            const selection=selectOnlineChampion(state,m);
+            const selection=selectOnlineChampion(state,cat.id);
             const basePrediction=predictForecastCandidate(selection.candidate,state.history,cat.id,y,m);
             const variable={
                 ...basePrediction,
@@ -1626,7 +1761,7 @@ function renderAnnualPlanScreen() {
         <div class="annual-hero-card"><div class="annual-label">Príjem</div><div class="annual-value">${formatCurrency(totalIncome)}</div><div class="annual-sub">Dostupné dáta + plán</div></div>
         <div class="annual-hero-card tone-${totalBalance >= 0 ? 'good':'danger'}"><div class="annual-label">Očakávaný zostatok</div><div class="annual-value">${formatCurrency(totalBalance)}</div><div class="annual-sub">Príjem mínus forecast</div></div>
       </div>
-      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Výdavky vyberajú model podľa kategórie aj mesiaca; príjmy sa modelujú samostatne podľa zdrojov a pravidelných plánov.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
+      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Výdavky používajú stabilného championa pre každú kategóriu; challenger ho nahradí iba pri jasnom zlepšení. Príjmový model zostáva nezmenený.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
       <div class="annual-month-list">
       ${months.map(m => `

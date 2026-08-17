@@ -1,5 +1,37 @@
 # Flow – CHANGELOG
 
+## v2.42.0 – Category Champions
+
+### Forecast / model selection
+- Výdavkový selector už nevyberá championa samostatne pre každý kalendárny mesiac.
+- Každá kategória má stabilného category championa odvodeného z doterajších walk-forward scenárov.
+- Challenger môže category prior nahradiť iba pri jasnom zlepšení: 8 % pri menšej vzorke, 5 % pri 36+ validačných obdobiach.
+- Do kandidátov sa vrátil `multi-year-trend`, založený na overenom multi-year level + seasonality + trend modeli z v2.38.2.
+- Odstránené je mesačné prepínanie modelov, ktoré mohlo pri riedkych kategóriách viesť k preučeniu.
+- Champion cache/model state je teraz viazaný na kategóriu, nie na kategóriu + mesiac.
+
+### Scenario archive
+- Priory pre kategórie boli nastavené podľa doterajších archivovaných walk-forward experimentov.
+- Stabilné a dobre podložené výsledky majú prednosť pred malou vzorkou s náhodne nízkou chybou.
+- Kategórie s nedostatkom dát používajú konzervatívny adaptívny fallback.
+
+### Income Intelligence
+- **Bez zmeny oproti v2.41.0.**
+- Income WAPE / MAE / Bias / Accuracy zostávajú zachované.
+- Pravidelný príjem má naďalej prednosť pred historickým forecastom rovnakého zdroja.
+
+### Google Apps Script
+- **Bez zmeny backendu.** Zostáva Google Apps Script v2.38.8.
+
+### Unchanged
+- Pravidelné platby sa generujú maximálne 12 mesiacov dopredu.
+- Forecast Archive zostáva cloud-first.
+- Rýchly filter kategórií/podkategórií zostáva iba v Transakciách.
+- Filtre rokov v Grafoch a Burn Rate zostávajú zachované.
+- Existujúci sync indikátor/UI sa nemení.
+
+---
+
 ## v2.41.0 – Meta Forecast + Income Intelligence
 
 ### Forecast / model selection
