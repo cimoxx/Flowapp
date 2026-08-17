@@ -1,5 +1,14 @@
 # Flow – CHANGELOG
 
+## v2.42.2 – Dark Mode Contrast Fix
+
+### Fixed
+- Ročný plán už v dark mode nepoužíva biele karty s bielym textom.
+- Budget a Ročný plán používajú spoločné theme premenné pre povrch, text a border.
+- Dynamicky renderované mesačné karty, hero karty, mini-karty a tlačidlá majú v dark mode vynútený správny kontrast.
+- Pridaný cache-busting pre `styles.css`, aby mobil/PWA nezostal na starom CSS po aktualizácii.
+- Forecast ani Income Engine sa nemenia.
+
 ## v2.42.1 – Dark Mode Readability
 
 ### Fixed

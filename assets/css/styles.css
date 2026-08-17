@@ -3,6 +3,8 @@
 :root {
     --bg-main: #f8fafc;
     --bg-card: #ffffff;
+    --bg-soft: #f8fafc;
+    --bg-soft-2: #f1f5f9;
     --text-main: #0f172a;
     --text-dim: #64748b;
     --text-soft: #94a3b8;
@@ -19,6 +21,8 @@
     :root {
         --bg-main: #0b0f1a;
         --bg-card: #161d2f;
+        --bg-soft: #101827;
+        --bg-soft-2: #1b263a;
         --text-main: #f1f5f9;
         --text-dim: #94a3b8;
         --text-soft: #64748b;
@@ -1803,3 +1807,145 @@ textarea:focus-visible {
 .dark #screen-plan .annual-month-grid b,
 .dark #screen-plan .planning-info-card strong { color:#f1f5f9; }
 .dark #screen-plan .planning-info-card { background:rgba(6,78,59,.26); border-color:rgba(52,211,153,.28); }
+
+
+/* =========================================================
+   FLOW v2.42.2 — Robust dark-mode surfaces
+   Uses the same root theme variables as the rest of Flow.
+   !important is intentional here: dynamically rendered cards
+   must never retain light backgrounds while global text is dark.
+   ========================================================= */
+
+/* Annual plan: surfaces */
+#screen-plan .annual-hero-card,
+#screen-plan .annual-month-card,
+#screen-plan .recurring-card {
+    background: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+#screen-plan .annual-month-grid > div,
+#screen-plan .planning-detail-grid > div,
+#screen-plan .planning-category-row,
+#screen-plan .planning-helper,
+#screen-plan .planning-change-summary {
+    background: var(--bg-soft) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+#screen-plan .annual-month-actions button,
+#screen-plan .planning-edit-icon,
+#screen-plan .planning-choice-btn {
+    background: var(--bg-soft) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+#screen-plan .annual-value,
+#screen-plan .annual-month-name,
+#screen-plan .annual-month-total,
+#screen-plan .annual-month-grid b,
+#screen-plan .planning-detail-grid b,
+#screen-plan .planning-category-row b,
+#screen-plan .planning-category-row strong {
+    color: var(--text-main) !important;
+}
+
+#screen-plan .annual-label,
+#screen-plan .annual-sub,
+#screen-plan .planning-muted,
+#screen-plan .annual-month-grid span,
+#screen-plan .planning-detail-grid span,
+#screen-plan .planning-category-row small {
+    color: var(--text-dim) !important;
+}
+
+#screen-plan #annual-plan-year {
+    background: var(--bg-soft) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+/* Budget: surfaces */
+#screen-budget .budget-period-card,
+#screen-budget .budget-hero-card,
+#screen-budget .budget-risk-summary,
+#screen-budget .budget-section-card,
+#screen-budget .budget-cat-card,
+#screen-budget .budget-insight-card {
+    background: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+#screen-budget .budget-mini-stat,
+#screen-budget .forecast-row,
+#screen-budget .budget-method-card {
+    background: var(--bg-soft) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+#screen-budget .budget-period-title,
+#screen-budget .budget-hero-value,
+#screen-budget .budget-risk-text,
+#screen-budget .budget-section-title,
+#screen-budget .budget-cat-name,
+#screen-budget .budget-mini-value,
+#screen-budget .forecast-row-name,
+#screen-budget .forecast-row-value,
+#screen-budget .budget-insight-title,
+#screen-budget .budget-method-summary,
+#screen-budget .budget-method-body b {
+    color: var(--text-main) !important;
+}
+
+#screen-budget .budget-period-label,
+#screen-budget .budget-hero-label,
+#screen-budget .budget-section-label,
+#screen-budget .budget-mini-label,
+#screen-budget .budget-period-sub,
+#screen-budget .budget-hero-sub,
+#screen-budget .budget-risk-title,
+#screen-budget .budget-cat-confidence,
+#screen-budget .budget-progress-head,
+#screen-budget .forecast-row-sub,
+#screen-budget .budget-method-body span,
+#screen-budget .budget-insight-text {
+    color: var(--text-dim) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    #screen-plan .annual-hero-card.tone-good {
+        background: linear-gradient(180deg, rgba(6,78,59,.34), var(--bg-card) 72%) !important;
+    }
+    #screen-plan .annual-hero-card.tone-danger {
+        background: linear-gradient(180deg, rgba(127,29,29,.28), var(--bg-card) 72%) !important;
+    }
+    #screen-plan .planning-info-card {
+        background: linear-gradient(180deg, rgba(6,78,59,.28), var(--bg-card)) !important;
+        color: var(--text-main) !important;
+    }
+    #screen-plan .annual-event-chip {
+        background: var(--bg-soft-2) !important;
+        color: var(--text-main) !important;
+        border: 1px solid var(--border) !important;
+    }
+    #screen-budget .budget-hero-card.tone-good,
+    #screen-budget .budget-risk-summary.tone-good,
+    #screen-budget .budget-insight-card.tone-good {
+        background: linear-gradient(180deg, rgba(6,78,59,.34), var(--bg-card)) !important;
+    }
+    #screen-budget .budget-hero-card.tone-warn,
+    #screen-budget .budget-risk-summary.tone-warn,
+    #screen-budget .budget-insight-card.tone-warn {
+        background: linear-gradient(180deg, rgba(120,53,15,.28), var(--bg-card)) !important;
+    }
+    #screen-budget .budget-hero-card.tone-danger,
+    #screen-budget .budget-risk-summary.tone-danger,
+    #screen-budget .budget-insight-card.tone-danger {
+        background: linear-gradient(180deg, rgba(127,29,29,.27), var(--bg-card)) !important;
+    }
+}
