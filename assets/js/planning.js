@@ -10,14 +10,18 @@ try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.39.0-category-adaptive-v1';
+const FLOW_MODEL_VERSION = '2.40.0-champion-challenger-v1';
 
 // Fast month/category index. It is rebuilt only when transaction data changes.
 let flowForecastIndex = null;
 let flowForecastIndexSignature = '';
 let flowForecastIndexDirty = true;
+let flowChampionCache = new Map();
 
-function markForecastIndexDirty() { flowForecastIndexDirty = true; }
+function markForecastIndexDirty() {
+    flowForecastIndexDirty = true;
+    flowChampionCache.clear();
+}
 
 function getForecastIndexSignature() {
     const rows = Array.isArray(db) ? db : [];
@@ -325,6 +329,34 @@ function getHistoricalYearSeasonality(category, targetYear, targetMonth) {
     return rows;
 }
 
+
+function getHistoricalYearSeasonalityFromRows(historical, targetYear, targetMonth) {
+    const rows = Array.isArray(historical) ? historical : [];
+    const byYear = new Map();
+    rows.forEach(r => {
+        if (!Number.isFinite(Number(r?.year)) || !Number.isFinite(Number(r?.month))) return;
+        const list = byYear.get(Number(r.year)) || [];
+        list.push({ year:Number(r.year), month:Number(r.month), value:Number(r.value)||0 });
+        byYear.set(Number(r.year), list);
+    });
+    const out = [];
+    [...byYear.entries()].forEach(([year, yearRows]) => {
+        const observed = new Map(yearRows.map(r => [r.month, Number(r.value)||0]));
+        if (observed.size < 4) return;
+        let total = 0;
+        observed.forEach(v => total += v);
+        if (total <= 0) return;
+        const annualAverage = total / observed.size;
+        const targetValue = observed.has(targetMonth) ? observed.get(targetMonth) : 0;
+        const ratio = annualAverage > 0 ? targetValue / annualAverage : 0;
+        if (!Number.isFinite(ratio) || ratio < 0 || ratio > 8) return;
+        const yearAge = Math.max(0, Number(targetYear) - Number(year));
+        const weight = Math.max(0.25, Math.pow(0.82, yearAge));
+        out.push({ year, value:targetValue, ratio, weight, annualAverage, months:observed.size });
+    });
+    return out.sort((a,b)=>a.year-b.year);
+}
+
 function median(values) {
     const nums = (Array.isArray(values) ? values : [])
         .map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
@@ -522,12 +554,12 @@ function getIntermittentForecast(category, year, month, historical, pattern) {
     };
 }
 
-function getDenseVariableForecast(category, year, month, historical, pattern) {
+function getDenseVariableForecast(category, year, month, historical, pattern, seasonalRowsOverride = null) {
     const nonZero = historical.filter(x=>x.value>0);
     const recentRows = historical.map((r,idx)=>({...r,weight:Math.pow(0.965,idx)}));
     const recentLevel = weightedMean(recentRows,'value');
 
-    const seasonalRows = getHistoricalYearSeasonality(category,year,month);
+    const seasonalRows = Array.isArray(seasonalRowsOverride) ? seasonalRowsOverride : getHistoricalYearSeasonality(category,year,month);
     let seasonalIndex = 1;
     let seasonalDirect = 0;
     let seasonalOccurrence = 0;
@@ -577,8 +609,8 @@ function getDenseVariableForecast(category, year, month, historical, pattern) {
     };
 }
 
-function getVariableForecast(category, year, month) {
-    const historical = getHistoricalCategorySpend(category, year, month);
+function getCategoryAdaptiveLegacyForecast(category, year, month, historicalOverride = null) {
+    const historical = Array.isArray(historicalOverride) ? historicalOverride : getHistoricalCategorySpend(category, year, month);
     const nonZero = historical.filter(x=>x.value>0);
     if(!nonZero.length) return {value:0,expected:0,confidence:'low',method:'no-data',patternType:'no-data',dataMonths:0,dataYears:0,seasonalYears:0,seasonalIndex:1,trendFactor:1,occurrenceProbability:0};
 
@@ -586,7 +618,341 @@ function getVariableForecast(category, year, month) {
     if(pattern.patternType==='sparse-seasonal' || pattern.patternType==='intermittent') {
         return getIntermittentForecast(category, year, month, historical, pattern);
     }
-    return getDenseVariableForecast(category, year, month, historical, pattern);
+    const seasonalRows = getHistoricalYearSeasonalityFromRows(historical, year, month);
+    return getDenseVariableForecast(category, year, month, historical, pattern, seasonalRows);
+}
+
+
+function rowsChronological(rows) {
+    return (Array.isArray(rows) ? rows : [])
+        .map(r=>({year:Number(r.year),month:Number(r.month),value:Math.max(0,Number(r.value)||0)}))
+        .filter(r=>Number.isFinite(r.year)&&Number.isFinite(r.month))
+        .sort((a,b)=>monthSerial(a.year,a.month)-monthSerial(b.year,b.month));
+}
+
+function getCandidateBuffer(values, expected, min = 0.02, max = 0.12) {
+    const nums=(Array.isArray(values)?values:[]).map(Number).filter(v=>Number.isFinite(v)&&v>=0);
+    if(!nums.length || expected<=0) return min;
+    const med=median(nums);
+    const scale=Math.max(med, expected, 1);
+    const mad=median(nums.map(v=>Math.abs(v-med)));
+    return clamp(min + (mad/scale)*0.18, min, max);
+}
+
+function makeCandidateResult(expected, budget, method, rows, extra = {}) {
+    const nonZero=(Array.isArray(rows)?rows:[]).filter(r=>(Number(r.value)||0)>0);
+    const dataYears=new Set(nonZero.map(r=>r.year)).size;
+    return {
+        expected:round2(Math.max(0,Number(expected)||0)),
+        value:round2(Math.max(0,Number(budget)||0)),
+        method,
+        confidence:dataYears>=4&&nonZero.length>=12?'high':dataYears>=2&&nonZero.length>=4?'medium':'low',
+        patternType:extra.patternType||method,
+        dataMonths:nonZero.length,
+        dataYears,
+        seasonalYears:extra.seasonalYears||0,
+        seasonalIndex:extra.seasonalIndex??1,
+        trendFactor:extra.trendFactor??1,
+        occurrenceProbability:extra.occurrenceProbability??0,
+        ...extra
+    };
+}
+
+function predictRecentRobust(rows, year, month) {
+    const all=rowsChronological(rows);
+    const recent=all.slice(-18).reverse();
+    if(!recent.length) return makeCandidateResult(0,0,'recent-robust',rows);
+    const weighted=recent.map((r,i)=>({...r,weight:Math.pow(0.88,i)}));
+    const mean=weightedMean(weighted,'value');
+    const med=median(recent.map(r=>r.value));
+    const expected=mean*0.72+med*0.28;
+    const buffer=getCandidateBuffer(recent.map(r=>r.value),expected,0.02,0.10);
+    return makeCandidateResult(expected,expected*(1+buffer),'recent-robust',rows,{bufferPct:round2(buffer*100)});
+}
+
+function predictSameMonth(rows, year, month) {
+    const same=rowsChronological(rows).filter(r=>r.month===month).sort((a,b)=>b.year-a.year);
+    if(!same.length) return makeCandidateResult(0,0,'same-month',rows,{seasonalYears:0});
+    const weighted=same.map(r=>({...r,weight:Math.max(0.25,Math.pow(0.80,Math.max(0,year-r.year)))}));
+    const mean=weightedMean(weighted,'value');
+    const med=median(same.map(r=>r.value));
+    let expected=mean*0.68+med*0.32;
+    const positive=same.filter(r=>r.value>0);
+    if(positive.length>=2){
+        const newest=positive[0].value;
+        const older=median(positive.slice(1).map(r=>r.value));
+        if(older>0) expected*=0.88+0.12*clamp(newest/older,0.75,1.30);
+    }
+    const buffer=getCandidateBuffer(same.map(r=>r.value),expected,0.03,0.12);
+    return makeCandidateResult(expected,expected*(1+buffer),'same-month',rows,{seasonalYears:same.length,bufferPct:round2(buffer*100)});
+}
+
+function predictSeasonalWindow(rows, year, month) {
+    const all=rowsChronological(rows);
+    const selected=[];
+    all.forEach(r=>{
+        const d=Math.min((r.month-month+12)%12,(month-r.month+12)%12);
+        if(d>1)return;
+        const monthWeight=d===0?1:0.22;
+        const yearWeight=Math.max(0.25,Math.pow(0.82,Math.max(0,year-r.year)));
+        selected.push({...r,weight:monthWeight*yearWeight});
+    });
+    if(!selected.length) return makeCandidateResult(0,0,'seasonal-window',rows);
+    const mean=weightedMean(selected,'value');
+    const direct=selected.filter(r=>r.month===month);
+    const directMed=direct.length?median(direct.map(r=>r.value)):mean;
+    const expected=mean*0.55+directMed*0.45;
+    const buffer=getCandidateBuffer(selected.map(r=>r.value),expected,0.03,0.12);
+    return makeCandidateResult(expected,expected*(1+buffer),'seasonal-window',rows,{seasonalYears:new Set(selected.map(r=>r.year)).size,bufferPct:round2(buffer*100)});
+}
+
+function predictLastYear(rows, year, month) {
+    const same=rowsChronological(rows).filter(r=>r.month===month&&r.year<year).sort((a,b)=>b.year-a.year);
+    if(!same.length) return makeCandidateResult(0,0,'last-year',rows);
+    const latest=same[0];
+    let expected=latest.value;
+    if(same.length>=3){
+        const older=median(same.slice(1,4).map(r=>r.value));
+        if(older>0 && latest.value>0) expected*=0.92+0.08*clamp(latest.value/older,0.75,1.30);
+    }
+    const buffer=getCandidateBuffer(same.slice(0,4).map(r=>r.value),expected,0.02,0.10);
+    return makeCandidateResult(expected,expected*(1+buffer),'last-year',rows,{seasonalYears:same.length,bufferPct:round2(buffer*100)});
+}
+
+function predictSeasonalIndex(rows, year, month) {
+    const all=rowsChronological(rows);
+    if(!all.length) return makeCandidateResult(0,0,'seasonal-index',rows);
+    const recent=all.slice(-18).reverse().map((r,i)=>({...r,weight:Math.pow(0.90,i)}));
+    const level=weightedMean(recent,'value');
+    const seasonalRows=getHistoricalYearSeasonalityFromRows(all,year,month);
+    if(!seasonalRows.length) return predictRecentRobust(rows,year,month);
+    const ratio=clamp(weightedMean(seasonalRows,'ratio')*0.65+median(seasonalRows.map(r=>r.ratio))*0.35,0,3.2);
+    const direct=weightedMean(seasonalRows,'value');
+    const expected=(level*ratio)*0.70+direct*0.30;
+    const buffer=getCandidateBuffer(seasonalRows.map(r=>r.value),expected,0.03,0.11);
+    return makeCandidateResult(expected,expected*(1+buffer),'seasonal-index',rows,{seasonalYears:seasonalRows.length,seasonalIndex:round2(ratio),bufferPct:round2(buffer*100)});
+}
+
+function predictEventCalendar(rows, year, month) {
+    const all=rowsChronological(rows);
+    if(!all.some(r=>r.value>0)) return makeCandidateResult(0,0,'event-calendar',rows);
+    const pattern=getCategoryPatternStats('',year,month,all);
+    const directPool=pattern.sameMonthPositive.length>=2?pattern.sameMonthPositive:pattern.windowPositive;
+    const positives=directPool.length?directPool:pattern.nonZero;
+    const eventAmount=robustBlend(positives.map(r=>r.value),0.45);
+    const p=clamp(pattern.calendarAffinity*0.70+pattern.activeRatio*0.15+pattern.dueScore*0.15,0,1);
+    const expected=p>=0.52?eventAmount:0;
+    const reserve=eventAmount*p;
+    const buffer=getCandidateBuffer(positives.map(r=>r.value),Math.max(expected,reserve),0.03,0.10);
+    return makeCandidateResult(expected,Math.max(expected,reserve)*(1+buffer),'event-calendar',rows,{
+        seasonalYears:new Set(pattern.sameMonthPositive.map(r=>r.year)).size,
+        occurrenceProbability:round2(p*100), patternType:pattern.patternType,
+        eventAmount:round2(eventAmount), bufferPct:round2(buffer*100)
+    });
+}
+
+function predictLegacyAdaptive(rows, category, year, month) {
+    const result=getCategoryAdaptiveLegacyForecast(category,year,month,rows);
+    return {...result,method:'legacy-adaptive'};
+}
+
+const FLOW_FORECAST_CANDIDATES = ['legacy-adaptive','recent-robust','same-month','seasonal-window','last-year','seasonal-index','event-calendar','zero-baseline'];
+
+function predictForecastCandidate(candidate, rows, category, year, month) {
+    if(candidate==='legacy-adaptive') return predictLegacyAdaptive(rows,category,year,month);
+    if(candidate==='recent-robust') return predictRecentRobust(rows,year,month);
+    if(candidate==='same-month') return predictSameMonth(rows,year,month);
+    if(candidate==='seasonal-window') return predictSeasonalWindow(rows,year,month);
+    if(candidate==='last-year') return predictLastYear(rows,year,month);
+    if(candidate==='seasonal-index') return predictSeasonalIndex(rows,year,month);
+    if(candidate==='event-calendar') return predictEventCalendar(rows,year,month);
+    if(candidate==='zero-baseline') return makeCandidateResult(0,0,'zero-baseline',rows);
+    return predictLegacyAdaptive(rows,category,year,month);
+}
+
+function evaluateForecastCandidates(category, targetYear, targetMonth, historical) {
+    const chronological=rowsChronological(historical);
+    const minTrainingMonths=12;
+    const eligible=[];
+    for(let i=minTrainingMonths;i<chronological.length;i++) eligible.push(i);
+    const validation=eligible.slice(-24);
+    if(validation.length<8){
+        return {candidate:'legacy-adaptive',reason:'insufficient-validation',validationCount:validation.length,ranking:[]};
+    }
+
+    const stats=new Map(FLOW_FORECAST_CANDIDATES.map(c=>[c,{candidate:c,abs:0,budgetAbs:0,signed:0,actual:0,weight:0,count:0,positiveCount:0}]));
+    validation.forEach((idx,pos)=>{
+        const target=chronological[idx];
+        const train=chronological.slice(0,idx);
+        const recencyWeight=Math.pow(0.94,validation.length-1-pos);
+        FLOW_FORECAST_CANDIDATES.forEach(candidate=>{
+            const pred=predictForecastCandidate(candidate,train,category,target.year,target.month);
+            const forecast=Math.max(0,Number(pred?.expected)||0);
+            const budget=Math.max(0,Number(pred?.value)||0);
+            const actual=Math.max(0,Number(target.value)||0);
+            const st=stats.get(candidate);
+            st.abs+=Math.abs(forecast-actual)*recencyWeight;
+            st.budgetAbs+=Math.abs(budget-actual)*recencyWeight;
+            st.signed+=(forecast-actual)*recencyWeight;
+            st.actual+=actual*recencyWeight;
+            st.weight+=recencyWeight;
+            st.count++;
+            if(actual>0)st.positiveCount++;
+        });
+    });
+
+    const typicalPositive=median(chronological.filter(r=>r.value>0).map(r=>r.value))||1;
+    const ranking=[...stats.values()].map(st=>{
+        const denom=st.actual>0?st.actual:typicalPositive*Math.max(st.weight,1);
+        const wape=st.abs/Math.max(denom,1)*100;
+        const budgetWape=st.budgetAbs/Math.max(denom,1)*100;
+        const meanBias=st.weight?st.signed/st.weight:0;
+        const biasPct=Math.abs(meanBias)/Math.max(typicalPositive,1)*100;
+        const score=wape*0.72+budgetWape*0.23+biasPct*0.05;
+        return {...st,wape:round2(wape),budgetWape:round2(budgetWape),bias:round2(meanBias),score:round2(score)};
+    }).sort((a,b)=>a.score-b.score);
+
+    const baseline=ranking.find(r=>r.candidate==='legacy-adaptive')||ranking[0];
+    let winner=ranking[0]||baseline;
+    // Champion protection: a challenger must beat the current adaptive model by
+    // at least 3 %. Small apparent gains are treated as noise and the proven model stays.
+    if(winner && baseline && winner.candidate!=='legacy-adaptive'){
+        const required=baseline.score*0.97;
+        if(!(winner.score<required)) winner=baseline;
+    }
+    // Avoid a degenerate all-zero champion when there is repeatable positive history
+    // unless it is materially better than the best non-zero model.
+    if(winner?.candidate==='zero-baseline'){
+        const positive=ranking.find(r=>r.candidate!=='zero-baseline'&&r.positiveCount>=2);
+        if(positive && winner.score>positive.score*0.90) winner=positive;
+    }
+    return {
+        candidate:winner?.candidate||'legacy-adaptive',
+        validationCount:validation.length,
+        validationWape:winner?.wape??null,
+        validationBudgetWape:winner?.budgetWape??null,
+        validationBias:winner?.bias??null,
+        baselineWape:baseline?.wape??null,
+        baselineScore:baseline?.score??null,
+        winnerScore:winner?.score??null,
+        improvementPct:baseline&&winner&&baseline.score>0?round2((baseline.score-winner.score)/baseline.score*100):0,
+        ranking:ranking.slice(0,4).map(r=>({candidate:r.candidate,wape:r.wape,budgetWape:r.budgetWape,score:r.score}))
+    };
+}
+
+
+function createOnlineChampionState() {
+    return {
+        history: [],
+        validationCount: 0,
+        stats: Object.fromEntries(FLOW_FORECAST_CANDIDATES.map(c=>[c,{candidate:c,abs:0,budgetAbs:0,signed:0,actual:0,weight:0,count:0,positiveCount:0}]))
+    };
+}
+
+function rankOnlineChampionState(state) {
+    const positives=state.history.filter(r=>r.value>0).map(r=>r.value);
+    const typicalPositive=median(positives)||1;
+    return Object.values(state.stats).map(st=>{
+        const denom=st.actual>0?st.actual:typicalPositive*Math.max(st.weight,1);
+        const wape=st.abs/Math.max(denom,1)*100;
+        const budgetWape=st.budgetAbs/Math.max(denom,1)*100;
+        const meanBias=st.weight?st.signed/st.weight:0;
+        const biasPct=Math.abs(meanBias)/Math.max(typicalPositive,1)*100;
+        const score=wape*0.72+budgetWape*0.23+biasPct*0.05;
+        return {...st,wape:round2(wape),budgetWape:round2(budgetWape),bias:round2(meanBias),score:round2(score)};
+    }).sort((a,b)=>a.score-b.score);
+}
+
+function selectOnlineChampion(state) {
+    if(state.validationCount<8 || state.history.length<12){
+        return {candidate:'legacy-adaptive',reason:'insufficient-validation',validationCount:state.validationCount,ranking:[]};
+    }
+    const ranking=rankOnlineChampionState(state);
+    const baseline=ranking.find(r=>r.candidate==='legacy-adaptive')||ranking[0];
+    let winner=ranking[0]||baseline;
+    if(winner&&baseline&&winner.candidate!=='legacy-adaptive' && !(winner.score<baseline.score*0.97)) winner=baseline;
+    if(winner?.candidate==='zero-baseline'){
+        const positive=ranking.find(r=>r.candidate!=='zero-baseline'&&r.positiveCount>=2);
+        if(positive && winner.score>positive.score*0.90) winner=positive;
+    }
+    return {
+        candidate:winner?.candidate||'legacy-adaptive',validationCount:state.validationCount,
+        validationWape:winner?.wape??null,validationBudgetWape:winner?.budgetWape??null,validationBias:winner?.bias??null,
+        baselineWape:baseline?.wape??null,baselineScore:baseline?.score??null,winnerScore:winner?.score??null,
+        improvementPct:baseline&&winner&&baseline.score>0?round2((baseline.score-winner.score)/baseline.score*100):0,
+        ranking:ranking.slice(0,4).map(r=>({candidate:r.candidate,wape:r.wape,budgetWape:r.budgetWape,score:r.score}))
+    };
+}
+
+function updateOnlineChampionState(state, category, year, month, actual) {
+    const history=state.history;
+    if(history.length>=12){
+        const decay=0.94;
+        Object.values(state.stats).forEach(st=>{
+            st.abs*=decay; st.budgetAbs*=decay; st.signed*=decay; st.actual*=decay; st.weight*=decay;
+        });
+        FLOW_FORECAST_CANDIDATES.forEach(candidate=>{
+            const pred=predictForecastCandidate(candidate,history,category,year,month);
+            const forecast=Math.max(0,Number(pred?.expected)||0);
+            const budget=Math.max(0,Number(pred?.value)||0);
+            const st=state.stats[candidate];
+            st.abs+=Math.abs(forecast-actual);
+            st.budgetAbs+=Math.abs(budget-actual);
+            st.signed+=forecast-actual;
+            st.actual+=Math.abs(actual);
+            st.weight+=1;
+            st.count++;
+            if(actual>0)st.positiveCount++;
+        });
+        state.validationCount++;
+    }
+    history.push({year,month,value:Math.max(0,Number(actual)||0)});
+}
+
+function getChampionSelection(category, year, month, historical) {
+    const cutoffMs=getDataCutoffForTarget(year,month);
+    const cutoffDate=new Date(cutoffMs);
+    const cutoffKey=`${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth()+1).padStart(2,'0')}`;
+    const cacheKey=`${category}|${cutoffKey}`;
+    if(flowChampionCache.has(cacheKey)) return flowChampionCache.get(cacheKey);
+
+    const signature=getForecastIndexSignature();
+    const stored=flowModelState?.champions?.[String(category)];
+    if(stored && stored.cutoff===cutoffKey && stored.signature===signature && FLOW_FORECAST_CANDIDATES.includes(stored.candidate)){
+        const restored={...stored};
+        flowChampionCache.set(cacheKey,restored);
+        return restored;
+    }
+
+    const selection=evaluateForecastCandidates(category,year,month,historical);
+    flowChampionCache.set(cacheKey,selection);
+    flowModelState.champions=flowModelState.champions||{};
+    flowModelState.champions[String(category)]={...selection,cutoff:cutoffKey,signature,updatedAt:new Date().toISOString()};
+    try { localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState)); } catch (_) {}
+    return selection;
+}
+
+function getVariableForecast(category, year, month) {
+    const historical=getHistoricalCategorySpend(category,year,month);
+    const nonZero=historical.filter(x=>x.value>0);
+    if(!nonZero.length) return {value:0,expected:0,confidence:'low',method:'no-data',patternType:'no-data',dataMonths:0,dataYears:0,seasonalYears:0,seasonalIndex:1,trendFactor:1,occurrenceProbability:0,championCandidate:'no-data'};
+
+    const selection=getChampionSelection(category,year,month,historical);
+    const result=predictForecastCandidate(selection.candidate,historical,category,year,month);
+    const confidence=selection.validationCount>=18&&selection.validationWape!==null&&selection.validationWape<45?'high':selection.validationCount>=10?'medium':result.confidence;
+    return {
+        ...result,
+        confidence,
+        method:`champion-${selection.candidate}`,
+        championCandidate:selection.candidate,
+        validationCount:selection.validationCount,
+        validationWape:selection.validationWape,
+        validationBudgetWape:selection.validationBudgetWape,
+        validationBias:selection.validationBias,
+        baselineWape:selection.baselineWape,
+        challengerImprovement:selection.improvementPct,
+        challengerRanking:selection.ranking
+    };
 }
 
 function expensesForCategoryExcludingRecurring(year,month,category){
@@ -627,15 +993,19 @@ function getAnnualPlan(year) {
 
         const categoryRows = expenseCategories.map(cat => {
             const actual = getIndexedCategoryValue(year, month, cat.id, 'totalExpense');
-            const recurringAmount = recurring.filter(p => p.category === cat.id && p.type === 'expense').reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
-            const variable = getVariableForecast(cat.id, year, month);
-            const override = getBudgetOverride(cat.id, year, month);
-            const base = Math.max(recurringAmount, 0) + Math.max(variable.value, 0);
-            const budget = override ? Number(override.amount) || 0 : round2(base);
-            const now = new Date();
-            const isCurrent = year === now.getFullYear() && month === now.getMonth();
             const variableActual = getIndexedCategoryValue(year, month, cat.id, 'variableExpense');
             const recurringActual = getIndexedCategoryValue(year, month, cat.id, 'recurringExpense');
+            const recurringAmount = recurring.filter(p => p.category === cat.id && p.type === 'expense').reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
+            // Closed months are already known. Using actuals here avoids expensive and
+            // conceptually unnecessary re-forecasting of history every time Annual Plan opens.
+            const variable = closed
+                ? {value:variableActual,expected:variableActual,confidence:'actual',method:'actual-closed',dataMonths:0}
+                : getVariableForecast(cat.id, year, month);
+            const override = getBudgetOverride(cat.id, year, month);
+            const base = Math.max(recurringAmount, 0) + Math.max(variable.value, 0);
+            const budget = override ? Number(override.amount) || 0 : (closed ? round2(actual) : round2(base));
+            const now = new Date();
+            const isCurrent = year === now.getFullYear() && month === now.getMonth();
             let forecast = actual;
             if (!closed) {
                 const remainingVariable = Math.max(0, (variable.expected ?? variable.value) - variableActual);
@@ -643,7 +1013,7 @@ function getAnnualPlan(year) {
                 forecast = round2(actual + remainingVariable + remainingRecurring);
                 if (!isCurrent) forecast = round2(base);
             }
-            return { category: cat.id, icon: cat.icon || 'circle', actual, recurring: recurringAmount, variable: variable.value, expected: variable.expected ?? variable.value, budget, forecast, confidence: variable.confidence, method: variable.method, dataMonths: variable.dataMonths, overridden: Boolean(override) };
+            return { category: cat.id, icon: cat.icon || 'circle', actual, recurring: closed?recurringActual:recurringAmount, variable: variable.value, expected: variable.expected ?? variable.value, budget, forecast, confidence: variable.confidence, method: variable.method, dataMonths: variable.dataMonths, overridden: Boolean(override) };
         });
 
         const eventExpense = events.filter(e => e.type === 'expense').reduce((s,e) => s + Math.abs(Number(e.amount) || 0), 0);
@@ -651,7 +1021,7 @@ function getAnnualPlan(year) {
         const recurringExpense = recurring.filter(p => p.type === 'expense').reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
         const recurringIncome = recurring.filter(p => p.type === 'income').reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
         const variableBudget = categoryRows.reduce((s,r) => s + Math.max(0, r.budget - r.recurring), 0);
-        const budget = round2(recurringExpense + variableBudget + eventExpense);
+        const budget = closed ? round2(actualExpenses) : round2(recurringExpense + variableBudget + eventExpense);
         const forecast = closed ? actualExpenses : round2(categoryRows.reduce((s,r) => s + r.forecast, 0) + eventExpense);
         const incomeForecast = getHistoricalIncomeForecast(year, month);
         const variableIncomeActual = getIndexedIncome(year, month);
@@ -744,13 +1114,24 @@ function getForecastDiagnostics() {
     const byYear = groupForecastDiagnostics(rows, r => String(r.targetMonth || '').slice(0,4), key => String(key))
         .map(x => ({...x, reliable:x.count >= 24}))
         .sort((a,b) => Number(a.key) - Number(b.key));
-    const byMethod = groupForecastDiagnostics(rows, r => String(r.method || 'unknown'), key => ({
-        'dense-seasonal-trend':'Stabilné / husté',
-        'variable-multiyear':'Variabilné',
-        'sparse-seasonal-hurdle':'Riedke sezónne',
-        'intermittent-hazard':'Nepravidelné / intervalové',
-        'no-data':'Bez dát'
-    }[key] || key)).filter(x => x.count >= 3).sort((a,b)=>a.wape-b.wape);
+    const byMethod = groupForecastDiagnostics(rows, r => String(r.method || 'unknown'), key => {
+        const labels = {
+            'champion-legacy-adaptive':'Champion · pôvodný adaptívny',
+            'champion-recent-robust':'Champion · recent robust',
+            'champion-same-month':'Champion · rovnaký mesiac',
+            'champion-seasonal-window':'Champion · sezónne okno ±1 mesiac',
+            'champion-last-year':'Champion · minulý rok',
+            'champion-seasonal-index':'Champion · sezónny index',
+            'champion-event-calendar':'Champion · kalendár udalostí',
+            'champion-zero-baseline':'Champion · nulový baseline',
+            'dense-seasonal-trend':'Stabilné / husté',
+            'variable-multiyear':'Variabilné',
+            'sparse-seasonal-hurdle':'Riedke sezónne',
+            'intermittent-hazard':'Nepravidelné / intervalové',
+            'no-data':'Bez dát'
+        };
+        return labels[key] || key;
+    }).filter(x => x.count >= 3).sort((a,b)=>a.wape-b.wape);
     const byStructure = groupForecastDiagnostics(rows, r => {
         const forecast = Math.abs(Number(r.forecastAmount) || 0);
         const recurring = Math.abs(Number(r.recurringBaseline) || 0);
@@ -797,7 +1178,7 @@ function openForecastDiagnostics() {
       <div class="forecast-diagnostic-section"><h4>Presnosť podľa použitého modelu</h4>${diagnosticRowsHtml(d.byMethod)}</div>
       <div class="forecast-diagnostic-section"><h4>Vývoj podľa rokov</h4>${diagnosticRowsHtml(d.byYear, 20)}</div>
       <div class="forecast-diagnostic-section"><h4>Ako čítať metriky</h4><div class="planning-helper"><b>WAPE</b> = celková percentuálna chyba vzhľadom na objem skutočných výdavkov. Čím menej, tým lepšie.<br><b>MAE</b> = priemerná absolútna chyba jednej predikcie v eurách.<br><b>Bias</b> = smer chyby. Záporný znamená, že model skôr podhodnocuje; kladný, že skôr nadhodnocuje.</div></div>
-      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Roky s menej než 24 vzorkami sú označené ako „málo dát“, aby náhodne dobrý výsledok nepôsobil ako spoľahlivá presnosť.</div>`;
+      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Champion/challenger výber pre každú kategóriu používa iba dáta dostupné pred daným mesiacom. Challenger sa aktivuje iba pri minimálne 3 % zlepšení oproti pôvodnému adaptívnemu modelu. Roky s menej než 24 vzorkami sú označené ako „málo dát“.</div>`;
     showPlanningModal('Diagnostika forecastu', `Model ${FLOW_MODEL_VERSION}`, body);
 }
 
@@ -807,30 +1188,53 @@ function getHistoricalRecurringBaseline(category,targetYear,targetMonth){
     return values.length?median(values):0;
 }
 
-function buildForecastArchiveBackfill() {
-    // True walk-forward backtest: when target is YYYY-MM, the model only sees
-    // transactions strictly before that month. Current recurring plans are NOT used.
+async function buildForecastArchiveBackfill(onProgress = null) {
+    // Linear walk-forward champion/challenger backtest. Each category keeps an
+    // online validation state, so we never re-run the whole historical validation
+    // window for every target month. This preserves strict no-leakage while making
+    // multi-year backtests practical on mobile devices.
     const now = new Date();
     const historicalYears = getHistoricalDataYears();
     const startYear = historicalYears.length ? Math.min(...historicalYears) : now.getFullYear();
     const rows = [];
+    const expenseCategories = categories.filter(c => c.id !== 'Prijem');
     const existing = new Set(flowForecastArchive.filter(r => String(r.backtest || '') === 'walk-forward').map(r => `${r.targetMonth}|${r.category}|${r.modelVersion}`));
+    const periods=[];
+    for(let y=startYear;y<=now.getFullYear();y++){
+        for(let m=0;m<12;m++){
+            if(new Date(y,m,1) >= new Date(now.getFullYear(),now.getMonth()+1,1)) continue;
+            periods.push([y,m]);
+        }
+    }
+    const onlineStates=new Map(expenseCategories.map(cat=>[String(cat.id),createOnlineChampionState()]));
 
-    for (let y = startYear; y <= now.getFullYear(); y++) {
-        for (let m = 0; m < 12; m++) {
-            const targetDate = new Date(y, m, 1);
-            if (targetDate >= new Date(now.getFullYear(), now.getMonth() + 1, 1)) continue;
-            const keyMonth = getMonthKey(y,m);
-            categories.filter(c => c.id !== 'Prijem').forEach(cat => {
-                const key = `${keyMonth}|${cat.id}|${FLOW_MODEL_VERSION}`;
-                if (existing.has(key)) return;
-                const variable = getVariableForecast(cat.id, y, m);
-                const recurringBaseline = getHistoricalRecurringBaseline(cat.id, y, m);
-                const forecast = round2((variable.expected ?? variable.value) + recurringBaseline);
-                const budget = round2(variable.value + recurringBaseline);
-                const actual = getIndexedCategoryValue(y,m,cat.id,'totalExpense');
-                const actualVariable = getIndexedCategoryValue(y,m,cat.id,'variableExpense');
-                if (actual <= 0 && forecast <= 0) return;
+    let done=0;
+    for (const [y,m] of periods) {
+        const keyMonth = getMonthKey(y,m);
+        for (const cat of expenseCategories) {
+            const state=onlineStates.get(String(cat.id));
+            const selection=selectOnlineChampion(state);
+            const basePrediction=predictForecastCandidate(selection.candidate,state.history,cat.id,y,m);
+            const variable={
+                ...basePrediction,
+                method:`champion-${selection.candidate}`,
+                championCandidate:selection.candidate,
+                validationCount:selection.validationCount,
+                validationWape:selection.validationWape,
+                validationBudgetWape:selection.validationBudgetWape,
+                validationBias:selection.validationBias,
+                baselineWape:selection.baselineWape,
+                challengerImprovement:selection.improvementPct,
+                challengerRanking:selection.ranking
+            };
+            const recurringBaseline = getHistoricalRecurringBaseline(cat.id, y, m);
+            const forecast = round2((variable.expected ?? variable.value) + recurringBaseline);
+            const budget = round2(variable.value + recurringBaseline);
+            const actual = getIndexedCategoryValue(y,m,cat.id,'totalExpense');
+            const actualVariable = getIndexedCategoryValue(y,m,cat.id,'variableExpense');
+            const key = `${keyMonth}|${cat.id}|${FLOW_MODEL_VERSION}`;
+
+            if (!existing.has(key) && !(actual <= 0 && forecast <= 0)) {
                 rows.push({
                     id:createUid('fa'), targetMonth:keyMonth, category:cat.id,
                     forecastAmount:forecast, budgetAmount:budget, actualAmount:actual,
@@ -838,11 +1242,17 @@ function buildForecastArchiveBackfill() {
                     modelVersion:FLOW_MODEL_VERSION, generatedAt:new Date(y,m,1).toISOString(),
                     dataMonths:variable.dataMonths, dataYears:variable.dataYears, seasonalYears:variable.seasonalYears,
                     confidence:variable.confidence, method:variable.method,
-                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, patternType:variable.patternType, occurrenceProbability:variable.occurrenceProbability, activeRatio:variable.activeRatio, concentration:variable.concentration, medianGap:variable.medianGap, monthsSinceLast:variable.monthsSinceLast, eventAmount:variable.eventAmount, seasonalIndex:variable.seasonalIndex, seasonalOccurrence:variable.seasonalOccurrence, seasonalStrength:variable.seasonalStrength, seasonalDirect:variable.seasonalDirect, trendFactor:variable.trendFactor}),
+                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, patternType:variable.patternType, occurrenceProbability:variable.occurrenceProbability, seasonalIndex:variable.seasonalIndex, trendFactor:variable.trendFactor, championCandidate:variable.championCandidate, validationCount:variable.validationCount, validationWape:variable.validationWape, validationBudgetWape:variable.validationBudgetWape, baselineWape:variable.baselineWape, challengerImprovement:variable.challengerImprovement, challengerRanking:variable.challengerRanking}),
                     evaluatedAt:new Date(y,m+1,1).toISOString(), backtest:'walk-forward'
                 });
-            });
+            }
+            // Update candidate scores only after the prediction for this month has
+            // been frozen, so actual data from the target month cannot leak into it.
+            updateOnlineChampionState(state,cat.id,y,m,actualVariable);
         }
+        done++;
+        if(typeof onProgress==='function') onProgress(done,periods.length,keyMonth,rows.length);
+        if(done%2===0) await new Promise(resolve=>setTimeout(resolve,0));
     }
     return rows;
 }
@@ -880,7 +1290,7 @@ async function archiveCurrentForecastSnapshot() {
     const rows=plan.categoryRows.filter(r=>r.forecast>0||r.budget>0).map(r=>({
         id:createUid('fa'),targetMonth:key,category:r.category,forecastAmount:r.forecast,budgetAmount:r.budget,actualAmount:r.actual,
         modelVersion:FLOW_MODEL_VERSION,generatedAt:new Date().toISOString(),dataMonths:r.dataMonths,confidence:r.confidence,method:r.method,
-        inputsJson:JSON.stringify({expected:r.expected,bufferPct:r.budget>0&&r.expected>0?round2((r.budget-r.recurring-r.expected)/r.expected*100):0,recurring:r.recurring}),
+        inputsJson:JSON.stringify({expected:r.expected,bufferPct:r.budget>0&&r.expected>0?round2((r.budget-r.recurring-r.expected)/r.expected*100):0,recurring:r.recurring,method:r.method}),
         evaluatedAt:''
     }));
     await archiveForecastRows(rows);
@@ -919,7 +1329,9 @@ async function runForecastBackfill() {
         await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
         await refreshArchiveEvaluations();
-        const rows = buildForecastArchiveBackfill();
+        const rows = await buildForecastArchiveBackfill((done,total,keyMonth,count) => {
+            if (button) button.textContent = `Počítam ${done}/${total}`;
+        });
         if (!rows.length) {
             showToast?.({ type:'success', title:'Vyhodnotenie histórie hotové', text:'Historický backtest je aktuálny.' });
         } else {
@@ -967,7 +1379,7 @@ function renderAnnualPlanScreen() {
         <div class="annual-hero-card"><div class="annual-label">Príjem</div><div class="annual-value">${formatCurrency(totalIncome)}</div><div class="annual-sub">Dostupné dáta + plán</div></div>
         <div class="annual-hero-card tone-${totalBalance >= 0 ? 'good':'danger'}"><div class="annual-label">Očakávaný zostatok</div><div class="annual-value">${formatCurrency(totalBalance)}</div><div class="annual-sub">Príjem mínus forecast</div></div>
       </div>
-      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Kombinuje pravidelné záväzky, historický trend, sezónnosť, plánované udalosti a manuálne úpravy.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
+      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Pre každú kategóriu spätne testuje viac modelov a používa iba model, ktorý preukázateľne prekoná súčasný baseline.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
       <div class="annual-month-list">
       ${months.map(m => `

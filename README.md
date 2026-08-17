@@ -1,17 +1,28 @@
-# Flow v2.39.0
+# Flow v2.40.0
 
-Osobná finančná PWA s evidenciou transakcií, ročným plánom, budgetom, pravidelnými platbami, forecastom, Burn Rate a analytikou.
+## Champion / Challenger Forecast
 
-## Aktuálna forecast verzia
+Flow v2.40.0 vyberá forecast model pre každú kategóriu podľa reálnej historickej presnosti namiesto jedného pevného algoritmu pre všetky kategórie.
 
-`2.39.0-category-adaptive-v1`
+Model testuje viac kandidátov pomocou walk-forward validácie a challenger sa nasadí iba vtedy, keď preukázateľne prekoná pôvodný adaptívny baseline aspoň o 3 %.
 
-Hlavnou zmenou v2.39.0 je kategóriovo adaptívny forecast. Flow automaticky rozlišuje stabilné, variabilné, riedko sezónne a nepravidelné výdavky a podľa toho volí spôsob predikcie.
+Aktuálny forecast model:
+
+`2.40.0-champion-challenger-v1`
 
 ## Nasadenie
 
-Frontend nahraj celý na GitHub Pages. Google Apps Script sa pri prechode z v2.38.8 na v2.39.0 nemení.
+1. Nahraj celý frontend na GitHub Pages.
+2. Google Apps Script nemeníš – zostáva backend v2.38.8.
+3. Po načítaní otvor **Ročný plán** a spusti **Vyhodnotiť históriu**.
+4. Porovnaj nový Forecast WAPE / Budget WAPE / MAE s v2.39.0.
 
-Po nasadení odporúčame spustiť **Ročný plán → Vyhodnotiť históriu**, aby sa vytvoril nový walk-forward backtest pre model v2.39.0.
+## Dôležité pravidlá
 
-Podrobnosti sú v `V2.39.0-IMPLEMENTACIA.md` a `CHANGELOG.md`.
+- žiadny future leakage,
+- challenger musí zlepšiť validačné skóre minimálne o 3 %,
+- maximálne 12 mesiacov budúcich pravidelných platieb,
+- Forecast Archive je cloud-first,
+- changelog je dostupný aj priamo v aplikácii cez ⓘ.
+
+Podrobnosti sú v `V2.40.0-IMPLEMENTACIA.md` a `CHANGELOG.md`.

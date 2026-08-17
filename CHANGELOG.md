@@ -1,5 +1,42 @@
 # Flow – CHANGELOG
 
+## v2.40.0 – Champion / Challenger Forecast
+
+### Added
+- Forecast pre každú kategóriu automaticky testuje viac kandidátnych modelov na historických dátach.
+- Kandidáti: pôvodný adaptívny model, recent robust, rovnaký mesiac, sezónne okno ±1 mesiac, minulý rok, sezónny index, kalendár udalostí a nulový baseline.
+- Champion sa vyberá samostatne pre každú kategóriu pomocou walk-forward validácie bez použitia budúcich dát.
+- Do Forecast Archive sa ukladajú aj informácie o zvolenom championovi, validačnom WAPE, Budget WAPE a zlepšení oproti baseline.
+- Diagnostika zobrazuje presnosť podľa konkrétne zvoleného champion modelu.
+
+### Safety / Model governance
+- Challenger musí zlepšiť validačné skóre aspoň o **3 %**, inak zostáva pôvodný adaptívny model.
+- Nulový baseline sa nepoužije iba preto, že kategória je riedka; ak nie je materiálne lepší, prednosť dostane zmysluplný nenulový model.
+- Výber modelu používa maximálne posledných 24 validačných období a minimálne 12 mesiacov tréningovej histórie.
+- Model sa vyberá iba z údajov dostupných pred predpovedaným obdobím.
+
+### Performance
+- Champion výber sa cacheuje podľa kategórie a dátového cutoffu.
+- Pri zmene transakcií sa cache automaticky invaliduje.
+- Historický backtest používa lineárny online champion výber namiesto opakovaného prepočítania celej validačnej histórie.
+- Historický backtest priebežne uvoľňuje event loop, aby mobilné UI počas výpočtu nezamrzlo.
+- Ročný plán už neprepočítava forecast pre uzavreté mesiace; používa skutočné Actual hodnoty a model počíta iba aktuálny/budúci horizont.
+
+### Model
+- Nová verzia modelu: `2.40.0-champion-challenger-v1`.
+- Výsledky sa archivujú oddelene od v2.39.0, takže sa dajú priamo porovnať.
+
+### Google Apps Script
+- **Bez zmeny backendu.** Zostáva Google Apps Script v2.38.8.
+
+### Unchanged
+- Cloud-first Forecast Archive zostáva zachovaný.
+- Pravidelné platby sa stále generujú maximálne 12 mesiacov dopredu.
+- Rýchly filter kategórií/podkategórií zostáva iba v Transakciách.
+- Filtre rokov v Grafoch a Burn Rate zostávajú zachované.
+
+---
+
 ## v2.39.0 – Category-Adaptive Forecast
 
 ### Added
