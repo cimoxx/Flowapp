@@ -420,8 +420,23 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.40.0</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.41.0</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Meta forecast pri výbere výdavkového modelu zohľadňuje aj konkrétny kalendárny mesiac; mesačné skóre je tlmené smerom ku kategóriovému, aby sa model nepreučil.</li>
+                    <li>Experimentálny archív scenárov bol použitý na nastavenie minimálnej vzorky a sily mesačného signálu.</li>
+                    <li>Nový Income Engine rozdeľuje príjmy podľa zdrojov/podkategórií a odlišuje stabilné, variabilné a riedke príjmy.</li>
+                    <li>Pravidelný príjem má prednosť pred historickým forecastom rovnakého zdroja, takže sa výplata nezapočíta dvakrát.</li>
+                    <li>Pravidelné plány teraz podporujú aj príjem (napr. výplatu) a stále generujú transakcie maximálne 12 mesiacov dopredu.</li>
+                    <li>Vyhodnotenie histórie archivuje a zobrazuje samostatné Income WAPE, MAE a Bias.</li>
+                    <li>Google Apps Script sa nemení; zostáva backend v2.38.8.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.40.0</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
                     <li>Champion/challenger engine testuje viac forecast modelov pre každú kategóriu.</li>

@@ -1,5 +1,46 @@
 # Flow – CHANGELOG
 
+## v2.41.0 – Meta Forecast + Income Intelligence
+
+### Forecast / model selection
+- Champion výber teraz zohľadňuje nielen kategóriu, ale aj **kalendárny mesiac**.
+- Mesačný výkon kandidátov sa aktivuje až po minimálne 2 historických pozorovaniach a je tlmený smerom ku kategóriovému skóre (`n / (n + 8)`), aby sa model nepreučil na malej vzorke.
+- Live výber používa jeden online validačný stav na kategóriu a dátový cutoff; všetkých 12 mesiacov z neho číta lacno bez opakovaného kompletného backtestu.
+- Model state je viazaný na verziu forecast modelu, takže staré champion výsledky sa po upgrade nepoužijú omylom.
+
+### Income Intelligence
+- Pôvodný príjmový forecast (jednoduchý priemer posledných kladných mesiacov) bol nahradený modelom podľa **zdrojov/podkategórií príjmu**.
+- Stabilné príjmy používajú robustný recent level, obmedzený trend a jemný same-month sezónny signál.
+- Variabilné a riedke príjmy používajú pravdepodobnosť výskytu a typickú sumu; pri nízkej pravdepodobnosti sa nepredikujú ako istý príjem.
+- Nulové mesiace sa už pri nepravidelných príjmoch neignorujú.
+- Pravidelný príjem z plánu nahrádza historický forecast rovnakého zdroja, čím sa odstraňuje možné dvojité započítanie výplaty.
+- Pri aktuálnom mesiaci Flow zohľadní už evidovaný príjem a predikuje iba zostávajúcu časť.
+
+### Recurring
+- Tab Pravidelné podporuje aj **pravidelný príjem** (napr. výplata).
+- Pravidelná položka má typ Výdavok / Príjem a podkategóriu/zdroj.
+- Automatické transakcie zostávajú striktne limitované na maximálne **12 mesiacov dopredu**.
+
+### Backtest / diagnostics
+- Walk-forward backtest od tejto verzie archivuje aj samostatný mesačný záznam `__INCOME__`.
+- Diagnostika zobrazuje **Income WAPE, Income MAE, Income Bias a orientačnú accuracy** oddelene od výdavkov.
+- Live snapshoty príjmu sa ukladajú do Forecast Archive, ale neovplyvňujú walk-forward metriky.
+
+### Experiment data
+- Pri návrhu meta výberu boli použité doterajšie archivované forecast scenáre. Na priamo porovnateľných historických záznamoch bolo vidieť, že žiadna jedna modelová verzia nie je najlepšia pre všetky kategórie a mesiace.
+- Experimentálny selector kategória + kalendárny mesiac znižoval historické WAPE oproti najlepšiemu samostatnému modelu; preto sa tento signál pridáva konzervatívne a so shrinkage.
+
+### Google Apps Script
+- **Bez zmeny backendu.** Zostáva Google Apps Script v2.38.8.
+
+### Unchanged
+- Forecast Archive zostáva cloud-first.
+- Rýchly filter kategórií/podkategórií zostáva iba v Transakciách.
+- Filtre rokov v Grafoch a Burn Rate zostávajú zachované.
+- Existujúci sync indikátor/UI sa nemení.
+
+---
+
 ## v2.40.0 – Champion / Challenger Forecast
 
 ### Added

@@ -10,17 +10,22 @@ try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
 
-const FLOW_MODEL_VERSION = '2.40.0-champion-challenger-v1';
+const FLOW_MODEL_VERSION = '2.41.0-meta-income-v1';
+if (flowModelState?.forecastModelVersion !== FLOW_MODEL_VERSION) {
+    flowModelState = {...(flowModelState || {}), forecastModelVersion:FLOW_MODEL_VERSION, champions:{}};
+}
 
 // Fast month/category index. It is rebuilt only when transaction data changes.
 let flowForecastIndex = null;
 let flowForecastIndexSignature = '';
 let flowForecastIndexDirty = true;
 let flowChampionCache = new Map();
+let flowChampionStateCache = new Map();
 
 function markForecastIndexDirty() {
     flowForecastIndexDirty = true;
     flowChampionCache.clear();
+    flowChampionStateCache.clear();
 }
 
 function getForecastIndexSignature() {
@@ -39,7 +44,7 @@ function rebuildForecastIndex(force = false) {
     if (!force && !flowForecastIndexDirty && flowForecastIndex) return flowForecastIndex;
     const signature = getForecastIndexSignature();
 
-    const index = { months: Object.create(null), years: Object.create(null) };
+    const index = { months: Object.create(null), years: Object.create(null), incomeMonths: Object.create(null) };
     const rows = Array.isArray(db) ? db : [];
     rows.forEach(item => {
         if (!item || item.deleted) return;
@@ -53,10 +58,24 @@ function rebuildForecastIndex(force = false) {
         const category = String(item.category || '');
         const amount = Number(item.amount) || 0;
         if (!index.months[key]) index.months[key] = Object.create(null);
-        if (!index.months[key][category]) index.months[key][category] = { variableExpense: 0, recurringExpense: 0, income: 0, totalExpense: 0, count: 0 };
+        if (!index.months[key][category]) index.months[key][category] = { variableExpense: 0, recurringExpense: 0, income: 0, recurringIncome: 0, variableIncome: 0, totalExpense: 0, count: 0 };
         const bucket = index.months[key][category];
         if (item.type === 'income') {
             bucket.income += amount;
+            if (item.isRecurring) bucket.recurringIncome += amount;
+            else bucket.variableIncome += amount;
+
+            if (!index.incomeMonths[key]) index.incomeMonths[key] = { total:0, recurring:0, variable:0, bySub:Object.create(null) };
+            const incomeMonth = index.incomeMonths[key];
+            const sub = String(item.sub || 'Ine').trim() || 'Ine';
+            if (!incomeMonth.bySub[sub]) incomeMonth.bySub[sub] = { total:0, recurring:0, variable:0, count:0 };
+            incomeMonth.total += amount;
+            if (item.isRecurring) incomeMonth.recurring += amount;
+            else incomeMonth.variable += amount;
+            incomeMonth.bySub[sub].total += amount;
+            if (item.isRecurring) incomeMonth.bySub[sub].recurring += amount;
+            else incomeMonth.bySub[sub].variable += amount;
+            incomeMonth.bySub[sub].count += 1;
         } else if (item.type === 'expense') {
             bucket.totalExpense += amount;
             if (item.isRecurring) bucket.recurringExpense += amount;
@@ -88,6 +107,38 @@ function getIndexedIncome(year, month, category = null) {
     const monthData = index.months[getMonthKey(year, month)] || {};
     if (category !== null) return Number(monthData[String(category)]?.income) || 0;
     return Object.values(monthData).reduce((s,b) => s + (Number(b.income)||0), 0);
+}
+
+function getIndexedIncomeRecurring(year, month) {
+    return Number(rebuildForecastIndex().incomeMonths[getMonthKey(year,month)]?.recurring) || 0;
+}
+
+function getIndexedIncomeVariable(year, month) {
+    return Number(rebuildForecastIndex().incomeMonths[getMonthKey(year,month)]?.variable) || 0;
+}
+
+function getIndexedIncomeBySub(year, month, sub) {
+    const wanted = normalizeIncomeSub(sub);
+    const bySub = rebuildForecastIndex().incomeMonths[getMonthKey(year,month)]?.bySub || {};
+    let total = 0;
+    Object.entries(bySub).forEach(([key,b]) => {
+        if (normalizeIncomeSub(key) === wanted) total += Number(b?.total) || 0;
+    });
+    return total;
+}
+
+function normalizeIncomeSub(value) {
+    return String(value || 'Ine').trim().toLocaleLowerCase('sk-SK').normalize('NFD').replace(/[\u0300-\u036f]/g,'') || 'ine';
+}
+
+function getIndexedIncomeExcludingSubs(year, month, excludedSubs = new Set()) {
+    const monthData = rebuildForecastIndex().incomeMonths[getMonthKey(year,month)];
+    if (!monthData) return 0;
+    let total = 0;
+    Object.entries(monthData.bySub || {}).forEach(([sub,b]) => {
+        if (!excludedSubs.has(normalizeIncomeSub(sub))) total += Number(b?.total) || 0;
+    });
+    return total;
 }
 
 const MONTH_NAMES_SK = ['Január','Február','Marec','Apríl','Máj','Jún','Júl','August','September','Október','November','December'];
@@ -770,17 +821,30 @@ function predictForecastCandidate(candidate, rows, category, year, month) {
     return predictLegacyAdaptive(rows,category,year,month);
 }
 
+function candidateStatMetrics(st, typicalPositive) {
+    const denom=st.actual>0?st.actual:typicalPositive*Math.max(st.weight,1);
+    const wape=st.abs/Math.max(denom,1)*100;
+    const budgetWape=st.budgetAbs/Math.max(denom,1)*100;
+    const meanBias=st.weight?st.signed/st.weight:0;
+    const biasPct=Math.abs(meanBias)/Math.max(typicalPositive,1)*100;
+    const score=wape*0.72+budgetWape*0.23+biasPct*0.05;
+    return {...st,wape:round2(wape),budgetWape:round2(budgetWape),bias:round2(meanBias),score:round2(score)};
+}
+
 function evaluateForecastCandidates(category, targetYear, targetMonth, historical) {
     const chronological=rowsChronological(historical);
     const minTrainingMonths=12;
     const eligible=[];
     for(let i=minTrainingMonths;i<chronological.length;i++) eligible.push(i);
-    const validation=eligible.slice(-24);
+    const validation=eligible.slice(-30);
     if(validation.length<8){
         return {candidate:'legacy-adaptive',reason:'insufficient-validation',validationCount:validation.length,ranking:[]};
     }
 
-    const stats=new Map(FLOW_FORECAST_CANDIDATES.map(c=>[c,{candidate:c,abs:0,budgetAbs:0,signed:0,actual:0,weight:0,count:0,positiveCount:0}]));
+    const makeStats=()=>new Map(FLOW_FORECAST_CANDIDATES.map(c=>[c,{candidate:c,abs:0,budgetAbs:0,signed:0,actual:0,weight:0,count:0,positiveCount:0}]));
+    const stats=makeStats();
+    const monthStats=makeStats();
+
     validation.forEach((idx,pos)=>{
         const target=chronological[idx];
         const train=chronological.slice(0,idx);
@@ -795,36 +859,51 @@ function evaluateForecastCandidates(category, targetYear, targetMonth, historica
             st.budgetAbs+=Math.abs(budget-actual)*recencyWeight;
             st.signed+=(forecast-actual)*recencyWeight;
             st.actual+=actual*recencyWeight;
-            st.weight+=recencyWeight;
-            st.count++;
-            if(actual>0)st.positiveCount++;
+            st.weight+=recencyWeight; st.count++; if(actual>0)st.positiveCount++;
+        });
+    });
+
+    // Calendar-month evidence is deliberately shrunk toward the category score.
+    // The scenario archive showed that month-specific selection helps, but only
+    // after at least two prior observations; with little data it must not overfit.
+    const monthEligible=eligible.filter(idx=>chronological[idx].month===targetMonth).slice(-8);
+    monthEligible.forEach((idx,pos)=>{
+        const target=chronological[idx];
+        const train=chronological.slice(0,idx);
+        const recencyWeight=Math.pow(0.90,monthEligible.length-1-pos);
+        FLOW_FORECAST_CANDIDATES.forEach(candidate=>{
+            const pred=predictForecastCandidate(candidate,train,category,target.year,target.month);
+            const forecast=Math.max(0,Number(pred?.expected)||0);
+            const budget=Math.max(0,Number(pred?.value)||0);
+            const actual=Math.max(0,Number(target.value)||0);
+            const st=monthStats.get(candidate);
+            st.abs+=Math.abs(forecast-actual)*recencyWeight;
+            st.budgetAbs+=Math.abs(budget-actual)*recencyWeight;
+            st.signed+=(forecast-actual)*recencyWeight;
+            st.actual+=actual*recencyWeight;
+            st.weight+=recencyWeight; st.count++; if(actual>0)st.positiveCount++;
         });
     });
 
     const typicalPositive=median(chronological.filter(r=>r.value>0).map(r=>r.value))||1;
     const ranking=[...stats.values()].map(st=>{
-        const denom=st.actual>0?st.actual:typicalPositive*Math.max(st.weight,1);
-        const wape=st.abs/Math.max(denom,1)*100;
-        const budgetWape=st.budgetAbs/Math.max(denom,1)*100;
-        const meanBias=st.weight?st.signed/st.weight:0;
-        const biasPct=Math.abs(meanBias)/Math.max(typicalPositive,1)*100;
-        const score=wape*0.72+budgetWape*0.23+biasPct*0.05;
-        return {...st,wape:round2(wape),budgetWape:round2(budgetWape),bias:round2(meanBias),score:round2(score)};
-    }).sort((a,b)=>a.score-b.score);
+        const base=candidateStatMetrics(st,typicalPositive);
+        const ms=candidateStatMetrics(monthStats.get(st.candidate),typicalPositive);
+        const monthCount=monthStats.get(st.candidate).count;
+        const monthWeight=monthCount>=2 ? monthCount/(monthCount+8) : 0;
+        const selectionScore=base.score*(1-monthWeight)+ms.score*monthWeight;
+        return {...base,monthWape:ms.wape,monthCount,monthWeight:round2(monthWeight),selectionScore:round2(selectionScore)};
+    }).sort((a,b)=>a.selectionScore-b.selectionScore);
 
     const baseline=ranking.find(r=>r.candidate==='legacy-adaptive')||ranking[0];
     let winner=ranking[0]||baseline;
-    // Champion protection: a challenger must beat the current adaptive model by
-    // at least 3 %. Small apparent gains are treated as noise and the proven model stays.
     if(winner && baseline && winner.candidate!=='legacy-adaptive'){
-        const required=baseline.score*0.97;
-        if(!(winner.score<required)) winner=baseline;
+        const required=baseline.selectionScore*0.97;
+        if(!(winner.selectionScore<required)) winner=baseline;
     }
-    // Avoid a degenerate all-zero champion when there is repeatable positive history
-    // unless it is materially better than the best non-zero model.
     if(winner?.candidate==='zero-baseline'){
         const positive=ranking.find(r=>r.candidate!=='zero-baseline'&&r.positiveCount>=2);
-        if(positive && winner.score>positive.score*0.90) winner=positive;
+        if(positive && winner.selectionScore>positive.selectionScore*0.90) winner=positive;
     }
     return {
         candidate:winner?.candidate||'legacy-adaptive',
@@ -832,55 +911,63 @@ function evaluateForecastCandidates(category, targetYear, targetMonth, historica
         validationWape:winner?.wape??null,
         validationBudgetWape:winner?.budgetWape??null,
         validationBias:winner?.bias??null,
+        monthValidationCount:winner?.monthCount||0,
+        monthValidationWape:winner?.monthWape??null,
         baselineWape:baseline?.wape??null,
-        baselineScore:baseline?.score??null,
-        winnerScore:winner?.score??null,
-        improvementPct:baseline&&winner&&baseline.score>0?round2((baseline.score-winner.score)/baseline.score*100):0,
-        ranking:ranking.slice(0,4).map(r=>({candidate:r.candidate,wape:r.wape,budgetWape:r.budgetWape,score:r.score}))
+        baselineScore:baseline?.selectionScore??baseline?.score??null,
+        winnerScore:winner?.selectionScore??winner?.score??null,
+        improvementPct:baseline&&winner&&baseline.selectionScore>0?round2((baseline.selectionScore-winner.selectionScore)/baseline.selectionScore*100):0,
+        ranking:ranking.slice(0,4).map(r=>({candidate:r.candidate,wape:r.wape,monthWape:r.monthWape,monthCount:r.monthCount,budgetWape:r.budgetWape,score:r.selectionScore}))
     };
 }
 
+
+function createEmptyCandidateStats() {
+    return Object.fromEntries(FLOW_FORECAST_CANDIDATES.map(c=>[c,{candidate:c,abs:0,budgetAbs:0,signed:0,actual:0,weight:0,count:0,positiveCount:0}]));
+}
 
 function createOnlineChampionState() {
     return {
         history: [],
         validationCount: 0,
-        stats: Object.fromEntries(FLOW_FORECAST_CANDIDATES.map(c=>[c,{candidate:c,abs:0,budgetAbs:0,signed:0,actual:0,weight:0,count:0,positiveCount:0}]))
+        stats: createEmptyCandidateStats(),
+        monthStats: Array.from({length:12},()=>createEmptyCandidateStats())
     };
 }
 
-function rankOnlineChampionState(state) {
+function rankOnlineChampionState(state, targetMonth) {
     const positives=state.history.filter(r=>r.value>0).map(r=>r.value);
     const typicalPositive=median(positives)||1;
+    const monthBucket=state.monthStats?.[targetMonth] || createEmptyCandidateStats();
     return Object.values(state.stats).map(st=>{
-        const denom=st.actual>0?st.actual:typicalPositive*Math.max(st.weight,1);
-        const wape=st.abs/Math.max(denom,1)*100;
-        const budgetWape=st.budgetAbs/Math.max(denom,1)*100;
-        const meanBias=st.weight?st.signed/st.weight:0;
-        const biasPct=Math.abs(meanBias)/Math.max(typicalPositive,1)*100;
-        const score=wape*0.72+budgetWape*0.23+biasPct*0.05;
-        return {...st,wape:round2(wape),budgetWape:round2(budgetWape),bias:round2(meanBias),score:round2(score)};
-    }).sort((a,b)=>a.score-b.score);
+        const base=candidateStatMetrics(st,typicalPositive);
+        const mst=candidateStatMetrics(monthBucket[st.candidate],typicalPositive);
+        const monthCount=monthBucket[st.candidate]?.count||0;
+        const monthWeight=monthCount>=2 ? monthCount/(monthCount+8) : 0;
+        const selectionScore=base.score*(1-monthWeight)+mst.score*monthWeight;
+        return {...base,monthWape:mst.wape,monthCount,monthWeight:round2(monthWeight),selectionScore:round2(selectionScore)};
+    }).sort((a,b)=>a.selectionScore-b.selectionScore);
 }
 
-function selectOnlineChampion(state) {
+function selectOnlineChampion(state, targetMonth) {
     if(state.validationCount<8 || state.history.length<12){
         return {candidate:'legacy-adaptive',reason:'insufficient-validation',validationCount:state.validationCount,ranking:[]};
     }
-    const ranking=rankOnlineChampionState(state);
+    const ranking=rankOnlineChampionState(state,targetMonth);
     const baseline=ranking.find(r=>r.candidate==='legacy-adaptive')||ranking[0];
     let winner=ranking[0]||baseline;
-    if(winner&&baseline&&winner.candidate!=='legacy-adaptive' && !(winner.score<baseline.score*0.97)) winner=baseline;
+    if(winner&&baseline&&winner.candidate!=='legacy-adaptive' && !(winner.selectionScore<baseline.selectionScore*0.97)) winner=baseline;
     if(winner?.candidate==='zero-baseline'){
         const positive=ranking.find(r=>r.candidate!=='zero-baseline'&&r.positiveCount>=2);
-        if(positive && winner.score>positive.score*0.90) winner=positive;
+        if(positive && winner.selectionScore>positive.selectionScore*0.90) winner=positive;
     }
     return {
         candidate:winner?.candidate||'legacy-adaptive',validationCount:state.validationCount,
         validationWape:winner?.wape??null,validationBudgetWape:winner?.budgetWape??null,validationBias:winner?.bias??null,
-        baselineWape:baseline?.wape??null,baselineScore:baseline?.score??null,winnerScore:winner?.score??null,
-        improvementPct:baseline&&winner&&baseline.score>0?round2((baseline.score-winner.score)/baseline.score*100):0,
-        ranking:ranking.slice(0,4).map(r=>({candidate:r.candidate,wape:r.wape,budgetWape:r.budgetWape,score:r.score}))
+        monthValidationCount:winner?.monthCount||0,monthValidationWape:winner?.monthWape??null,
+        baselineWape:baseline?.wape??null,baselineScore:baseline?.selectionScore??null,winnerScore:winner?.selectionScore??null,
+        improvementPct:baseline&&winner&&baseline.selectionScore>0?round2((baseline.selectionScore-winner.selectionScore)/baseline.selectionScore*100):0,
+        ranking:ranking.slice(0,4).map(r=>({candidate:r.candidate,wape:r.wape,monthWape:r.monthWape,monthCount:r.monthCount,budgetWape:r.budgetWape,score:r.selectionScore}))
     };
 }
 
@@ -891,18 +978,21 @@ function updateOnlineChampionState(state, category, year, month, actual) {
         Object.values(state.stats).forEach(st=>{
             st.abs*=decay; st.budgetAbs*=decay; st.signed*=decay; st.actual*=decay; st.weight*=decay;
         });
+        const monthBucket=state.monthStats[month];
+        Object.values(monthBucket).forEach(st=>{
+            st.abs*=0.90; st.budgetAbs*=0.90; st.signed*=0.90; st.actual*=0.90; st.weight*=0.90;
+        });
         FLOW_FORECAST_CANDIDATES.forEach(candidate=>{
             const pred=predictForecastCandidate(candidate,history,category,year,month);
             const forecast=Math.max(0,Number(pred?.expected)||0);
             const budget=Math.max(0,Number(pred?.value)||0);
-            const st=state.stats[candidate];
-            st.abs+=Math.abs(forecast-actual);
-            st.budgetAbs+=Math.abs(budget-actual);
-            st.signed+=forecast-actual;
-            st.actual+=Math.abs(actual);
-            st.weight+=1;
-            st.count++;
-            if(actual>0)st.positiveCount++;
+            [state.stats[candidate],monthBucket[candidate]].forEach(st=>{
+                st.abs+=Math.abs(forecast-actual);
+                st.budgetAbs+=Math.abs(budget-actual);
+                st.signed+=forecast-actual;
+                st.actual+=Math.abs(actual);
+                st.weight+=1; st.count++; if(actual>0)st.positiveCount++;
+            });
         });
         state.validationCount++;
     }
@@ -913,21 +1003,31 @@ function getChampionSelection(category, year, month, historical) {
     const cutoffMs=getDataCutoffForTarget(year,month);
     const cutoffDate=new Date(cutoffMs);
     const cutoffKey=`${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth()+1).padStart(2,'0')}`;
-    const cacheKey=`${category}|${cutoffKey}`;
+    const cacheKey=`${category}|m${month}|${cutoffKey}`;
     if(flowChampionCache.has(cacheKey)) return flowChampionCache.get(cacheKey);
 
     const signature=getForecastIndexSignature();
-    const stored=flowModelState?.champions?.[String(category)];
+    const championKey=`${String(category)}|m${month}`;
+    const stored=flowModelState?.champions?.[championKey];
     if(stored && stored.cutoff===cutoffKey && stored.signature===signature && FLOW_FORECAST_CANDIDATES.includes(stored.candidate)){
         const restored={...stored};
         flowChampionCache.set(cacheKey,restored);
         return restored;
     }
 
-    const selection=evaluateForecastCandidates(category,year,month,historical);
+    // Build the validation state once per category/cutoff. All 12 calendar-month
+    // selections then reuse it, avoiding 12 full backtests when Annual Plan opens.
+    const stateKey=`${String(category)}|${cutoffKey}|${signature}`;
+    let state=flowChampionStateCache.get(stateKey);
+    if(!state){
+        state=createOnlineChampionState();
+        rowsChronological(historical).forEach(r=>updateOnlineChampionState(state,category,r.year,r.month,Number(r.value)||0));
+        flowChampionStateCache.set(stateKey,state);
+    }
+    const selection=selectOnlineChampion(state,month);
     flowChampionCache.set(cacheKey,selection);
     flowModelState.champions=flowModelState.champions||{};
-    flowModelState.champions[String(category)]={...selection,cutoff:cutoffKey,signature,updatedAt:new Date().toISOString()};
+    flowModelState.champions[championKey]={...selection,cutoff:cutoffKey,signature,updatedAt:new Date().toISOString()};
     try { localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState)); } catch (_) {}
     return selection;
 }
@@ -949,6 +1049,8 @@ function getVariableForecast(category, year, month) {
         validationWape:selection.validationWape,
         validationBudgetWape:selection.validationBudgetWape,
         validationBias:selection.validationBias,
+        monthValidationCount:selection.monthValidationCount,
+        monthValidationWape:selection.monthValidationWape,
         baselineWape:selection.baselineWape,
         challengerImprovement:selection.improvementPct,
         challengerRanking:selection.ranking
@@ -959,23 +1061,109 @@ function expensesForCategoryExcludingRecurring(year,month,category){
     return getExpenseItemsForMonth(year,month).filter(x=>x.category===category&&!x.isRecurring);
 }
 
-function getHistoricalIncomeForecast(targetYear, targetMonth) {
-    const values = [];
-    let y = targetYear, m = targetMonth - 1;
-    const now = new Date();
-    const currentYear = now.getFullYear(), currentMonth = now.getMonth();
-    for (let i=0;i<12;i++) {
-        if(m<0){m=11;y--;}
-        const isFutureOrCurrent = y > currentYear || (y === currentYear && m >= currentMonth);
-        if (!isFutureOrCurrent) {
-            const v = getIndexedIncome(y,m);
-            if(v>0) values.push(v);
-        }
-        m--;
+function getHistoricalIncomeRows(targetYear, targetMonth) {
+    const index = rebuildForecastIndex();
+    const cutoff = getDataCutoffForTarget(targetYear,targetMonth);
+    const keys = Object.keys(index.months || {}).sort();
+    const rows = [];
+    if (!keys.length) return rows;
+    const [startYear,startM1] = keys[0].split('-').map(Number);
+    if (!Number.isFinite(startYear) || !Number.isFinite(startM1)) return rows;
+    let cursor = new Date(startYear,startM1-1,1);
+    while (cursor.getTime() < cutoff) {
+        const year=cursor.getFullYear(), month=cursor.getMonth();
+        const key=getMonthKey(year,month);
+        const src = index.incomeMonths[key] || {};
+        const bySub = Object.create(null);
+        Object.entries(src.bySub || {}).forEach(([sub,b]) => {
+            bySub[sub] = {
+                total:Number(b?.total)||0,
+                recurring:Number(b?.recurring)||0,
+                variable:Number(b?.variable)||0
+            };
+        });
+        rows.push({year,month,total:Number(src.total)||0,recurring:Number(src.recurring)||0,variable:Number(src.variable)||0,bySub});
+        cursor = new Date(year,month+1,1);
     }
-    if(!values.length) return {value:0,confidence:'low'};
-    const recent = values.reduce((s,v)=>s+v,0)/values.length;
-    return {value:round2(recent),confidence:values.length>=9?'high':values.length>=5?'medium':'low'};
+    return rows;
+}
+
+function forecastIncomeStream(series, targetMonth) {
+    const rows = Array.isArray(series) ? series : [];
+    if (!rows.length) return {value:0,method:'no-data',activeRatio:0,confidence:'low'};
+    const firstPositive = rows.findIndex(r => Number(r.value) > 0);
+    if (firstPositive < 0) return {value:0,method:'no-data',activeRatio:0,confidence:'low'};
+    const active = rows.slice(firstPositive);
+    const positive = active.filter(r=>Number(r.value)>0);
+    if (!positive.length) return {value:0,method:'no-data',activeRatio:0,confidence:'low'};
+
+    const activeRatio = positive.length / Math.max(active.length,1);
+    const posValues = positive.map(r=>Number(r.value)||0);
+    const targetSamples = active.filter(r=>r.month===targetMonth);
+    const targetPositive = targetSamples.filter(r=>Number(r.value)>0);
+    const sameMonthRatio = targetSamples.length ? targetPositive.length / targetSamples.length : 0;
+    const sameMonthAmount = targetPositive.length ? robustBlend(targetPositive.map(r=>Number(r.value)||0),0.45) : 0;
+
+    if (activeRatio >= 0.65 && positive.length >= 4) {
+        const recentPositive = positive.slice(-6);
+        const last3 = recentPositive.slice(-3).map(r=>Number(r.value)||0);
+        const last6 = recentPositive.map(r=>Number(r.value)||0);
+        // Stable income is usually a step-like series (salary changes), not a value
+        // that should be aggressively extrapolated. The recent median already
+        // absorbs a raise, so trend is deliberately only a very small nudge.
+        let level = (median(last3)||median(last6)||0) * 0.75 + (median(last6)||0) * 0.25;
+
+        if (recentPositive.length >= 6) {
+            const prev3 = recentPositive.slice(-6,-3).map(r=>Number(r.value)||0);
+            const cur3 = recentPositive.slice(-3).map(r=>Number(r.value)||0);
+            const prev = median(prev3)||0, cur = median(cur3)||0;
+            if (prev>0 && cur>0) {
+                const relativeChange = clamp((cur-prev)/prev,-0.20,0.20);
+                level *= clamp(1 + relativeChange*0.12,0.975,1.025);
+            }
+        }
+        // Same-month seasonality is intentionally weak for stable income. Large
+        // annual bonuses should ideally be a separate income stream, not inflate
+        // the normal monthly salary forecast.
+        if (targetPositive.length >= 2 && sameMonthAmount > 0) level = level*0.92 + sameMonthAmount*0.08;
+        return {value:round2(Math.max(0,level)),method:'stable-income',activeRatio:round2(activeRatio*100),sameMonthRatio:round2(sameMonthRatio*100),confidence:positive.length>=9?'high':'medium'};
+    }
+
+    const amount = sameMonthAmount > 0 ? sameMonthAmount : robustBlend(posValues.slice(-10),0.45);
+    const calendarWeight = targetSamples.length >= 2 ? 0.72 : 0.35;
+    const probability = clamp(sameMonthRatio*calendarWeight + activeRatio*(1-calendarWeight),0,1);
+
+    const threshold = activeRatio < 0.25 ? 0.56 : 0.50;
+    const value = probability >= threshold ? amount : 0;
+    return {
+        value:round2(Math.max(0,value)),
+        method:activeRatio<0.25?'sparse-income':'variable-income',
+        activeRatio:round2(activeRatio*100),
+        sameMonthRatio:round2(sameMonthRatio*100),
+        occurrenceProbability:round2(probability*100),
+        confidence:targetSamples.length>=3?'medium':'low'
+    };
+}
+
+function getHistoricalIncomeForecast(targetYear, targetMonth, options = {}) {
+    const rows = getHistoricalIncomeRows(targetYear,targetMonth);
+    if (!rows.length) return {value:0,confidence:'low',method:'income-no-data',components:[],dataMonths:0};
+    const excluded = options.excludeSubs instanceof Set ? options.excludeSubs : new Set();
+    const subs = new Set();
+    rows.forEach(r => Object.keys(r.bySub || {}).forEach(sub => subs.add(sub)));
+
+    const components = [];
+    let value = 0;
+    subs.forEach(sub => {
+        if (excluded.has(normalizeIncomeSub(sub))) return;
+        const series = rows.map(r=>({year:r.year,month:r.month,value:Number(r.bySub?.[sub]?.total)||0}));
+        const forecast = forecastIncomeStream(series,targetMonth);
+        value += Number(forecast.value)||0;
+        components.push({sub,value:round2(forecast.value),method:forecast.method,activeRatio:forecast.activeRatio,sameMonthRatio:forecast.sameMonthRatio,occurrenceProbability:forecast.occurrenceProbability,confidence:forecast.confidence});
+    });
+    const high = components.filter(c=>c.confidence==='high').length;
+    const confidence = components.length && high/components.length>=0.5 ? 'high' : rows.length>=9 ? 'medium' : 'low';
+    return {value:round2(value),confidence,method:'income-stream-meta',components,dataMonths:rows.length};
 }
 
 function getAnnualPlan(year) {
@@ -1019,29 +1207,43 @@ function getAnnualPlan(year) {
         const eventExpense = events.filter(e => e.type === 'expense').reduce((s,e) => s + Math.abs(Number(e.amount) || 0), 0);
         const eventIncome = events.filter(e => e.type === 'income').reduce((s,e) => s + Math.abs(Number(e.amount) || 0), 0);
         const recurringExpense = recurring.filter(p => p.type === 'expense').reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
-        const recurringIncome = recurring.filter(p => p.type === 'income').reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
+        const incomePlans = recurring.filter(p => p.type === 'income');
+        const recurringIncome = incomePlans.reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
+        const coveredIncomeSubs = new Set(incomePlans.map(p=>normalizeIncomeSub(p.sub || 'Vyplata')));
         const variableBudget = categoryRows.reduce((s,r) => s + Math.max(0, r.budget - r.recurring), 0);
         const budget = closed ? round2(actualExpenses) : round2(recurringExpense + variableBudget + eventExpense);
         const forecast = closed ? actualExpenses : round2(categoryRows.reduce((s,r) => s + r.forecast, 0) + eventExpense);
-        const incomeForecast = getHistoricalIncomeForecast(year, month);
-        const variableIncomeActual = getIndexedIncome(year, month);
+
+        // Explicit recurring income plans replace the historical model for the same
+        // income stream. This prevents a salary from being counted once in history
+        // and a second time as a recurring plan.
+        const incomeForecast = getHistoricalIncomeForecast(year, month, {excludeSubs:coveredIncomeSubs});
         let plannedIncome = actualIncome;
         if (!closed) {
-            const variableIncomeRemaining = Math.max(0, incomeForecast.value - variableIncomeActual);
-            plannedIncome = round2(actualIncome + variableIncomeRemaining + Math.max(0, recurringIncome) + eventIncome);
-            if (month !== new Date().getMonth() || year !== new Date().getFullYear()) plannedIncome = round2(incomeForecast.value + recurringIncome + eventIncome);
+            const isCurrentMonth = month === new Date().getMonth() && year === new Date().getFullYear();
+            if (isCurrentMonth) {
+                let coveredActual = 0;
+                incomePlans.forEach(p => { coveredActual += getIndexedIncomeBySub(year,month,p.sub || 'Vyplata'); });
+                const nonCoveredActual = getIndexedIncomeExcludingSubs(year,month,coveredIncomeSubs);
+                const remainingRecurringIncome = Math.max(0, recurringIncome - coveredActual);
+                const remainingModeledIncome = Math.max(0, incomeForecast.value - nonCoveredActual);
+                plannedIncome = round2(actualIncome + remainingRecurringIncome + remainingModeledIncome + eventIncome);
+            } else {
+                plannedIncome = round2(recurringIncome + incomeForecast.value + eventIncome);
+            }
         }
         const plannedBalance = round2(plannedIncome - forecast);
 
-        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, plannedBalance, categoryRows, events, recurring });
+        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, plannedBalance, incomeForecast, categoryRows, events, recurring });
     }
     return result;
 }
 
-function getEvaluatedBacktestRows() {
-    // Accuracy metrics must measure one historical prediction per category/month.
-    // Live snapshots are intentionally excluded because several snapshots of the
-    // same month would overweight that period and distort WAPE.
+function isIncomeArchiveRow(row) {
+    return String(row?.category || '') === '__INCOME__';
+}
+
+function getUniqueEvaluatedBacktestRows() {
     const unique = new Map();
     flowForecastArchive.forEach(row => {
         if (String(row.modelVersion || '') !== String(FLOW_MODEL_VERSION)) return;
@@ -1052,6 +1254,15 @@ function getEvaluatedBacktestRows() {
         if (!previous || String(row.generatedAt || '') < String(previous.generatedAt || '')) unique.set(key, row);
     });
     return [...unique.values()];
+}
+
+function getEvaluatedBacktestRows() {
+    // Expense accuracy remains comparable with previous model versions.
+    return getUniqueEvaluatedBacktestRows().filter(row=>!isIncomeArchiveRow(row));
+}
+
+function getEvaluatedIncomeBacktestRows() {
+    return getUniqueEvaluatedBacktestRows().filter(isIncomeArchiveRow);
 }
 
 function summarizeForecastRows(rows) {
@@ -1105,7 +1316,9 @@ function groupForecastDiagnostics(rows, keyFn, labelFn) {
 
 function getForecastDiagnostics() {
     const rows = getEvaluatedBacktestRows();
+    const incomeRows = getEvaluatedIncomeBacktestRows();
     const overall = summarizeForecastRows(rows);
+    const incomeOverall = summarizeForecastRows(incomeRows);
     const byCategory = groupForecastDiagnostics(rows, r => String(r.category || ''), key => key)
         .filter(x => x.count >= 2)
         .sort((a,b) => b.wape - a.wape);
@@ -1140,7 +1353,7 @@ function getForecastDiagnostics() {
         if (ratio <= 0.15) return 'variable';
         return 'mixed';
     }, key => ({recurring:'Prevažne pravidelné', variable:'Prevažne variabilné', mixed:'Zmiešané'}[key] || key));
-    return { overall, byCategory, byMonth, byYear, byMethod, byStructure, rows };
+    return { overall, incomeOverall, byCategory, byMonth, byYear, byMethod, byStructure, rows, incomeRows };
 }
 
 function forecastQualityLabel(wape) {
@@ -1171,6 +1384,15 @@ function openForecastDiagnostics() {
         <div><span>MAE</span><b>${d.overall.count ? formatCurrency(d.overall.mae) : '—'}</b><small>Priemerná absolútna chyba</small></div>
         <div><span>Bias</span><b>${d.overall.count ? formatCurrency(d.overall.bias) : '—'}</b><small>${d.overall.bias > 0 ? 'Model skôr nadhodnocuje' : d.overall.bias < 0 ? 'Model skôr podhodnocuje' : 'Bez systematického biasu'}</small></div>
       </div>
+      <div class="forecast-diagnostic-section"><h4>Predikcia príjmov</h4>
+        <div class="forecast-diagnostic-summary">
+          <div><span>Income WAPE</span><b>${d.incomeOverall.count ? d.incomeOverall.wape + '%' : '—'}</b><small>${d.incomeOverall.count ? forecastQualityLabel(d.incomeOverall.wape) : 'Vyhodnoť históriu'}</small></div>
+          <div><span>Income MAE</span><b>${d.incomeOverall.count ? formatCurrency(d.incomeOverall.mae) : '—'}</b><small>${d.incomeOverall.count} mesačných backtestov</small></div>
+          <div><span>Income Bias</span><b>${d.incomeOverall.count ? formatCurrency(d.incomeOverall.bias) : '—'}</b><small>${d.incomeOverall.bias > 0 ? 'Príjem skôr nadhodnocuje' : d.incomeOverall.bias < 0 ? 'Príjem skôr podhodnocuje' : 'Bez biasu'}</small></div>
+          <div><span>Income Accuracy</span><b>${d.incomeOverall.count ? Math.max(0,100-d.incomeOverall.wape).toFixed(1)+'%' : '—'}</b><small>Orientačne 100 − WAPE</small></div>
+        </div>
+        <div class="planning-helper">Príjem sa vyhodnocuje samostatne od výdavkov. Stabilné zdroje (napr. výplata) sa modelujú robustným trendom, nepravidelné príjmy podľa pravdepodobnosti a sezónnosti. Pravidelný príjem z plánu nahrádza rovnaký historický stream, aby sa nezapočítal dvakrát.</div>
+      </div>
       <div class="forecast-diagnostic-section"><h4>Najväčší priestor na zlepšenie</h4>${diagnosticRowsHtml(worstCategories)}</div>
       <div class="forecast-diagnostic-section"><h4>Najpresnejšie kategórie</h4>${diagnosticRowsHtml(bestCategories)}</div>
       <div class="forecast-diagnostic-section"><h4>Najťažšie mesiace</h4>${diagnosticRowsHtml(worstMonths)}</div>
@@ -1178,7 +1400,7 @@ function openForecastDiagnostics() {
       <div class="forecast-diagnostic-section"><h4>Presnosť podľa použitého modelu</h4>${diagnosticRowsHtml(d.byMethod)}</div>
       <div class="forecast-diagnostic-section"><h4>Vývoj podľa rokov</h4>${diagnosticRowsHtml(d.byYear, 20)}</div>
       <div class="forecast-diagnostic-section"><h4>Ako čítať metriky</h4><div class="planning-helper"><b>WAPE</b> = celková percentuálna chyba vzhľadom na objem skutočných výdavkov. Čím menej, tým lepšie.<br><b>MAE</b> = priemerná absolútna chyba jednej predikcie v eurách.<br><b>Bias</b> = smer chyby. Záporný znamená, že model skôr podhodnocuje; kladný, že skôr nadhodnocuje.</div></div>
-      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Champion/challenger výber pre každú kategóriu používa iba dáta dostupné pred daným mesiacom. Challenger sa aktivuje iba pri minimálne 3 % zlepšení oproti pôvodnému adaptívnemu modelu. Roky s menej než 24 vzorkami sú označené ako „málo dát“.</div>`;
+      <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Výber modelu zohľadňuje kategóriu aj kalendárny mesiac, pričom mesačné skóre je tlmené smerom ku kategóriovému skóre, aby sa nepreučilo na malej vzorke. Príjem sa backtestuje samostatne. Roky s menej než 24 výdavkovými vzorkami sú označené ako „málo dát“.</div>`;
     showPlanningModal('Diagnostika forecastu', `Model ${FLOW_MODEL_VERSION}`, body);
 }
 
@@ -1213,7 +1435,7 @@ async function buildForecastArchiveBackfill(onProgress = null) {
         const keyMonth = getMonthKey(y,m);
         for (const cat of expenseCategories) {
             const state=onlineStates.get(String(cat.id));
-            const selection=selectOnlineChampion(state);
+            const selection=selectOnlineChampion(state,m);
             const basePrediction=predictForecastCandidate(selection.candidate,state.history,cat.id,y,m);
             const variable={
                 ...basePrediction,
@@ -1223,6 +1445,8 @@ async function buildForecastArchiveBackfill(onProgress = null) {
                 validationWape:selection.validationWape,
                 validationBudgetWape:selection.validationBudgetWape,
                 validationBias:selection.validationBias,
+                monthValidationCount:selection.monthValidationCount,
+                monthValidationWape:selection.monthValidationWape,
                 baselineWape:selection.baselineWape,
                 challengerImprovement:selection.improvementPct,
                 challengerRanking:selection.ranking
@@ -1242,13 +1466,29 @@ async function buildForecastArchiveBackfill(onProgress = null) {
                     modelVersion:FLOW_MODEL_VERSION, generatedAt:new Date(y,m,1).toISOString(),
                     dataMonths:variable.dataMonths, dataYears:variable.dataYears, seasonalYears:variable.seasonalYears,
                     confidence:variable.confidence, method:variable.method,
-                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, patternType:variable.patternType, occurrenceProbability:variable.occurrenceProbability, seasonalIndex:variable.seasonalIndex, trendFactor:variable.trendFactor, championCandidate:variable.championCandidate, validationCount:variable.validationCount, validationWape:variable.validationWape, validationBudgetWape:variable.validationBudgetWape, baselineWape:variable.baselineWape, challengerImprovement:variable.challengerImprovement, challengerRanking:variable.challengerRanking}),
+                    inputsJson:JSON.stringify({variableExpected:variable.expected, variableBudget:variable.value, recurringBaseline, patternType:variable.patternType, occurrenceProbability:variable.occurrenceProbability, seasonalIndex:variable.seasonalIndex, trendFactor:variable.trendFactor, championCandidate:variable.championCandidate, validationCount:variable.validationCount, validationWape:variable.validationWape, validationBudgetWape:variable.validationBudgetWape, monthValidationCount:variable.monthValidationCount, monthValidationWape:variable.monthValidationWape, baselineWape:variable.baselineWape, challengerImprovement:variable.challengerImprovement, challengerRanking:variable.challengerRanking}),
                     evaluatedAt:new Date(y,m+1,1).toISOString(), backtest:'walk-forward'
                 });
             }
             // Update candidate scores only after the prediction for this month has
             // been frozen, so actual data from the target month cannot leak into it.
             updateOnlineChampionState(state,cat.id,y,m,actualVariable);
+        }
+
+        const incomeForecast = getHistoricalIncomeForecast(y,m);
+        const incomeActual = getIndexedIncome(y,m);
+        const incomeKey = `${keyMonth}|__INCOME__|${FLOW_MODEL_VERSION}`;
+        if (!existing.has(incomeKey) && !(incomeActual <= 0 && incomeForecast.value <= 0)) {
+            rows.push({
+                id:createUid('fa'), targetMonth:keyMonth, category:'__INCOME__',
+                forecastAmount:round2(incomeForecast.value), budgetAmount:round2(incomeForecast.value), actualAmount:round2(incomeActual),
+                actualVariableAmount:round2(getIndexedIncomeVariable(y,m)), recurringBaseline:round2(getIndexedIncomeRecurring(y,m)),
+                modelVersion:FLOW_MODEL_VERSION, generatedAt:new Date(y,m,1).toISOString(),
+                dataMonths:incomeForecast.dataMonths||0, dataYears:0, seasonalYears:0,
+                confidence:incomeForecast.confidence, method:incomeForecast.method,
+                inputsJson:JSON.stringify({type:'income',components:incomeForecast.components}),
+                evaluatedAt:new Date(y,m+1,1).toISOString(), backtest:'walk-forward'
+            });
         }
         done++;
         if(typeof onProgress==='function') onProgress(done,periods.length,keyMonth,rows.length);
@@ -1293,6 +1533,11 @@ async function archiveCurrentForecastSnapshot() {
         inputsJson:JSON.stringify({expected:r.expected,bufferPct:r.budget>0&&r.expected>0?round2((r.budget-r.recurring-r.expected)/r.expected*100):0,recurring:r.recurring,method:r.method}),
         evaluatedAt:''
     }));
+    rows.push({
+        id:createUid('fa'),targetMonth:key,category:'__INCOME__',forecastAmount:plan.plannedIncome,budgetAmount:plan.plannedIncome,actualAmount:plan.actualIncome,
+        modelVersion:FLOW_MODEL_VERSION,generatedAt:new Date().toISOString(),dataMonths:0,confidence:'live',method:'income-live-plan',
+        inputsJson:JSON.stringify({type:'income',plannedIncome:plan.plannedIncome,eventIncome:plan.eventIncome}),evaluatedAt:''
+    });
     await archiveForecastRows(rows);
 }
 
@@ -1303,7 +1548,9 @@ async function refreshArchiveEvaluations() {
         if(!y || !m1) return;
         const periodEnd=new Date(y,m1,1);
         if(periodEnd>new Date()) return;
-        const actual=getIndexedCategoryValue(y,m1-1,row.category,'totalExpense');
+        const actual=isIncomeArchiveRow(row)
+            ? getIndexedIncome(y,m1-1)
+            : getIndexedCategoryValue(y,m1-1,row.category,'totalExpense');
         const previous=Number(row.actualAmount)||0;
         if(Math.abs(previous-actual)<0.005 && row.errorAmount!==undefined) return;
         const forecast=Number(row.forecastAmount)||0;
@@ -1379,7 +1626,7 @@ function renderAnnualPlanScreen() {
         <div class="annual-hero-card"><div class="annual-label">Príjem</div><div class="annual-value">${formatCurrency(totalIncome)}</div><div class="annual-sub">Dostupné dáta + plán</div></div>
         <div class="annual-hero-card tone-${totalBalance >= 0 ? 'good':'danger'}"><div class="annual-label">Očakávaný zostatok</div><div class="annual-value">${formatCurrency(totalBalance)}</div><div class="annual-sub">Príjem mínus forecast</div></div>
       </div>
-      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Pre každú kategóriu spätne testuje viac modelov a používa iba model, ktorý preukázateľne prekoná súčasný baseline.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
+      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Výdavky vyberajú model podľa kategórie aj mesiaca; príjmy sa modelujú samostatne podľa zdrojov a pravidelných plánov.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
       <div class="annual-month-list">
       ${months.map(m => `
@@ -1396,12 +1643,16 @@ function renderRecurringScreen() {
     const el = document.getElementById('recurring-plan-content');
     if (!el) return;
     const active = flowRecurringPlans.filter(p=>p.active);
-    const monthly = active.filter(p=>p.type==='expense').reduce((s,p)=>s+getPlanMonthlyAmount(p,new Date().getFullYear(),new Date().getMonth()),0);
-    const annualized = active.filter(p=>p.type==='expense').reduce((s,p)=>s+monthlyEquivalent(p),0);
+    const now = new Date();
+    const monthlyExpense = active.filter(p=>p.type!=='income').reduce((sum,p)=>sum+getPlanMonthlyAmount(p,now.getFullYear(),now.getMonth()),0);
+    const monthlyIncome = active.filter(p=>p.type==='income').reduce((sum,p)=>sum+getPlanMonthlyAmount(p,now.getFullYear(),now.getMonth()),0);
     el.innerHTML = `
-      <div class="annual-hero-grid"><div class="annual-hero-card"><div class="annual-label">Mesačné záväzky</div><div class="annual-value">${formatCurrency(monthly)}</div><div class="annual-sub">Podľa aktuálneho mesiaca</div></div><div class="annual-hero-card"><div class="annual-label">Priemer / mesiac</div><div class="annual-value">${formatCurrency(annualized)}</div><div class="annual-sub">Ročné a štvrťročné rozpočítané</div></div></div>
-      <div class="planning-section-head"><div><div class="budget-section-label">Plány</div><h3 class="budget-section-title">Pravidelné platby</h3></div><button type="button" onclick="openRecurringPlanModal()" class="planning-primary-btn">＋ Pridať</button></div>
-      <div class="recurring-list">${active.length ? active.map(renderRecurringCard).join('') : `<div class="empty-state"><div class="empty-state-title">Zatiaľ nemáš pravidelné platby</div><div class="empty-state-text">Pridaj elektrinu, internet, poistku alebo inú opakovanú platbu.</div></div>`}</div>`;
+      <div class="annual-hero-grid">
+        <div class="annual-hero-card"><div class="annual-label">Mesačné záväzky</div><div class="annual-value">${formatCurrency(monthlyExpense)}</div><div class="annual-sub">Pravidelné výdavky v aktuálnom mesiaci</div></div>
+        <div class="annual-hero-card"><div class="annual-label">Pravidelné príjmy</div><div class="annual-value">${formatCurrency(monthlyIncome)}</div><div class="annual-sub">Známe príjmy podľa aktívnych plánov</div></div>
+      </div>
+      <div class="planning-section-head"><div><div class="budget-section-label">Plány</div><h3 class="budget-section-title">Pravidelné platby a príjmy</h3></div><button type="button" onclick="openRecurringPlanModal()" class="planning-primary-btn">＋ Pridať</button></div>
+      <div class="recurring-list">${active.length ? active.map(renderRecurringCard).join('') : `<div class="empty-state"><div class="empty-state-title">Zatiaľ nemáš pravidelné položky</div><div class="empty-state-text">Pridaj elektrinu, poistku, výplatu alebo inú opakovanú položku.</div></div>`}</div>`;
 }
 
 function monthlyEquivalent(plan) {
@@ -1415,7 +1666,8 @@ function monthlyEquivalent(plan) {
 function renderRecurringCard(p) {
     const cat = p.category || 'Nezaradené';
     const freq = {monthly:'mesačne',quarterly:'štvrťročne',yearly:'ročne',weekly:'týždenne'}[p.frequency] || p.frequency;
-    return `<div class="recurring-card"><div class="recurring-card-top"><div class="recurring-icon"><i data-lucide="repeat"></i></div><div class="min-w-0 flex-1"><div class="recurring-name">${escPlanning(p.name || cat)}</div><div class="planning-muted">${escPlanning(cat)}${p.sub ? ' / '+escPlanning(p.sub):''} · ${freq}</div></div><div class="recurring-amount">${formatCurrency(p.amount)}</div></div><div class="recurring-meta"><span>Ďalšia podľa plánu: deň ${p.dayOfMonth || 1}.</span><span>${p.amountMode==='variable'?'Premenlivá':'Fixná'} suma</span></div><div class="annual-month-actions"><button type="button" onclick="openRecurringPlanModal('${p.id}')">Upraviť</button><button type="button" onclick="pauseRecurringPlan('${p.id}')">Pozastaviť</button><button type="button" class="text-rose-600" onclick="openRecurringDeleteChoice('${p.id}')">Odstrániť</button></div></div>`;
+    const isIncome = p.type === 'income';
+    return `<div class="recurring-card"><div class="recurring-card-top"><div class="recurring-icon"><i data-lucide="${isIncome?'wallet':'repeat'}"></i></div><div class="min-w-0 flex-1"><div class="recurring-name">${escPlanning(p.name || cat)}</div><div class="planning-muted">${isIncome?'Príjem':'Výdavok'} · ${escPlanning(cat)}${p.sub ? ' / '+escPlanning(p.sub):''} · ${freq}</div></div><div class="recurring-amount ${isIncome?'text-emerald-600':''}">${isIncome?'+':''}${formatCurrency(p.amount)}</div></div><div class="recurring-meta"><span>Ďalšia podľa plánu: deň ${p.dayOfMonth || 1}.</span><span>${p.amountMode==='variable'?'Premenlivá':'Fixná'} suma</span></div><div class="annual-month-actions"><button type="button" onclick="openRecurringPlanModal('${p.id}')">Upraviť</button><button type="button" onclick="pauseRecurringPlan('${p.id}')">Pozastaviť</button><button type="button" class="text-rose-600" onclick="openRecurringDeleteChoice('${p.id}')">Odstrániť</button></div></div>`;
 }
 
 function closePlanningModal() {
@@ -1431,16 +1683,57 @@ function showPlanningModal(title, kicker, html) {
     if (window.lucide) lucide.createIcons();
 }
 
+function recurringCategoryOptions(type, selected) {
+    const list = type==='income' ? categories.filter(c=>c.id==='Prijem') : categories.filter(c=>c.id!=='Prijem');
+    return list.map(c=>`<option value="${escPlanning(c.id)}" ${String(selected)===String(c.id)?'selected':''}>${escPlanning(c.id)}</option>`).join('');
+}
+
+function recurringSubOptions(category, selected, type='expense') {
+    const cat = categories.find(c=>String(c.id)===String(category));
+    const subs = Array.isArray(cat?.subs) ? cat.subs : [];
+    const chosen = selected || (type==='income' ? (subs[0] || 'Vyplata') : '');
+    return [`<option value="" ${chosen?'':'selected'}>Bez podkategórie</option>`]
+        .concat(subs.map(sub=>`<option value="${escPlanning(sub)}" ${String(chosen)===String(sub)?'selected':''}>${escPlanning(sub)}</option>`)).join('');
+}
+
+function refreshRecurringPlanFormFields() {
+    const typeEl=document.getElementById('rp-type');
+    const catEl=document.getElementById('rp-category');
+    const subEl=document.getElementById('rp-sub');
+    if(!typeEl||!catEl||!subEl)return;
+    const type=typeEl.value;
+    const previousCat=catEl.value;
+    const previousSub=subEl.value;
+    const allowed = type==='income' ? categories.filter(c=>c.id==='Prijem') : categories.filter(c=>c.id!=='Prijem');
+    const nextCat = allowed.some(c=>String(c.id)===String(previousCat)) ? previousCat : (allowed[0]?.id || '');
+    catEl.innerHTML=recurringCategoryOptions(type,nextCat);
+    catEl.value=nextCat;
+    subEl.innerHTML=recurringSubOptions(nextCat, type==='income' ? (previousSub || 'Vyplata') : previousSub, type);
+}
+
+function refreshRecurringSubField() {
+    const type=document.getElementById('rp-type')?.value || 'expense';
+    const cat=document.getElementById('rp-category')?.value || '';
+    const subEl=document.getElementById('rp-sub');
+    if(!subEl)return;
+    const previous=subEl.value;
+    subEl.innerHTML=recurringSubOptions(cat,previous,type);
+}
+
 function openRecurringPlanModal(id=null) {
     const p = id ? flowRecurringPlans.find(x=>String(x.id)===String(id)) : null;
-    showPlanningModal(p ? 'Upraviť pravidelnú platbu' : 'Nová pravidelná platba', 'Pravidelné', `
+    const type = p?.type || 'expense';
+    const defaultCategory = type==='income' ? 'Prijem' : (p?.category || categories.find(c=>c.id!=='Prijem')?.id || '');
+    showPlanningModal(p ? 'Upraviť pravidelnú položku' : 'Nová pravidelná položka', 'Pravidelné', `
       <form id="recurring-plan-form" class="space-y-4" onsubmit="submitRecurringPlanForm(event, '${p?.id || ''}')">
-        <div><label class="planning-form-label">Názov</label><input id="rp-name" required class="planning-form-input" value="${escPlanning(p?.name || '')}" placeholder="Elektrina"></div>
-        <div class="grid grid-cols-2 gap-2"><div><label class="planning-form-label">Suma</label><input id="rp-amount" required type="number" min="0" step="0.01" class="planning-form-input" value="${p?.amount ?? ''}"></div><div><label class="planning-form-label">Deň</label><input id="rp-day" required type="number" min="1" max="31" class="planning-form-input" value="${p?.dayOfMonth || 1}"></div></div>
-        <div class="grid grid-cols-2 gap-2"><div><label class="planning-form-label">Frekvencia</label><select id="rp-frequency" class="planning-form-input"><option value="monthly" ${p?.frequency==='monthly'?'selected':''}>Mesačne</option><option value="quarterly" ${p?.frequency==='quarterly'?'selected':''}>Štvrťročne</option><option value="yearly" ${p?.frequency==='yearly'?'selected':''}>Ročne</option><option value="weekly" ${p?.frequency==='weekly'?'selected':''}>Týždenne</option></select></div><div><label class="planning-form-label">Typ sumy</label><select id="rp-mode" class="planning-form-input"><option value="fixed" ${p?.amountMode!=='variable'?'selected':''}>Fixná</option><option value="variable" ${p?.amountMode==='variable'?'selected':''}>Premenlivá</option></select></div></div>
-        <div><label class="planning-form-label">Kategória</label><select id="rp-category" class="planning-form-input">${categories.filter(c=>c.id!=='Prijem').map(c=>`<option value="${escPlanning(c.id)}" ${p?.category===c.id?'selected':''}>${escPlanning(c.id)}</option>`).join('')}</select></div>
+        <div><label class="planning-form-label">Názov</label><input id="rp-name" required class="planning-form-input" value="${escPlanning(p?.name || '')}" placeholder="${type==='income'?'Výplata':'Elektrina'}"></div>
+        <div class="grid grid-cols-2 gap-2"><div><label class="planning-form-label">Typ</label><select id="rp-type" class="planning-form-input" onchange="refreshRecurringPlanFormFields()"><option value="expense" ${type==='expense'?'selected':''}>Výdavok</option><option value="income" ${type==='income'?'selected':''}>Príjem</option></select></div><div><label class="planning-form-label">Suma</label><input id="rp-amount" required type="number" min="0" step="0.01" class="planning-form-input" value="${p?.amount ?? ''}"></div></div>
+        <div class="grid grid-cols-2 gap-2"><div><label class="planning-form-label">Deň</label><input id="rp-day" required type="number" min="1" max="31" class="planning-form-input" value="${p?.dayOfMonth || 1}"></div><div><label class="planning-form-label">Frekvencia</label><select id="rp-frequency" class="planning-form-input"><option value="monthly" ${p?.frequency==='monthly'?'selected':''}>Mesačne</option><option value="quarterly" ${p?.frequency==='quarterly'?'selected':''}>Štvrťročne</option><option value="yearly" ${p?.frequency==='yearly'?'selected':''}>Ročne</option><option value="weekly" ${p?.frequency==='weekly'?'selected':''}>Týždenne</option></select></div></div>
+        <div><label class="planning-form-label">Typ sumy</label><select id="rp-mode" class="planning-form-input"><option value="fixed" ${p?.amountMode!=='variable'?'selected':''}>Fixná</option><option value="variable" ${p?.amountMode==='variable'?'selected':''}>Premenlivá</option></select></div>
+        <div><label class="planning-form-label">Kategória</label><select id="rp-category" class="planning-form-input" onchange="refreshRecurringSubField()">${recurringCategoryOptions(type,defaultCategory)}</select></div>
+        <div><label class="planning-form-label">Podkategória / zdroj</label><select id="rp-sub" class="planning-form-input">${recurringSubOptions(defaultCategory,p?.sub || '',type)}</select></div>
         <div><label class="planning-form-label">Začiatok</label><input id="rp-start" required type="date" class="planning-form-input" value="${p?.startDate || getTodayStr()}"></div>
-        <div class="planning-helper">Pravidelná platba je plán. Jednotlivé transakcie sa z neho vytvárajú samostatne. Zmena sumy môže upraviť aj budúce transakcie.</div>
+        <div class="planning-helper">${type==='income'?'Pravidelný príjem má pri predikcii prednosť pred historickým odhadom rovnakého zdroja, takže sa výplata nezapočíta dvakrát.':'Pravidelná platba je plán. Jednotlivé transakcie sa z neho vytvárajú samostatne.'} Automatické transakcie sa generujú maximálne 12 mesiacov dopredu.</div>
         <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">Uložiť</button>
       </form>`);
 }
@@ -1448,6 +1741,7 @@ function openRecurringPlanModal(id=null) {
 async function submitRecurringPlanForm(event, id) {
     event.preventDefault();
     const old = id ? flowRecurringPlans.find(x=>String(x.id)===String(id)) : null;
+    const category=document.getElementById('rp-category').value;
     const updated = {
         ...(old || {}), id:id || createUid('rp'),
         name:document.getElementById('rp-name').value.trim(),
@@ -1455,14 +1749,15 @@ async function submitRecurringPlanForm(event, id) {
         dayOfMonth:Number(document.getElementById('rp-day').value)||1,
         frequency:document.getElementById('rp-frequency').value,
         amountMode:document.getElementById('rp-mode').value,
-        category:document.getElementById('rp-category').value,
-        categoryId:getCategoryUidByName(document.getElementById('rp-category').value),
+        category,
+        categoryId:getCategoryUidByName(category),
+        sub:document.getElementById('rp-sub').value || '',
         startDate:document.getElementById('rp-start').value,
         active:true,
-        type:'expense',
+        type:document.getElementById('rp-type').value,
         version:(Number(old?.version)||0)+1
     };
-    if (old && (Number(old.amount)!==updated.amount || old.frequency!==updated.frequency || old.dayOfMonth!==updated.dayOfMonth)) {
+    if (old && (Number(old.amount)!==updated.amount || old.frequency!==updated.frequency || old.dayOfMonth!==updated.dayOfMonth || old.type!==updated.type || old.category!==updated.category || (old.sub||'')!==(updated.sub||''))) {
         showRecurringChangeChoice(old, updated);
         return;
     }
@@ -1472,7 +1767,7 @@ async function submitRecurringPlanForm(event, id) {
 
 function showRecurringChangeChoice(oldPlan, newPlan) {
     const body=document.getElementById('planning-modal-body');
-    body.innerHTML=`<div class="space-y-3"><div class="planning-change-summary"><b>${escPlanning(oldPlan.name)}</b><span>${formatCurrency(oldPlan.amount)} → ${formatCurrency(newPlan.amount)}</span></div><div class="planning-muted">Ako zmeníš pravidelnú platbu, Flow môže zmenu použiť iba na plán alebo aj na už vytvorené transakcie.</div><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','future')"><b>Táto a všetky budúce</b><span>Od dneška sa budúce plánované platby prepočítajú.</span></button><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','all')"><b>Aj historické</b><span>Prepíše aj existujúce transakcie. Použi len ak história nemá zostať pôvodná.</span></button><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','plan')"><b>Iba pravidelný plán</b><span>Existujúce transakcie sa nemenia.</span></button></div>`;
+    body.innerHTML=`<div class="space-y-3"><div class="planning-change-summary"><b>${escPlanning(oldPlan.name)}</b><span>${formatCurrency(oldPlan.amount)} → ${formatCurrency(newPlan.amount)}</span></div><div class="planning-muted">Ako zmeníš pravidelnú položku, Flow môže zmenu použiť iba na plán alebo aj na už vytvorené transakcie.</div><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','future')"><b>Táto a všetky budúce</b><span>Od dneška sa budúce plánované položky prepočítajú.</span></button><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','all')"><b>Aj historické</b><span>Prepíše aj existujúce transakcie. Použi len ak história nemá zostať pôvodná.</span></button><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','plan')"><b>Iba pravidelný plán</b><span>Existujúce transakcie sa nemenia.</span></button></div>`;
     window._pendingRecurringChange={old:oldPlan,newPlan:newPlan};
 }
 
@@ -1487,11 +1782,11 @@ async function applyRecurringChange(id, scope) {
         const txDate=getCleanDateStr(tx.date);
         const allowed=scope==='all' || (scope==='future' && txDate>=today);
         if(!allowed)return;
-        tx.amount=newPlan.amount; tx.frequency=newPlan.frequency; tx.category=newPlan.category; tx.categoryId=newPlan.categoryId; tx.sub=newPlan.sub||''; tx.note=newPlan.name||tx.note||''; tx.recurringPlanId=newPlan.id; tx.updatedAt=new Date().toISOString(); tx.version=(Number(tx.version)||1)+1; queueMutation(tx);
+        tx.amount=newPlan.amount; tx.frequency=newPlan.frequency; tx.category=newPlan.category; tx.categoryId=newPlan.categoryId; tx.sub=newPlan.sub||''; tx.type=newPlan.type||tx.type; tx.note=newPlan.name||tx.note||''; tx.recurringPlanId=newPlan.id; tx.updatedAt=new Date().toISOString(); tx.version=(Number(tx.version)||1)+1; queueMutation(tx);
     });
     saveData(false); processSyncQueue();
     window._pendingRecurringChange=null; closePlanningModal(); renderList(); renderPlanningScreens(); updateBudgetScreen?.();
-    showToast?.({type:'success',title:'Pravidelná platba upravená',text:scope==='all'?'Zmenené aj historické transakcie.':scope==='future'?'Zmenené budúce transakcie.':'Zmenený iba plán.'});
+    showToast?.({type:'success',title:'Pravidelná položka upravená',text:scope==='all'?'Zmenené aj historické transakcie.':scope==='future'?'Zmenené budúce transakcie.':'Zmenený iba plán.'});
 }
 
 function pauseRecurringPlan(id) {
@@ -1505,12 +1800,12 @@ function openRecurringDeleteChoice(id) {
     const p = flowRecurringPlans.find(x=>String(x.id)===String(id));
     if (!p) return;
     window._pendingRecurringDelete = p;
-    showPlanningModal('Odstrániť pravidelnú platbu','Pravidelné',`
+    showPlanningModal('Odstrániť pravidelnú položku','Pravidelné',`
       <div class="space-y-3">
         <div class="planning-change-summary"><b>${escPlanning(p.name || p.category)}</b><span>${formatCurrency(p.amount)}</span></div>
         <div class="planning-muted">Vyber, čo sa má odstrániť. História sa štandardne nemení, pokiaľ to výslovne nezvolíš.</div>
         <button type="button" class="planning-choice-btn" onclick="applyRecurringDelete('${p.id}','one')"><b>Iba jedna platba</b><span>Odstráni jednu najbližšiu budúcu transakciu. Pravidlo zostane aktívne.</span></button>
-        <button type="button" class="planning-choice-btn" onclick="applyRecurringDelete('${p.id}','future')"><b>Táto a všetky budúce</b><span>Odstráni budúce vygenerované platby a ukončí pravidelný plán. Minulé zostanú.</span></button>
+        <button type="button" class="planning-choice-btn" onclick="applyRecurringDelete('${p.id}','future')"><b>Táto a všetky budúce</b><span>Odstráni budúce vygenerované položky a ukončí pravidelný plán. Minulé zostanú.</span></button>
         <button type="button" class="planning-choice-btn" onclick="applyRecurringDelete('${p.id}','all')"><b>Všetky vrátane minulých</b><span>Odstráni všetky transakcie vytvorené týmto pravidelným plánom a ukončí ho.</span></button>
       </div>`);
 }
@@ -1553,7 +1848,7 @@ async function applyRecurringDelete(id, scope) {
     updateAnalytics();
     updateBurnRateTab();
     if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
-    showToast?.({type:'success',title:'Pravidelná platba odstránená',text:scope==='one'?'Odstránená jedna budúca platba.':scope==='future'?'Odstránené budúce platby a plán bol ukončený.':'Odstránené všetky platby a plán.'});
+    showToast?.({type:'success',title:'Pravidelná položka odstránená',text:scope==='one'?'Odstránená jedna budúca položka.':scope==='future'?'Odstránené budúce položky a plán bol ukončený.':'Odstránené všetky položky a plán.'});
     window._pendingRecurringDelete = null;
 }
 
@@ -1587,7 +1882,7 @@ async function submitPlanningEvent(event){
 
 function openMonthPlanDetail(key) {
     const [year,month1]=key.split('-').map(Number); const month=month1-1; const plan=getAnnualPlan(year)[month]; if(!plan)return;
-    showPlanningModal(`${plan.monthName} ${year}`,'Detail mesiaca',`<div class="space-y-4"><div class="planning-detail-grid"><div><span>Budget</span><b>${formatCurrency(plan.budget)}</b></div><div><span>Forecast</span><b>${formatCurrency(plan.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(plan.plannedIncome)}</b></div></div><div class="space-y-2">${plan.categoryRows.filter(r=>r.budget>0).sort((a,b)=>b.budget-a.budget).map(r=>`<div class="planning-category-row"><div><b>${escPlanning(r.category)}</b><small>${r.overridden?'Ručná úprava':'Model'} · forecast ${formatCurrency(r.forecast)}</small></div><strong>${formatCurrency(r.budget)}</strong><button type="button" onclick="openBudgetOverrideModal('${key}','${escPlanning(r.category)}',${r.budget})" class="planning-edit-icon"><i data-lucide="pencil"></i></button></div>`).join('')}</div></div>`);
+    showPlanningModal(`${plan.monthName} ${year}`,'Detail mesiaca',`<div class="space-y-4"><div class="planning-detail-grid"><div><span>Budget</span><b>${formatCurrency(plan.budget)}</b></div><div><span>Forecast</span><b>${formatCurrency(plan.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(plan.plannedIncome)}</b></div></div><div class="planning-helper"><b>Príjem:</b> známe pravidelné ${formatCurrency(plan.recurringIncome||0)} · historický model ${formatCurrency(plan.incomeForecast?.value||0)} · plánované udalosti ${formatCurrency(plan.eventIncome||0)}. Pri aktuálnom mesiaci Flow odpočíta príjmy, ktoré už eviduje.</div><div class="space-y-2">${plan.categoryRows.filter(r=>r.budget>0).sort((a,b)=>b.budget-a.budget).map(r=>`<div class="planning-category-row"><div><b>${escPlanning(r.category)}</b><small>${r.overridden?'Ručná úprava':'Model'} · forecast ${formatCurrency(r.forecast)}</small></div><strong>${formatCurrency(r.budget)}</strong><button type="button" onclick="openBudgetOverrideModal('${key}','${escPlanning(r.category)}',${r.budget})" class="planning-edit-icon"><i data-lucide="pencil"></i></button></div>`).join('')}</div></div>`);
 }
 
 function openBudgetOverrideModal(key, category, current) {

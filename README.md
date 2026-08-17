@@ -1,28 +1,63 @@
-# Flow v2.40.0
+# Flow v2.41.0
 
-## Champion / Challenger Forecast
+## Meta Forecast + Income Intelligence
 
-Flow v2.40.0 vyberá forecast model pre každú kategóriu podľa reálnej historickej presnosti namiesto jedného pevného algoritmu pre všetky kategórie.
+Flow v2.41.0 nadväzuje na Champion/Challenger forecast a pridáva dve hlavné zmeny:
 
-Model testuje viac kandidátov pomocou walk-forward validácie a challenger sa nasadí iba vtedy, keď preukázateľne prekoná pôvodný adaptívny baseline aspoň o 3 %.
+1. **Meta výber výdavkového modelu podľa kategórie aj kalendárneho mesiaca.**
+2. **Nový prediktívny model príjmov**, ktorý oddeľuje stabilné, variabilné a riedke zdroje a zabraňuje dvojitému započítaniu pravidelného príjmu.
 
 Aktuálny forecast model:
 
-`2.40.0-champion-challenger-v1`
+`2.41.0-meta-income-v1`
+
+## Prečo sa menil forecast príjmov
+
+Doterajšia logika počítala príjem ako jednoduchý priemer posledných kladných uzavretých mesiacov. To malo tri zásadné nevýhody:
+
+- ignorovalo nulové mesiace pri nepravidelných príjmoch,
+- nepoznalo sezónnosť bonusov/predajov,
+- historický príjem a pravidelný príjmový plán sa mohli započítať súčasne.
+
+V2.41.0 modeluje príjem po zdrojoch/podkategóriách a explicitný pravidelný príjem má prednosť pred historickým odhadom rovnakého zdroja.
+
+## Vyhodnotenie príjmov
+
+Po spustení **Ročný plán → Vyhodnotiť históriu** sa v diagnostike zobrazia samostatne:
+
+- Income WAPE,
+- Income MAE,
+- Income Bias,
+- počet mesačných income backtestov.
+
+Doterajší súbor scenárov obsahoval backtesty výdavkov, nie samostatné predikcie príjmov. V2.41.0 ich začne archivovať, takže ďalšie ladenie príjmov už bude možné robiť z reálnych meraní rovnako ako pri výdavkoch.
+
+## Pravidelné príjmy
+
+V tabe **Pravidelné** môže byť položka typu:
+
+- Výdavok
+- Príjem
+
+Pri príjme je možné zvoliť napríklad `Prijem / Vyplata`. Známy pravidelný príjem sa používa priamo v ročnom pláne a historický model rovnakého zdroja sa už nepripočíta navyše.
+
+Automaticky generované transakcie sú stále obmedzené na **maximálne 12 mesiacov dopredu**.
 
 ## Nasadenie
 
-1. Nahraj celý frontend na GitHub Pages.
-2. Google Apps Script nemeníš – zostáva backend v2.38.8.
-3. Po načítaní otvor **Ročný plán** a spusti **Vyhodnotiť históriu**.
-4. Porovnaj nový Forecast WAPE / Budget WAPE / MAE s v2.39.0.
+1. Nahraj celý frontend v2.41.0 na GitHub Pages.
+2. Google Apps Script **nemeníš** – zostáva backend v2.38.8.
+3. Po načítaní otvor **Ročný plán**.
+4. Spusti **Vyhodnotiť históriu**.
+5. V diagnostike skontroluj Forecast WAPE aj novú sekciu **Predikcia príjmov**.
 
-## Dôležité pravidlá
+## Model governance
 
-- žiadny future leakage,
-- challenger musí zlepšiť validačné skóre minimálne o 3 %,
-- maximálne 12 mesiacov budúcich pravidelných platieb,
-- Forecast Archive je cloud-first,
-- changelog je dostupný aj priamo v aplikácii cez ⓘ.
+- bez future leakage,
+- mesačný modelový signál sa nepoužíva bez minimálnej historickej vzorky,
+- mesačné skóre je shrinkované smerom ku kategóriovému skóre,
+- explicitné plány majú prednosť pred odhadom,
+- nové modely sa merajú cez walk-forward backtest,
+- Forecast Archive zostáva cloud-first.
 
-Podrobnosti sú v `V2.40.0-IMPLEMENTACIA.md` a `CHANGELOG.md`.
+Podrobnosti sú v `V2.41.0-IMPLEMENTACIA.md` a `CHANGELOG.md`.
