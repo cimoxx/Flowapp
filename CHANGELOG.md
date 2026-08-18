@@ -1,5 +1,27 @@
 # Flow – CHANGELOG
 
+## v2.42.5 – Category Balance UX
+
+### Budget
+- `Budget`, `Minuté` a `Forecast` zostávajú kompaktné porovnávacie metriky.
+- `Zostáva` je samostatný výsledkový pás s vyššou vizuálnou prioritou.
+- Plus = `Rezerva v kategórii`, mínus = `Nad plánom`.
+- Kladná hodnota používa jemnú zelenú semantiku, záporná červenú, nula neutrálnu.
+
+### Ročný plán
+- V detaile mesiaca má každá kategória nový `Zostáva = Budget − Forecast`.
+- Na mobile sa výsledok presúva na vlastný riadok.
+
+### UI/UX
+- Vstupy a výsledok sú vizuálne oddelené, takže používateľ vie rýchlejšie skenovať kategórie.
+- Farba je iba podporný signál; význam ostáva čitateľný z textu a znamienka.
+- Rozloženie je optimalizované pre mobilné displeje.
+
+### Model / backend
+- Forecast model ostáva `2.42.0-category-champions-v1`.
+- Income Engine sa nemení.
+- Google Apps Script zostáva v2.38.8.
+
 ## v2.42.4 – Balance UI/UX Hierarchy
 
 ### Budget

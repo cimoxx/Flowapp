@@ -2040,3 +2040,115 @@ textarea:focus-visible {
     background:rgba(127,29,29,.24) !important;
     border-color:rgba(251,113,133,.30) !important;
 }
+
+
+/* =========================================================
+   FLOW v2.42.5 — Category balance UX
+   ========================================================= */
+.category-balance-strip {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    margin-top:.75rem;
+    padding:.72rem .85rem;
+    border:1px solid;
+    border-radius:1rem;
+}
+.category-balance-copy {
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    gap:.12rem;
+}
+.category-balance-label {
+    font-size:10px;
+    font-weight:900;
+    letter-spacing:.065em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+}
+.category-balance-hint {
+    font-size:10px;
+    font-weight:700;
+    color:var(--text-dim);
+}
+.category-balance-value {
+    flex:0 0 auto;
+    font-size:16px;
+    line-height:1;
+    font-weight:950;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:-.02em;
+}
+
+.planning-category-row-balance {
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) auto auto 36px;
+    align-items:center;
+    gap:.55rem;
+}
+.planning-category-main { min-width:0; }
+.planning-category-budget,
+.planning-category-remaining {
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    justify-content:center;
+    min-width:76px;
+}
+.planning-category-budget span,
+.planning-category-remaining span {
+    font-size:8px;
+    line-height:1;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.065em;
+    color:var(--text-dim);
+}
+.planning-category-budget strong,
+.planning-category-remaining strong {
+    margin-top:.28rem;
+    font-size:12px;
+    line-height:1.1;
+    font-weight:900;
+    font-variant-numeric:tabular-nums;
+}
+.planning-category-remaining {
+    padding:.5rem .58rem;
+    border:1px solid;
+    border-radius:.8rem;
+}
+#screen-budget .budget-cat-values.grid {
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+}
+
+@media (max-width:430px) {
+    .planning-category-row-balance {
+        grid-template-columns:minmax(0,1fr) auto 34px;
+        grid-template-areas:
+            "main budget edit"
+            "balance balance balance";
+    }
+    .planning-category-main { grid-area:main; }
+    .planning-category-budget { grid-area:budget; }
+    .planning-category-remaining {
+        grid-area:balance;
+        margin-top:.15rem;
+        width:100%;
+        flex-direction:row;
+        align-items:center;
+        justify-content:space-between;
+        padding:.55rem .7rem;
+    }
+    .planning-category-row-balance .planning-edit-icon { grid-area:edit; }
+    .planning-category-remaining strong { margin-top:0; font-size:13px; }
+}
+@media (max-width:360px) {
+    #screen-budget .budget-cat-values.grid {
+        grid-template-columns:1fr 1fr !important;
+    }
+    #screen-budget .budget-cat-values .budget-mini-stat:last-child {
+        grid-column:1 / -1;
+    }
+}

@@ -433,7 +433,7 @@ function renderBudgetCategoryList(data) {
                 <div class="budget-cat-status tone-${row.status.tone}">${row.status.label}</div>
             </div>
 
-            <div class="budget-cat-values grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div class="budget-cat-values grid grid-cols-3 gap-2">
                 <div class="budget-mini-stat">
                     <div class="budget-mini-label">Budget</div>
                     <div class="budget-mini-value">${formatCurrency(row.recommended)}</div>
@@ -446,10 +446,14 @@ function renderBudgetCategoryList(data) {
                     <div class="budget-mini-label">Forecast</div>
                     <div class="budget-mini-value">${formatCurrency(row.forecast)}</div>
                 </div>
-                <div class="budget-mini-stat balance-result-cell ${getSignedResultSurfaceClass(row.safe)}">
-                    <div class="budget-mini-label">Zostáva</div>
-                    <div class="budget-mini-value ${getSignedResultClass(row.safe)}">${formatCurrency(row.safe)}</div>
+            </div>
+
+            <div class="category-balance-strip ${getSignedResultSurfaceClass(row.safe)}">
+                <div class="category-balance-copy">
+                    <span class="category-balance-label">Zostáva</span>
+                    <span class="category-balance-hint">${row.safe >= 0 ? 'Rezerva v kategórii' : 'Nad plánom'}</span>
                 </div>
+                <div class="category-balance-value ${getSignedResultClass(row.safe)}">${formatCurrency(row.safe)}</div>
             </div>
 
             <div class="budget-progress-wrap">

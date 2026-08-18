@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <link rel="stylesheet" href="assets/css/styles.css?v=2.42.4">
+    <link rel="stylesheet" href="assets/css/styles.css?v=2.42.5">
 </head>
 <body class="desktop-safe-body">
 
@@ -420,8 +420,21 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.42.4</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.42.5</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Zostatok kategórie je samostatný výsledkový pás pod Budget/Minuté/Forecast.</li>
+                    <li>Plus zobrazuje „Rezerva v kategórii“, mínus „Nad plánom“ s jemnou zelenou/červenou semantikou.</li>
+                    <li>V detaile mesiaca Ročného plánu má každá kategória vlastný zostatok Budget mínus Forecast.</li>
+                    <li>Mobilný layout presúva zostatok kategórie na samostatný riadok pre lepšiu čitateľnosť.</li>
+                    <li>Forecast, Income Engine a Google Apps Script sa nemenia.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.42.4</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
                     <li>Zostatky v Budgete a Ročnom pláne majú jednotnú semantiku: plus zelený, mínus červený, nula neutrálna.</li>
