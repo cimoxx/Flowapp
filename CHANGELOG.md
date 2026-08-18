@@ -1,5 +1,13 @@
 # Flow – CHANGELOG
 
+## v2.43.0 – UX System Pass
+
+- Ročný plán: 12-mesačný prehľad zostatkov s rýchlou navigáciou.
+- Budget: kategórie zoradené podľa rizika a tempa míňania.
+- Stavy: V poriadku / Sleduj / Riziko / Nad plánom.
+- Zjednotená semantika farieb, focus stavy a reduced-motion.
+- Forecast model, Income Engine a Google Apps Script sa nemenia.
+
 ## v2.42.6 – Annual Plan Category Cards
 
 ### Ročný plán

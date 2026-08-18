@@ -2283,3 +2283,20 @@ textarea:focus-visible {
     }
     .planning-category-balance-metric strong { margin-top:0; }
 }
+
+/* FLOW v2.43.0 — UX system pass */
+:root{--flow-good:#059669;--flow-warning:#d97706;--flow-danger:#e11d48;--flow-info:#2563eb;--flow-neutral:#64748b}
+.annual-year-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin:10px 0 14px}
+.annual-year-chip{appearance:none;border:1px solid var(--border);border-radius:12px;padding:8px 5px;background:var(--surface);text-align:center;min-width:0}
+.annual-year-chip span{display:block;font-size:8px;line-height:1;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim)}
+.annual-year-chip strong{display:block;margin-top:5px;font-size:9px;line-height:1.1;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.annual-year-chip.tone-good{border-bottom:3px solid var(--flow-good)}.annual-year-chip.tone-danger{border-bottom:3px solid var(--flow-danger)}.annual-year-chip.tone-neutral{border-bottom:3px solid var(--flow-neutral)}
+.budget-cat-name-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
+.budget-risk-badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;font-size:8px;line-height:1;font-weight:900;white-space:nowrap}
+.budget-risk-badge.tone-good{color:#047857;background:rgba(16,185,129,.10)}.budget-risk-badge.tone-watch{color:#1d4ed8;background:rgba(37,99,235,.10)}.budget-risk-badge.tone-warning{color:#b45309;background:rgba(245,158,11,.12)}.budget-risk-badge.tone-danger{color:#be123c;background:rgba(244,63,94,.10)}
+.bottom-nav .active,nav .active[data-screen],.nav-item.active{background:rgba(59,130,246,.10);border-radius:14px}
+button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-visible{outline:2px solid var(--flow-info);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
+@media(max-width:430px){.annual-year-strip{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:340px){.annual-year-strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(prefers-color-scheme:dark){.annual-year-chip{background:rgba(15,23,42,.72);border-color:#334155}.budget-risk-badge.tone-good{color:#6ee7b7;background:rgba(6,78,59,.34)}.budget-risk-badge.tone-watch{color:#93c5fd;background:rgba(30,58,138,.30)}.budget-risk-badge.tone-warning{color:#fcd34d;background:rgba(120,53,15,.30)}.budget-risk-badge.tone-danger{color:#fda4af;background:rgba(127,29,29,.28)}}
+.dark .annual-year-chip{background:rgba(15,23,42,.72);border-color:#334155}

@@ -355,6 +355,30 @@ function getSignedResultStatus(value) {
     return 'Na nule';
 }
 
+function getBudgetMonthProgress(monthKey) {
+    const now=new Date(), parts=String(monthKey||'').split('-').map(Number), year=parts[0], month=parts[1];
+    if(!year||!month) return 1;
+    if(year<now.getFullYear()||(year===now.getFullYear()&&month<now.getMonth()+1)) return 1;
+    if(year>now.getFullYear()||month>now.getMonth()+1) return 0;
+    return Math.min(1,Math.max(.05,now.getDate()/new Date(year,month,0).getDate()));
+}
+function getBudgetRiskScore(row,monthKey) {
+    const b=Math.max(0,Number(row.recommended)||0), f=Math.max(0,Number(row.forecast)||0), s=Math.max(0,Number(row.spent)||0);
+    if(!b) return f>0||s>0?4:0;
+    const fr=f/b, sr=s/b, t=getBudgetMonthProgress(monthKey);
+    if(fr>1||sr>1) return 4;
+    if(fr>=.9||(t>0&&sr/t>=1.18)) return 3;
+    if(fr>=.75||(t>0&&sr/t>=1.05)) return 2;
+    return 1;
+}
+function getBudgetPaceMeta(row,monthKey) {
+    const n=getBudgetRiskScore(row,monthKey);
+    if(n>=4) return {label:'Nad plánom',tone:'danger'};
+    if(n===3) return {label:'Riziko',tone:'warning'};
+    if(n===2) return {label:'Sleduj',tone:'watch'};
+    return {label:'V poriadku',tone:'good'};
+}
+
 function renderBudgetHeroCards(data) {
     const el = document.getElementById('budget-hero-cards');
     if (!el) return;
@@ -426,7 +450,7 @@ function renderBudgetCategoryList(data) {
                         <i data-lucide="${row.icon}"></i>
                     </div>
                     <div class="min-w-0">
-                        <div class="budget-cat-name">${row.category}</div>
+                        <div class="budget-cat-name-row"><div class="budget-cat-name">${row.category}</div><span class="budget-risk-badge tone-${getBudgetPaceMeta(row,monthKey).tone}">${getBudgetPaceMeta(row,monthKey).label}</span></div>
                         <div class="budget-cat-confidence">${row.confidenceLabel}</div>
                     </div>
                 </div>
@@ -485,6 +509,7 @@ function renderBudgetForecastList(data) {
         return;
     }
 
+    rows.sort((a,b)=>getBudgetRiskScore(b,monthKey)-getBudgetRiskScore(a,monthKey)||(Number(b.recommended)||0)-(Number(a.recommended)||0));
     el.innerHTML = rows.map(row => `
         <div class="forecast-row">
             <div class="forecast-row-left">

@@ -1770,6 +1770,21 @@ function getPlanningCategoryHealth(budget, forecast) {
     return { label: 'Rezerva', tone: 'good', usage };
 }
 
+function getAnnualMonthStatus(balance) {
+    const amount = Number(balance) || 0;
+    if (amount < 0) return { label: 'Mínus', tone: 'danger' };
+    if (amount === 0) return { label: 'Nula', tone: 'neutral' };
+    return { label: 'Plus', tone: 'good' };
+}
+
+function renderAnnualYearStrip(months) {
+    return `<div class="annual-year-strip" aria-label="Prehľad roka">${months.map(m => {
+        const state = getAnnualMonthStatus(m.plannedBalance);
+        const label = new Date(`${m.key}-01T12:00:00`).toLocaleDateString('sk-SK',{month:'short'}).replace('.','');
+        return `<button type="button" class="annual-year-chip tone-${state.tone}" onclick="document.querySelector('[data-plan-month=\'${m.key}\']')?.scrollIntoView({behavior:'smooth',block:'center'})"><span>${label}</span><strong>${formatCurrency(m.plannedBalance)}</strong></button>`;
+    }).join('')}</div>`;
+}
+
 function getPlanningProgressWidth(budget, forecast) {
     const b = Math.max(0, Number(budget) || 0);
     const f = Math.max(0, Number(forecast) || 0);
@@ -1802,7 +1817,8 @@ function renderAnnualPlanScreen() {
       <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Výdavky používajú stabilného championa pre každú kategóriu; challenger ho nahradí iba pri jasnom zlepšení. Príjmový model zostáva nezmenený.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
       <div class="annual-month-list">
-      ${months.map(m => `
+      ${renderAnnualYearStrip(months)}
+        ${months.map(m => `
         <div class="annual-month-card ${m.isCurrent ? 'current':''}">
           <div class="annual-month-top"><div><div class="annual-month-name">${m.monthName}</div><div class="planning-muted">${m.closed ? 'Uzavretý mesiac' : m.isCurrent ? 'Aktuálny mesiac' : 'Forecast'}</div></div><div class="annual-month-total">${formatCurrency(m.budget)}</div></div>
           <div class="annual-month-grid"><div><span>Forecast</span><b>${formatCurrency(m.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(m.plannedIncome)}</b></div><div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>Zostatok</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b></div></div>
