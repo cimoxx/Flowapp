@@ -1760,6 +1760,23 @@ function getPlanningSignedStatus(value) {
     return 'Na nule';
 }
 
+function getPlanningCategoryHealth(budget, forecast) {
+    const b = Math.max(0, Number(budget) || 0);
+    const f = Math.max(0, Number(forecast) || 0);
+    const remaining = round2(b - f);
+    const usage = b > 0 ? (f / b) * 100 : (f > 0 ? 100 : 0);
+    if (remaining < 0) return { label: 'Nad plánom', tone: 'danger', usage };
+    if (usage >= 90) return { label: 'Tesne pri limite', tone: 'warning', usage };
+    return { label: 'Rezerva', tone: 'good', usage };
+}
+
+function getPlanningProgressWidth(budget, forecast) {
+    const b = Math.max(0, Number(budget) || 0);
+    const f = Math.max(0, Number(forecast) || 0);
+    if (!b) return f > 0 ? 100 : 0;
+    return Math.min(100, Math.max(0, (f / b) * 100));
+}
+
 function escPlanning(value) {
     return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -2038,7 +2055,23 @@ async function submitPlanningEvent(event){
 
 function openMonthPlanDetail(key) {
     const [year,month1]=key.split('-').map(Number); const month=month1-1; const plan=getAnnualPlan(year)[month]; if(!plan)return;
-    showPlanningModal(`${plan.monthName} ${year}`,'Detail mesiaca',`<div class="space-y-4"><div class="planning-detail-grid"><div><span>Budget</span><b>${formatCurrency(plan.budget)}</b></div><div><span>Forecast</span><b>${formatCurrency(plan.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(plan.plannedIncome)}</b></div></div><div class="planning-helper"><b>Príjem:</b> známe pravidelné ${formatCurrency(plan.recurringIncome||0)} · historický model ${formatCurrency(plan.incomeForecast?.value||0)} · plánované udalosti ${formatCurrency(plan.eventIncome||0)}. Pri aktuálnom mesiaci Flow odpočíta príjmy, ktoré už eviduje.</div><div class="space-y-2">${plan.categoryRows.filter(r=>r.budget>0).sort((a,b)=>b.budget-a.budget).map(r=>{const remaining=round2(r.budget-r.forecast);return `<div class="planning-category-row planning-category-row-balance"><div class="planning-category-main"><b>${escPlanning(r.category)}</b><small>${r.overridden?'Ručná úprava':'Model'} · forecast ${formatCurrency(r.forecast)}</small></div><div class="planning-category-budget"><span>Budget</span><strong>${formatCurrency(r.budget)}</strong></div><div class="planning-category-remaining ${getPlanningSignedSurfaceClass(remaining)}"><span>Zostáva</span><strong class="${getPlanningSignedClass(remaining)}">${formatCurrency(remaining)}</strong></div><button type="button" onclick="openBudgetOverrideModal('${key}','${escPlanning(r.category)}',${r.budget})" class="planning-edit-icon"><i data-lucide="pencil"></i></button></div>`}).join('')}</div></div>`);
+    showPlanningModal(`${plan.monthName} ${year}`,'Detail mesiaca',`<div class="space-y-4"><div class="planning-detail-grid"><div><span>Budget</span><b>${formatCurrency(plan.budget)}</b></div><div><span>Forecast</span><b>${formatCurrency(plan.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(plan.plannedIncome)}</b></div></div><div class="planning-helper"><b>Príjem:</b> známe pravidelné ${formatCurrency(plan.recurringIncome||0)} · historický model ${formatCurrency(plan.incomeForecast?.value||0)} · plánované udalosti ${formatCurrency(plan.eventIncome||0)}. Pri aktuálnom mesiaci Flow odpočíta príjmy, ktoré už eviduje.</div><div class="space-y-2">${plan.categoryRows.filter(r=>r.budget>0).sort((a,b)=>b.budget-a.budget).map(r=>{const remaining=round2(r.budget-r.forecast);const health=getPlanningCategoryHealth(r.budget,r.forecast);const progress=getPlanningProgressWidth(r.budget,r.forecast);return `<div class="planning-category-card tone-${health.tone}">
+    <div class="planning-category-card-head">
+        <div class="planning-category-main">
+            <div class="planning-category-title-row"><b>${escPlanning(r.category)}</b><span class="planning-health-badge tone-${health.tone}">${health.label}</span></div>
+            <small>${r.overridden?'Ručná úprava':'Model'}</small>
+        </div>
+        <button type="button" onclick="openBudgetOverrideModal('${key}','${escPlanning(r.category)}',${r.budget})" class="planning-edit-icon" aria-label="Upraviť budget kategórie"><i data-lucide="pencil"></i></button>
+    </div>
+    <div class="planning-category-metrics">
+        <div><span>Budget</span><strong>${formatCurrency(r.budget)}</strong></div>
+        <div><span>Forecast</span><strong>${formatCurrency(r.forecast)}</strong></div>
+        <div class="planning-category-balance-metric ${getPlanningSignedSurfaceClass(remaining)}"><span>Zostáva</span><strong class="${getPlanningSignedClass(remaining)}">${formatCurrency(remaining)}</strong></div>
+    </div>
+    <div class="planning-category-progress" aria-label="Forecast čerpá ${Math.round(health.usage)} percent budgetu">
+        <div class="planning-category-progress-fill tone-${health.tone}" style="width:${progress}%"></div>
+    </div>
+</div>`}).join('')}</div></div>`);
 }
 
 function openBudgetOverrideModal(key, category, current) {

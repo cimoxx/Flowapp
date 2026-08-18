@@ -1,5 +1,19 @@
 # Flow – CHANGELOG
 
+## v2.42.6 – Annual Plan Category Cards
+
+### Ročný plán
+- Kategórie v detaile mesiaca používajú nový profesionálny card layout.
+- Každá karta má jasnú hierarchiu `Budget → Forecast → Zostáva`.
+- Stav kategórie je označený textom `Rezerva`, `Tesne pri limite` alebo `Nad plánom`.
+- Tenký progress indikátor ukazuje podiel forecastu voči budgetu.
+- Zostatok zostáva semanticky zelený/červený/neutrálny a farba nie je jediným nosičom významu.
+- Mobilný a dark-mode layout bol doladený.
+
+### Ostatné
+- Zachované existujúce UI Budgetu z v2.42.5.
+- Forecast model, Income Engine a Google Apps Script sa nemenia.
+
 ## v2.42.5 – Category Balance UX
 
 ### Budget

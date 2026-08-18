@@ -1,4 +1,4 @@
-# Flow v2.42.5
+# Flow v2.42.6
 
 ## Category Champions + Income Intelligence
 

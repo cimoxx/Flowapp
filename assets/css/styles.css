@@ -2152,3 +2152,134 @@ textarea:focus-visible {
         grid-column:1 / -1;
     }
 }
+
+
+/* =========================================================
+   FLOW v2.42.6 — Professional annual-plan category cards
+   ========================================================= */
+#screen-plan .planning-category-card {
+    padding:12px;
+    border:1px solid var(--border);
+    border-radius:16px;
+    background:var(--surface);
+    box-shadow:0 1px 2px rgba(15,23,42,.025);
+}
+#screen-plan .planning-category-card.tone-good { border-left:3px solid rgba(16,185,129,.72); }
+#screen-plan .planning-category-card.tone-warning { border-left:3px solid rgba(245,158,11,.78); }
+#screen-plan .planning-category-card.tone-danger { border-left:3px solid rgba(244,63,94,.78); }
+
+.planning-category-card-head {
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+}
+.planning-category-title-row {
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:6px;
+}
+.planning-category-title-row b {
+    font-size:12px !important;
+    line-height:1.25;
+    color:var(--text-main);
+}
+.planning-health-badge {
+    display:inline-flex;
+    align-items:center;
+    min-height:20px;
+    padding:3px 7px;
+    border-radius:999px;
+    font-size:8px;
+    line-height:1;
+    font-weight:900;
+    letter-spacing:.025em;
+    white-space:nowrap;
+}
+.planning-health-badge.tone-good { color:#047857; background:rgba(16,185,129,.10); }
+.planning-health-badge.tone-warning { color:#b45309; background:rgba(245,158,11,.12); }
+.planning-health-badge.tone-danger { color:#be123c; background:rgba(244,63,94,.10); }
+
+.planning-category-metrics {
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:6px;
+    margin-top:10px;
+}
+.planning-category-metrics > div {
+    min-width:0;
+    padding:8px 9px;
+    border-radius:11px;
+    background:var(--bg-soft);
+}
+.planning-category-metrics span {
+    display:block;
+    font-size:8px;
+    line-height:1;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.055em;
+    color:var(--text-dim);
+}
+.planning-category-metrics strong {
+    display:block;
+    margin-top:4px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:12px !important;
+    line-height:1.15;
+    font-weight:900;
+    font-variant-numeric:tabular-nums;
+}
+.planning-category-balance-metric {
+    border:1px solid;
+}
+.planning-category-progress {
+    height:5px;
+    margin-top:9px;
+    overflow:hidden;
+    border-radius:999px;
+    background:var(--bg-soft);
+}
+.planning-category-progress-fill {
+    height:100%;
+    border-radius:inherit;
+    transition:width .2s ease;
+}
+.planning-category-progress-fill.tone-good { background:#10b981; }
+.planning-category-progress-fill.tone-warning { background:#f59e0b; }
+.planning-category-progress-fill.tone-danger { background:#f43f5e; }
+
+@media (prefers-color-scheme: dark) {
+    #screen-plan .planning-category-card {
+        background:rgba(15,23,42,.72);
+        border-color:#334155;
+        box-shadow:none;
+    }
+    .planning-health-badge.tone-good { color:#6ee7b7; background:rgba(6,78,59,.34); }
+    .planning-health-badge.tone-warning { color:#fcd34d; background:rgba(120,53,15,.30); }
+    .planning-health-badge.tone-danger { color:#fda4af; background:rgba(127,29,29,.28); }
+}
+.dark #screen-plan .planning-category-card {
+    background:rgba(15,23,42,.72);
+    border-color:#334155;
+    box-shadow:none;
+}
+.dark .planning-health-badge.tone-good { color:#6ee7b7; background:rgba(6,78,59,.34); }
+.dark .planning-health-badge.tone-warning { color:#fcd34d; background:rgba(120,53,15,.30); }
+.dark .planning-health-badge.tone-danger { color:#fda4af; background:rgba(127,29,29,.28); }
+
+@media (max-width:360px) {
+    .planning-category-metrics {
+        grid-template-columns:1fr 1fr;
+    }
+    .planning-category-balance-metric {
+        grid-column:1 / -1;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+    }
+    .planning-category-balance-metric strong { margin-top:0; }
+}
