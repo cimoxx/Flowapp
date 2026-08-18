@@ -1,5 +1,22 @@
 # Flow – CHANGELOG
 
+## v2.43.1 – Budget Regression Fix
+
+### Oprava
+- `assets/js/budget.js` je obnovený **byte-for-byte z v2.42.6**, teda z poslednej overenej verzie pred UX zásahom v2.43.0.
+- Odstránené experimentálne zoradenie Budget kategórií podľa rizika.
+- Odstránené experimentálne Budget risk-statusy z v2.43.0.
+- Budget forecast, recommended budget, spent, safe-to-spend a kategóriové výpočty sa opäť správajú identicky ako vo v2.42.6.
+
+### Zachované z v2.43.0
+- 12-mesačný UX prehľad v Ročnom pláne.
+- UI/accessibility zlepšenia, focus stavy a reduced-motion.
+
+### Model / backend
+- Forecast model ostáva `2.42.0-category-champions-v1`.
+- Income Engine sa nemení.
+- Google Apps Script zostáva v2.38.8.
+
 ## v2.43.0 – UX System Pass
 
 - Ročný plán: 12-mesačný prehľad zostatkov s rýchlou navigáciou.
