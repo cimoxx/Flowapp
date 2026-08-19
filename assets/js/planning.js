@@ -1301,6 +1301,168 @@ function getHistoricalIncomeForecast(targetYear, targetMonth, options = {}) {
     return {value:round2(value),confidence,method:'income-stream-meta',components,dataMonths:rows.length};
 }
 
+
+function clampPlanningPercent(value) {
+    return Math.max(0, Math.min(999, Number(value) || 0));
+}
+
+function getPlanningHitAccuracy(reference, actual) {
+    const ref = Math.max(0, Number(reference) || 0);
+    const act = Math.max(0, Number(actual) || 0);
+    if (act <= 0) return ref <= 0 ? 100 : 0;
+    return Math.max(0, Math.min(100, 100 - (Math.abs(ref - act) / act * 100)));
+}
+
+function getPlanningUsagePercent(actual, reference) {
+    const act = Math.max(0, Number(actual) || 0);
+    const ref = Math.max(0, Number(reference) || 0);
+    if (ref <= 0) return act <= 0 ? 0 : 999;
+    return clampPlanningPercent(act / ref * 100);
+}
+
+function getPlanningComparisonTone(percent, mode = 'accuracy') {
+    const value = Number(percent) || 0;
+    if (mode === 'usage') {
+        if (value > 100) return 'danger';
+        if (value >= 90) return 'warning';
+        return 'good';
+    }
+    if (value >= 90) return 'good';
+    if (value >= 75) return 'warning';
+    return 'danger';
+}
+
+function getMonthArchiveComparison(targetMonth, actualExpenses) {
+    const rows = (Array.isArray(flowForecastArchive) ? flowForecastArchive : [])
+        .filter(r => String(r.targetMonth || '') === String(targetMonth || ''))
+        .filter(r => String(r.category || '') !== '__INCOME__')
+        .filter(r => Number.isFinite(Number(r.forecastAmount)) || Number.isFinite(Number(r.budgetAmount)));
+
+    const actual = Math.max(0, Number(actualExpenses) || 0);
+    if (!rows.length) return null;
+
+    // Prefer real snapshots created while the month was being planned/run.
+    // Group by calendar day because all category rows of a snapshot are written together.
+    const liveRows = rows.filter(r => String(r.backtest || '') !== 'walk-forward');
+    const sourceRows = liveRows.length
+        ? liveRows
+        : rows.filter(r => String(r.backtest || '') === 'walk-forward' && String(r.modelVersion || '') === String(FLOW_MODEL_VERSION));
+
+    if (!sourceRows.length) return null;
+
+    const byDay = new Map();
+    sourceRows.forEach(r => {
+        const day = String(r.generatedAt || r.evaluatedAt || '').slice(0, 10) || 'unknown';
+        const group = byDay.get(day) || [];
+        group.push(r);
+        byDay.set(day, group);
+    });
+
+    const days = [...byDay.keys()].sort();
+    if (!days.length) return null;
+
+    const sumField = (group, field) => round2(group.reduce((sum, row) => {
+        const value = Number(row?.[field]);
+        return sum + (Number.isFinite(value) ? value : 0);
+    }, 0));
+
+    // Budget = earliest stored plan for the month.
+    // Forecast = latest stored forecast for the month.
+    const firstRows = byDay.get(days[0]) || [];
+    const lastRows = byDay.get(days[days.length - 1]) || [];
+    const archivedBudget = sumField(firstRows, 'budgetAmount');
+    const archivedForecast = sumField(lastRows, 'forecastAmount');
+
+    return {
+        budget: archivedBudget,
+        forecast: archivedForecast,
+        budgetAccuracy: getPlanningHitAccuracy(archivedBudget, actual),
+        forecastAccuracy: getPlanningHitAccuracy(archivedForecast, actual),
+        budgetDelta: round2(archivedBudget - actual),
+        forecastDelta: round2(archivedForecast - actual),
+        source: liveRows.length ? 'snapshot' : 'backtest'
+    };
+}
+
+function renderPlanningMeter({label, percent, amountText, tone='good', accuracy=false}) {
+    const safePercent = Math.max(0, Number(percent) || 0);
+    const width = Math.min(100, safePercent);
+    return `<div class="planning-compare-row">
+        <div class="planning-compare-row-head">
+            <div><span>${label}</span><strong>${Math.round(safePercent)}%</strong></div>
+            <small>${amountText || ''}</small>
+        </div>
+        <div class="planning-compare-track" role="progressbar" aria-valuemin="0" aria-valuemax="${accuracy ? 100 : Math.max(100, Math.ceil(safePercent))}" aria-valuenow="${Math.round(safePercent)}">
+            <div class="planning-compare-fill tone-${tone}" style="width:${width}%"></div>
+            ${!accuracy && safePercent > 100 ? '<i class="planning-over-marker">+</i>' : ''}
+        </div>
+    </div>`;
+}
+
+function renderClosedMonthComparison(month) {
+    const cmp = month.archiveComparison;
+    if (!cmp) {
+        return `<div class="planning-comparison-card is-muted">
+            <div class="planning-comparison-head"><div><span class="planning-comparison-eyebrow">Presnosť plánu</span><strong>Zatiaľ bez uloženého porovnania</strong></div></div>
+            <p>Skutočné výdavky sú z transakcií. Pre tento mesiac nemáme uložený pôvodný budget/forecast, preto percento radšej nevymýšľame.</p>
+        </div>`;
+    }
+
+    const budgetTone = getPlanningComparisonTone(cmp.budgetAccuracy, 'accuracy');
+    const forecastTone = getPlanningComparisonTone(cmp.forecastAccuracy, 'accuracy');
+    const sourceLabel = cmp.source === 'snapshot' ? 'podľa uloženého plánu' : 'podľa spätného testu modelu';
+
+    return `<div class="planning-comparison-card">
+        <div class="planning-comparison-head">
+            <div><span class="planning-comparison-eyebrow">Ako presne sme trafili mesiac</span><strong>Plán vs. skutočnosť</strong></div>
+            <span class="planning-source-pill">${sourceLabel}</span>
+        </div>
+        ${renderPlanningMeter({
+            label:'Budget – zhoda',
+            percent:cmp.budgetAccuracy,
+            tone:budgetTone,
+            accuracy:true,
+            amountText:`plán ${formatCurrency(cmp.budget)} · realita ${formatCurrency(month.actualExpenses)}`
+        })}
+        ${renderPlanningMeter({
+            label:'Forecast – zhoda',
+            percent:cmp.forecastAccuracy,
+            tone:forecastTone,
+            accuracy:true,
+            amountText:`forecast ${formatCurrency(cmp.forecast)} · realita ${formatCurrency(month.actualExpenses)}`
+        })}
+        <div class="planning-comparison-foot">100 % = presná zhoda. Percento vyjadruje odchýlku od skutočne zapísaných výdavkov.</div>
+    </div>`;
+}
+
+function renderCurrentMonthProgress(month) {
+    const budgetUsage = getPlanningUsagePercent(month.actualExpenses, month.budget);
+    const forecastUsage = getPlanningUsagePercent(month.actualExpenses, month.forecast);
+    const now = new Date();
+    const monthDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const timeUsage = Math.round(now.getDate() / monthDays * 100);
+
+    return `<div class="planning-comparison-card is-live">
+        <div class="planning-comparison-head">
+            <div><span class="planning-comparison-eyebrow">Čerpanie mesiaca</span><strong>${formatCurrency(month.actualExpenses)} minuté doteraz</strong></div>
+            <span class="planning-source-pill current">${timeUsage}% mesiaca</span>
+        </div>
+        ${renderPlanningMeter({
+            label:'Z budgetu vyčerpané',
+            percent:budgetUsage,
+            tone:getPlanningComparisonTone(budgetUsage,'usage'),
+            amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.budget)}`
+        })}
+        ${renderPlanningMeter({
+            label:'Z forecastu dosiahnuté',
+            percent:forecastUsage,
+            tone:getPlanningComparisonTone(forecastUsage,'usage'),
+            amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.forecast)}`
+        })}
+        <div class="planning-comparison-foot">Čerpanie ukazuje realitu z transakcií voči celému mesačnému budgetu a aktuálnemu forecastu.</div>
+    </div>`;
+}
+
 function getAnnualPlan(year) {
     const result = [];
     const expenseCategories = categories.filter(c => c.id !== 'Prijem');
@@ -1369,7 +1531,8 @@ function getAnnualPlan(year) {
         }
         const plannedBalance = round2(plannedIncome - forecast);
 
-        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, plannedBalance, incomeForecast, categoryRows, events, recurring });
+        const archiveComparison = closed ? getMonthArchiveComparison(key, actualExpenses) : null;
+        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, plannedBalance, incomeForecast, categoryRows, events, recurring, archiveComparison });
     }
     return result;
 }
@@ -1778,11 +1941,33 @@ function getAnnualMonthStatus(balance) {
 }
 
 function renderAnnualYearStrip(months) {
-    return `<div class="annual-year-strip" aria-label="Prehľad roka">${months.map(m => {
-        const state = getAnnualMonthStatus(m.plannedBalance);
-        const label = new Date(`${m.key}-01T12:00:00`).toLocaleDateString('sk-SK',{month:'short'}).replace('.','');
-        return `<button type="button" class="annual-year-chip tone-${state.tone}" onclick="document.querySelector('[data-plan-month=\'${m.key}\']')?.scrollIntoView({behavior:'smooth',block:'center'})"><span>${label}</span><strong>${formatCurrency(m.plannedBalance)}</strong></button>`;
-    }).join('')}</div>`;
+    return `<section id="annual-year-overview" class="annual-year-overview" aria-label="Rýchly prehľad roka">
+        <div class="annual-year-overview-head">
+            <div><span class="annual-year-eyebrow">Rýchly prehľad</span><strong>12 mesiacov</strong></div>
+            <span class="planning-muted">Ťukni na mesiac</span>
+        </div>
+        <div class="annual-year-strip">${months.map(m => {
+            const state = getAnnualMonthStatus(m.plannedBalance);
+            const label = new Date(`${m.key}-01T12:00:00`).toLocaleDateString('sk-SK',{month:'short'}).replace('.','');
+            const valueLabel = m.closed ? 'Konečný zostatok' : 'Očakávaný zostatok';
+            return `<button type="button" class="annual-year-chip tone-${state.tone} ${m.isCurrent?'is-current':''}" onclick="scrollToAnnualMonth('${m.key}')" aria-label="${label}: ${valueLabel} ${formatCurrency(m.plannedBalance)}">
+                <span>${label}</span><strong>${formatCurrency(m.plannedBalance)}</strong>${m.isCurrent?'<em>Teraz</em>':''}
+            </button>`;
+        }).join('')}</div>
+    </section>`;
+}
+
+function scrollToAnnualMonth(key) {
+    const target = document.getElementById(`annual-month-${key}`);
+    if (!target) return;
+    target.scrollIntoView({behavior:'smooth',block:'start'});
+    target.classList.remove('month-focus-pulse');
+    requestAnimationFrame(()=>target.classList.add('month-focus-pulse'));
+    setTimeout(()=>target.classList.remove('month-focus-pulse'),900);
+}
+
+function scrollToAnnualOverview() {
+    document.getElementById('annual-year-overview')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function getPlanningProgressWidth(budget, forecast) {
@@ -1818,13 +2003,49 @@ function renderAnnualPlanScreen() {
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
       <div class="annual-month-list">
       ${renderAnnualYearStrip(months)}
-        ${months.map(m => `
-        <div class="annual-month-card ${m.isCurrent ? 'current':''}">
-          <div class="annual-month-top"><div><div class="annual-month-name">${m.monthName}</div><div class="planning-muted">${m.closed ? 'Uzavretý mesiac' : m.isCurrent ? 'Aktuálny mesiac' : 'Forecast'}</div></div><div class="annual-month-total">${formatCurrency(m.budget)}</div></div>
-          <div class="annual-month-grid"><div><span>Forecast</span><b>${formatCurrency(m.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(m.plannedIncome)}</b></div><div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>Zostatok</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b></div></div>
+        ${months.map(m => {
+        const primaryLabel = m.closed ? 'Skutočné výdavky' : 'Mesačný budget';
+        const primaryValue = m.closed ? m.actualExpenses : m.budget;
+        const balanceLabel = m.closed ? 'Konečný zostatok' : 'Očakávaný zostatok';
+        const statusLabel = m.closed ? 'Uzavretý' : m.isCurrent ? 'Aktuálny' : 'Plán';
+        return `
+        <article id="annual-month-${m.key}" class="annual-month-card ${m.isCurrent ? 'current':''} ${m.closed?'is-closed':'is-open'}">
+          <div class="annual-month-top">
+            <div>
+              <div class="annual-month-title-line"><div class="annual-month-name">${m.monthName}</div><span class="annual-month-status ${m.closed?'closed':m.isCurrent?'current':'future'}">${statusLabel}</span></div>
+              <div class="planning-muted">${m.closed ? 'Finálny výsledok mesiaca' : m.isCurrent ? 'Priebežný mesiac · hodnoty sa ešte menia' : 'Plán a forecast budúceho mesiaca'}</div>
+            </div>
+            <div class="annual-month-primary"><span>${primaryLabel}</span><strong>${formatCurrency(primaryValue)}</strong></div>
+          </div>
+
+          ${m.closed ? `
+          <div class="annual-month-grid annual-month-grid-final">
+            <div><span>Výdavky</span><b>${formatCurrency(m.actualExpenses)}</b><small>skutočnosť</small></div>
+            <div><span>Príjem</span><b>${formatCurrency(m.actualIncome)}</b><small>skutočnosť</small></div>
+            <div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>${balanceLabel}</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b><small>príjem − výdavky</small></div>
+          </div>` : m.isCurrent ? `
+          <div class="annual-month-grid annual-month-grid-live">
+            <div><span>Minuté doteraz</span><b>${formatCurrency(m.actualExpenses)}</b><small>skutočnosť</small></div>
+            <div><span>Forecast výdavkov</span><b>${formatCurrency(m.forecast)}</b><small>odhad konca mesiaca</small></div>
+            <div><span>Očak. príjem</span><b>${formatCurrency(m.plannedIncome)}</b><small>skutočnosť + plán</small></div>
+            <div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>${balanceLabel}</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b><small>príjem − forecast</small></div>
+          </div>` : `
+          <div class="annual-month-grid annual-month-grid-future">
+            <div><span>Forecast výdavkov</span><b>${formatCurrency(m.forecast)}</b><small>odhad</small></div>
+            <div><span>Plánovaný príjem</span><b>${formatCurrency(m.plannedIncome)}</b><small>odhad</small></div>
+            <div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>${balanceLabel}</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b><small>príjem − forecast</small></div>
+          </div>`}
+
+          ${m.closed ? renderClosedMonthComparison(m) : m.isCurrent ? renderCurrentMonthProgress(m) : ''}
+
           ${m.events.length ? `<div class="annual-event-list">${m.events.map(e=>`<div class="annual-event-chip"><span>${escPlanning(e.title)}</span><b>${e.type==='income'?'+':'−'}${formatCurrency(Math.abs(e.amount))}</b></div>`).join('')}</div>`:''}
-          <div class="annual-month-actions"><button type="button" onclick="openPlanningEventModal('${m.key}')">＋ Udalosť</button><button type="button" onclick="openMonthPlanDetail('${m.key}')">Detail mesiaca</button></div>
-        </div>`).join('')}
+          <div class="annual-month-actions annual-month-actions-pro">
+            <button type="button" onclick="openPlanningEventModal('${m.key}')">＋ Udalosť</button>
+            <button type="button" onclick="openMonthPlanDetail('${m.key}')">Detail mesiaca</button>
+            <button type="button" class="annual-back-overview" onclick="scrollToAnnualOverview()" aria-label="Späť na prehľad roka">↑ Prehľad</button>
+          </div>
+        </article>`;
+      }).join('')}
       </div>`;
 }
 

@@ -1,5 +1,37 @@
 # Flow – CHANGELOG
 
+## v2.43.3 – Plan vs. Reality
+
+### Uzavreté mesiace
+- Skutočné výdavky sa berú priamo zo zapísaných transakcií.
+- Pridaná `Budget – zhoda` v % voči skutočným výdavkom.
+- Pridaná `Forecast – zhoda` v % voči skutočným výdavkom.
+- 100 % znamená presnú zhodu; percento klesá podľa absolútnej odchýlky.
+- Preferujú sa reálne uložené snapshoty plánu/forecastu; ak nie sú dostupné, použije sa historický backtest a UI to označí.
+- Ak nie je dostupný žiadny dôveryhodný podklad, percento sa nevymýšľa.
+
+### Aktuálny mesiac
+- `Z budgetu vyčerpané` = skutočné výdavky doteraz / mesačný budget.
+- `Z forecastu dosiahnuté` = skutočné výdavky doteraz / aktuálny forecast výdavkov.
+- Zobrazuje sa aj percento uplynutej časti mesiaca ako kontext.
+- Hodnoty nad 100 % sú explicitne označené.
+
+### Model / backend
+- Budget modul ostáva nezmenený oproti v2.43.2/v2.43.1.
+- Forecast model ostáva `2.42.0-category-champions-v1`.
+- Income Engine sa nemení.
+- Google Apps Script zostáva v2.38.8.
+
+## v2.43.2 – Annual Plan Clarity & Navigation
+
+- Uzavretý mesiac: `Skutočné výdavky`, `Skutočný príjem`, `Konečný zostatok`.
+- Aktuálny mesiac: `Mesačný budget`, `Minuté doteraz`, `Forecast výdavkov`, `Očakávaný príjem`, `Očakávaný zostatok`.
+- Budúci mesiac: `Mesačný budget`, `Forecast výdavkov`, `Plánovaný príjem`, `Očakávaný zostatok`.
+- Odstránená nejasná veľká suma bez popisu.
+- 12-mesačný prehľad je klikateľný a naviguje na konkrétny mesiac.
+- Každá karta mesiaca má `↑ Prehľad` pre návrat k 12-mesačnému prehľadu.
+- Budget modul, forecast model, Income Engine a GAS bez zmeny.
+
 ## v2.43.1 – Budget Regression Fix
 
 ### Oprava

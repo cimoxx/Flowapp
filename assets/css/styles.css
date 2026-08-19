@@ -2300,3 +2300,208 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
 @media(max-width:430px){.annual-year-strip{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:340px){.annual-year-strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(prefers-color-scheme:dark){.annual-year-chip{background:rgba(15,23,42,.72);border-color:#334155}}
 .dark .annual-year-chip{background:rgba(15,23,42,.72);border-color:#334155}
+
+/* =========================================================
+   FLOW v2.43.2 — Annual plan information architecture
+   ========================================================= */
+.annual-year-overview{scroll-margin-top:82px;margin:10px 0 14px;padding:12px;border:1px solid var(--border);border-radius:18px;background:var(--surface)}
+.annual-year-overview-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:9px}
+.annual-year-overview-head>div{display:flex;flex-direction:column;gap:2px}.annual-year-overview-head strong{font-size:14px;color:var(--text-main)}
+.annual-year-eyebrow{font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim)}
+.annual-year-chip{position:relative;cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+.annual-year-chip:active{transform:scale(.97)}.annual-year-chip.is-current{box-shadow:0 0 0 2px rgba(37,99,235,.14);border-color:rgba(37,99,235,.42)}
+.annual-year-chip em{display:block;margin-top:4px;font-size:7px;font-style:normal;font-weight:900;text-transform:uppercase;color:var(--flow-info)}
+.annual-month-card{scroll-margin-top:78px}
+.annual-month-title-line{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.annual-month-status{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;font-size:8px;line-height:1;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+.annual-month-status.closed{color:#475569;background:rgba(100,116,139,.10)}.annual-month-status.current{color:#1d4ed8;background:rgba(37,99,235,.10)}.annual-month-status.future{color:#6d28d9;background:rgba(124,58,237,.09)}
+.annual-month-primary{display:flex;flex-direction:column;align-items:flex-end;text-align:right;min-width:118px}
+.annual-month-primary span{font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.055em;color:var(--text-dim)}
+.annual-month-primary strong{margin-top:4px;font-size:22px;line-height:1;font-weight:950;color:var(--text-main);font-variant-numeric:tabular-nums}
+.annual-month-grid>div{position:relative}.annual-month-grid small{display:block;margin-top:3px;font-size:8px;line-height:1.15;color:var(--text-dim);font-weight:650}
+.annual-month-grid-live{grid-template-columns:repeat(2,minmax(0,1fr))!important}.annual-month-grid-live .balance-result-cell{grid-column:auto}
+.annual-month-actions-pro{display:grid!important;grid-template-columns:1fr 1fr auto!important}.annual-back-overview{padding-inline:12px!important;color:var(--text-dim)!important}
+.month-focus-pulse{animation:flowMonthFocus .8s ease}
+@keyframes flowMonthFocus{0%{box-shadow:0 0 0 0 rgba(37,99,235,.28)}45%{box-shadow:0 0 0 5px rgba(37,99,235,.12)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
+@media(max-width:430px){
+ .annual-month-top{align-items:flex-start!important}.annual-month-primary{min-width:108px}.annual-month-primary strong{font-size:19px}
+ .annual-month-grid-final,.annual-month-grid-future{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+ .annual-month-grid-live{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .annual-month-actions-pro{grid-template-columns:1fr 1fr!important}.annual-back-overview{grid-column:1/-1!important;min-height:34px!important}
+}
+@media(max-width:350px){
+ .annual-month-top{display:block!important}.annual-month-primary{align-items:flex-start;text-align:left;margin-top:10px}
+ .annual-month-grid-final,.annual-month-grid-future{grid-template-columns:1fr!important}
+}
+.dark .annual-year-overview{background:rgba(15,23,42,.72);border-color:#334155}
+.dark .annual-month-status.closed{color:#cbd5e1;background:rgba(100,116,139,.18)}.dark .annual-month-status.current{color:#93c5fd;background:rgba(30,58,138,.30)}.dark .annual-month-status.future{color:#c4b5fd;background:rgba(76,29,149,.28)}
+
+
+/* =========================================================
+   FLOW v2.43.3 — Budget / Forecast comparison UX
+   ========================================================= */
+.planning-comparison-card {
+    margin-top:10px;
+    padding:11px 12px 10px;
+    border:1px solid var(--border);
+    border-radius:14px;
+    background:var(--bg-soft);
+}
+.planning-comparison-card.is-live {
+    background:linear-gradient(180deg,rgba(37,99,235,.045),var(--bg-soft));
+}
+.planning-comparison-card.is-muted {
+    opacity:.82;
+}
+.planning-comparison-head {
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:10px;
+}
+.planning-comparison-head > div {
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+}
+.planning-comparison-head strong {
+    font-size:12px;
+    line-height:1.2;
+    color:var(--text-main);
+}
+.planning-comparison-eyebrow {
+    font-size:8px;
+    line-height:1;
+    font-weight:900;
+    letter-spacing:.07em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+}
+.planning-source-pill {
+    flex:0 0 auto;
+    max-width:46%;
+    padding:4px 7px;
+    border-radius:999px;
+    font-size:7px;
+    line-height:1.15;
+    font-weight:850;
+    text-align:center;
+    color:var(--text-dim);
+    background:var(--surface);
+    border:1px solid var(--border);
+}
+.planning-source-pill.current {
+    color:#1d4ed8;
+    border-color:rgba(37,99,235,.16);
+    background:rgba(37,99,235,.08);
+}
+.planning-compare-row + .planning-compare-row {
+    margin-top:10px;
+}
+.planning-compare-row-head {
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:5px;
+}
+.planning-compare-row-head > div {
+    display:flex;
+    align-items:baseline;
+    gap:6px;
+}
+.planning-compare-row-head span {
+    font-size:9px;
+    font-weight:800;
+    color:var(--text-dim);
+}
+.planning-compare-row-head strong {
+    font-size:14px;
+    line-height:1;
+    font-weight:950;
+    color:var(--text-main);
+    font-variant-numeric:tabular-nums;
+}
+.planning-compare-row-head small {
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:8px;
+    font-weight:700;
+    color:var(--text-dim);
+}
+.planning-compare-track {
+    position:relative;
+    height:7px;
+    overflow:visible;
+    border-radius:999px;
+    background:rgba(100,116,139,.13);
+}
+.planning-compare-fill {
+    height:100%;
+    min-width:2px;
+    border-radius:inherit;
+    transition:width .22s ease;
+}
+.planning-compare-fill.tone-good { background:#10b981; }
+.planning-compare-fill.tone-warning { background:#f59e0b; }
+.planning-compare-fill.tone-danger { background:#f43f5e; }
+.planning-over-marker {
+    position:absolute;
+    right:-3px;
+    top:50%;
+    transform:translateY(-50%);
+    width:15px;
+    height:15px;
+    display:grid;
+    place-items:center;
+    border-radius:999px;
+    font-size:9px;
+    line-height:1;
+    font-style:normal;
+    font-weight:950;
+    color:#fff;
+    background:#e11d48;
+    box-shadow:0 0 0 2px var(--bg-soft);
+}
+.planning-comparison-foot {
+    margin-top:9px;
+    font-size:8px;
+    line-height:1.35;
+    font-weight:650;
+    color:var(--text-dim);
+}
+.planning-comparison-card.is-muted p {
+    margin:0;
+    font-size:9px;
+    line-height:1.4;
+    color:var(--text-dim);
+}
+@media(max-width:390px) {
+    .planning-comparison-head { display:block; }
+    .planning-source-pill { display:inline-flex;max-width:100%;margin-top:6px; }
+    .planning-compare-row-head { align-items:flex-start; }
+    .planning-compare-row-head small { max-width:50%;text-align:right;white-space:normal; }
+}
+.dark .planning-comparison-card {
+    background:rgba(15,23,42,.52);
+    border-color:#334155;
+}
+.dark .planning-comparison-card.is-live {
+    background:linear-gradient(180deg,rgba(30,58,138,.18),rgba(15,23,42,.52));
+}
+.dark .planning-source-pill {
+    background:rgba(30,41,59,.72);
+    border-color:#475569;
+}
+.dark .planning-source-pill.current {
+    color:#93c5fd;
+    background:rgba(30,58,138,.30);
+    border-color:rgba(96,165,250,.22);
+}
+.dark .planning-compare-track {
+    background:rgba(100,116,139,.22);
+}
