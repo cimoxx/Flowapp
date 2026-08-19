@@ -2505,3 +2505,70 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
 .dark .planning-compare-track {
     background:rgba(100,116,139,.22);
 }
+
+
+/* =========================================================
+   FLOW v2.43.4 — Closed month historical values
+   ========================================================= */
+.planning-closed-summary {
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:6px;
+    margin:2px 0 11px;
+}
+.planning-closed-summary-item {
+    min-width:0;
+    padding:9px 9px 8px;
+    border:1px solid var(--border);
+    border-radius:11px;
+    background:var(--surface);
+}
+.planning-closed-summary-item.actual {
+    background:rgba(37,99,235,.045);
+    border-color:rgba(37,99,235,.15);
+}
+.planning-closed-summary-item span {
+    display:block;
+    font-size:8px;
+    line-height:1;
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.055em;
+    color:var(--text-dim);
+}
+.planning-closed-summary-item strong {
+    display:block;
+    margin-top:5px;
+    font-size:12px;
+    line-height:1.15;
+    font-weight:950;
+    color:var(--text-main);
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+.planning-closed-summary-item small {
+    display:block;
+    margin-top:4px;
+    font-size:7px;
+    line-height:1.25;
+    font-weight:700;
+    color:var(--text-dim);
+}
+@media(max-width:370px) {
+    .planning-closed-summary {
+        grid-template-columns:1fr 1fr;
+    }
+    .planning-closed-summary-item.actual {
+        grid-column:1 / -1;
+    }
+}
+.dark .planning-closed-summary-item {
+    background:rgba(30,41,59,.58);
+    border-color:#475569;
+}
+.dark .planning-closed-summary-item.actual {
+    background:rgba(30,58,138,.22);
+    border-color:rgba(96,165,250,.20);
+}

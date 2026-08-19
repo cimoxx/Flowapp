@@ -1417,21 +1417,40 @@ function renderClosedMonthComparison(month) {
             <div><span class="planning-comparison-eyebrow">Ako presne sme trafili mesiac</span><strong>Plán vs. skutočnosť</strong></div>
             <span class="planning-source-pill">${sourceLabel}</span>
         </div>
+
+        <div class="planning-closed-summary">
+            <div class="planning-closed-summary-item">
+                <span>Budget</span>
+                <strong>${formatCurrency(cmp.budget)}</strong>
+                <small>${cmp.budgetDelta >= 0 ? 'rezerva ' : 'prekročenie '}${formatCurrency(Math.abs(cmp.budgetDelta))}</small>
+            </div>
+            <div class="planning-closed-summary-item">
+                <span>Forecast</span>
+                <strong>${formatCurrency(cmp.forecast)}</strong>
+                <small>odchýlka ${formatCurrency(Math.abs(cmp.forecastDelta))}</small>
+            </div>
+            <div class="planning-closed-summary-item actual">
+                <span>Skutočné výdavky</span>
+                <strong>${formatCurrency(month.actualExpenses)}</strong>
+                <small>zo zapísaných transakcií</small>
+            </div>
+        </div>
+
         ${renderPlanningMeter({
             label:'Budget – zhoda',
             percent:cmp.budgetAccuracy,
             tone:budgetTone,
             accuracy:true,
-            amountText:`plán ${formatCurrency(cmp.budget)} · realita ${formatCurrency(month.actualExpenses)}`
+            amountText:`${formatCurrency(cmp.budget)} vs. ${formatCurrency(month.actualExpenses)}`
         })}
         ${renderPlanningMeter({
             label:'Forecast – zhoda',
             percent:cmp.forecastAccuracy,
             tone:forecastTone,
             accuracy:true,
-            amountText:`forecast ${formatCurrency(cmp.forecast)} · realita ${formatCurrency(month.actualExpenses)}`
+            amountText:`${formatCurrency(cmp.forecast)} vs. ${formatCurrency(month.actualExpenses)}`
         })}
-        <div class="planning-comparison-foot">100 % = presná zhoda. Percento vyjadruje odchýlku od skutočne zapísaných výdavkov.</div>
+        <div class="planning-comparison-foot">100 % = presná zhoda. Budget a forecast sú historické hodnoty pre daný mesiac; skutočnosť sa berie zo zapísaných výdavkov.</div>
     </div>`;
 }
 

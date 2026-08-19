@@ -1,5 +1,14 @@
 # Flow – CHANGELOG
 
+## v2.43.4 – Closed Month Historical Values
+
+- Pri uzavretom mesiaci sú explicitne zobrazené tri hodnoty: `Budget`, `Forecast`, `Skutočné výdavky`.
+- Budget zobrazuje aj rezervu alebo prekročenie voči skutočným výdavkom.
+- Forecast zobrazuje absolútnu odchýlku od skutočných výdavkov.
+- Percentuálna zhoda Budget/Forecast zostáva ako sekundárne vyhodnotenie pod sumami.
+- Skutočné výdavky sa naďalej berú zo zapísaných transakcií.
+- Budget modul, forecast model, Income Engine a GAS bez zmeny.
+
 ## v2.43.3 – Plan vs. Reality
 
 ### Uzavreté mesiace
