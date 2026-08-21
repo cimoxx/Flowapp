@@ -38,6 +38,7 @@ function renderManageCats() {
 }
 
 function editCategoryName(index) {
+    if (!isCategoryEditingReady()) return;
     const oldName = categories[index].id;
     const newName = prompt("Upravte názov kategórie:", oldName);
     if (newName && newName.trim() !== "" && newName.trim() !== oldName) {
@@ -74,6 +75,7 @@ function deleteCategoryFromList(index, event) {
 }
 
 function deleteCategoryByIndex(index) {
+    if (!isCategoryEditingReady()) return;
     if (index === null || index === undefined || !categories[index]) return;
 
     const deletedCategory = categories[index];
@@ -123,6 +125,7 @@ function openCatDetail(index) {
 }
 
 function saveCategoryIcon() {
+    if (!isCategoryEditingReady()) return;
     if (activeSettingsCat === null) return;
     const iconName = (document.getElementById('cat-icon-name').value || '').trim() || 'layers';
     categories[activeSettingsCat].icon = iconName;
@@ -159,6 +162,7 @@ function renderManageSubs() {
 }
 
 function editSubCategoryName(subIndex) {
+    if (!isCategoryEditingReady()) return;
     const cat = categories[activeSettingsCat];
     const oldName = cat.subs[subIndex];
     const newName = prompt("Upravte názov podkategórie:", oldName);
@@ -185,6 +189,7 @@ function editSubCategoryName(subIndex) {
 }
 
 function moveCat(i, dir) {
+    if (!isCategoryEditingReady()) return;
     if ((dir === -1 && i > 0) || (dir === 1 && i < categories.length - 1)) {
         const temp = categories[i];
         categories[i] = categories[i + dir];
@@ -196,6 +201,7 @@ function moveCat(i, dir) {
 }
 
 function moveSub(i, dir) {
+    if (!isCategoryEditingReady()) return;
     const subs = categories[activeSettingsCat].subs;
     if ((dir === -1 && i > 0) || (dir === 1 && i < subs.length - 1)) {
         const temp = subs[i];
@@ -207,6 +213,7 @@ function moveSub(i, dir) {
 }
 
 function addCategory() {
+    if (!isCategoryEditingReady()) return;
     let n = document.getElementById('new-cat-name').value.trim();
     if (n) {
         categories.push({ id: n, uid: createUid('cat'), icon: 'layers', subs: [] });
@@ -218,6 +225,7 @@ function addCategory() {
 }
 
 function addSubCategory() {
+    if (!isCategoryEditingReady()) return;
     let n = document.getElementById('new-sub-name').value.trim();
     if (n && activeSettingsCat !== null) {
         if (!categories[activeSettingsCat].subs) categories[activeSettingsCat].subs = [];
@@ -229,6 +237,7 @@ function addSubCategory() {
 }
 
 function deleteSub(index) {
+    if (!isCategoryEditingReady()) return;
     if (confirm('Zmazať podkategóriu?')) {
         const cat = categories[activeSettingsCat];
         const deletedSubName = cat.subs[index];

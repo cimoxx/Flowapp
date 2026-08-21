@@ -127,7 +127,9 @@ function importData(event) {
             pendingCatSync = false;
 
             localStorage.setItem('f_db_v20', JSON.stringify(db));
-            localStorage.setItem('f_cats_v20', JSON.stringify(categories));
+            categorySyncState.source = 'import';
+            categorySyncState.baselineLoaded = true;
+            persistCategoriesLocally('import');
             localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
             localStorage.removeItem('f_pending_cat_sync_v20');
 

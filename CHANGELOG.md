@@ -1,5 +1,16 @@
 # Flow – CHANGELOG
 
+## v2.43.5 – Category Data Protection
+
+- Po vymazaní cache/cookies sa kategórie už neinicializujú generickými defaultmi ako autoritatívne dáta.
+- Aplikácia pred prvým zápisom po strate lokálneho stavu vždy načíta cloudový baseline.
+- Známy generický starter set je na klientovi aj v GAS natrvalo blokovaný pre zápis do Google Sheets.
+- Posledná potvrdená sada kategórií je zabudovaná iba ako bezpečný recovery fallback; cloud má pri normálnej prevádzke prioritu.
+- Legacy kategórie bez `uid` dostávajú deterministické stabilné ID, takže cache clear nemení väzby `categoryId`.
+- GAS v2.43.5 pridáva `categories_meta` s cloudovou verziou a pred každou reálnou zmenou uloží predchádzajúcu konfiguráciu do `CategoriesBackup` (max. 100 snapshotov).
+- Pri konflikte sa lokálna verzia už slepo neopakuje; najprv sa znovu načíta serverová verzia.
+- Budget modul, forecast model `2.42.0-category-champions-v1` a Income Engine zostávajú bez zmien.
+
 ## v2.43.4 – Closed Month Historical Values
 
 - Pri uzavretom mesiaci sú explicitne zobrazené tri hodnoty: `Budget`, `Forecast`, `Skutočné výdavky`.

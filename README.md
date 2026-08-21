@@ -1,4 +1,4 @@
-# Flow v2.43.4
+# Flow v2.43.5
 
 ## Category Champions + Income Intelligence
 
@@ -88,3 +88,7 @@ Podrobnosti sú v `V2.42.0-IMPLEMENTACIA.md` a `CHANGELOG.md`.
 - UI-only oprava čitateľnosti Budgetu a Ročného plánu.
 - Forecast model ostáva `2.42.0-category-champions-v1`.
 - Income Engine a Google Apps Script sa nemenia.
+
+
+## v2.43.5 – ochrana kategórií
+Pre plnú ochranu kategórií nahraď v Google Apps Script existujúci backend súborom `Flowapp-Google-Apps-Script-v2.43.5.gs` a aktualizuj deployment Web App. Backend vytvára `CategoriesBackup` automaticky pri zmene kategórií.

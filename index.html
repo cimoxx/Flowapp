@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <link rel="stylesheet" href="assets/css/styles.css?v=2.43.4">
+    <link rel="stylesheet" href="assets/css/styles.css?v=2.43.5">
 </head>
 <body class="desktop-safe-body">
 
@@ -420,8 +420,21 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.43.4</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.43.5</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Opravená ochrana kategórií po vymazaní cache/cookies: aplikácia najprv overí cloud a až potom dovolí zápis.</li>
+                    <li>Generický starter zoznam kategórií je natrvalo zablokovaný pre zápis do Google Sheets.</li>
+                    <li>Pridaný bezpečný recovery master s poslednou potvrdenou sadou kategórií a podkategórií.</li>
+                    <li>Kategórie bez uid dostávajú stabilné deterministické ID, takže sa po vymazaní cache nemenia väzby categoryId.</li>
+                    <li>Nový GAS v2.43.5 pridáva verziu cloudových kategórií a automatickú históriu v hárku CategoriesBackup pred každou zmenou.</li>
+                    <li>Budget modul, forecast model a Income Engine zostávajú bez zmien.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.43.4</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
                     <li>Pri uzavretom mesiaci sú teraz priamo viditeľné historické hodnoty Budget, Forecast a Skutočné výdavky.</li>

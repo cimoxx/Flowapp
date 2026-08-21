@@ -48,10 +48,14 @@ function queueMutation(item) {
 
 function saveData(syncCats = false) {
     if (typeof markForecastIndexDirty === 'function') markForecastIndexDirty();
+    if (syncCats && categorySyncState.baselineLoaded) {
+        // Explicit user edit is tracked separately from the last cloud baseline.
+        categorySyncState.source = 'local-edit';
+    }
     ensureDataIntegrity();
     localStorage.setItem('f_db_v20', JSON.stringify(db));
     localStorage.setItem('f_sync_q_v20', JSON.stringify(syncQueue));
-    localStorage.setItem('f_cats_v20', JSON.stringify(categories));
+    persistCategoriesLocally(categorySyncState.source);
 
     if (syncCats) {
         const categoryVersion = (parseInt(localStorage.getItem('f_categories_version') || '0', 10) || 0) + 1;
@@ -351,11 +355,134 @@ async function syncTransactions(action = 'pull') {
     }
 }
 
+async function fetchCategoryCloudState() {
+    // Preferred v2.43.5 endpoint: includes server version so a cache clear cannot
+    // reset the local category version and accidentally create a stale overwrite.
+    try {
+        const metaRes = await fetch(buildSyncGetUrl('categories_meta'));
+        if (!metaRes.ok) throw new Error(`HTTP ${metaRes.status}`);
+        const meta = await metaRes.json();
+        if (meta && meta.status === 'success' && Array.isArray(meta.categories)) {
+            categorySyncState.metadataSupported = true;
+            return {
+                categories: meta.categories,
+                version: Math.max(1, parseInt(meta.version, 10) || 1),
+                updatedAt: meta.updatedAt || '',
+                source: 'meta'
+            };
+        }
+    } catch (e) {
+        console.warn('CATEGORY META unavailable, falling back:', e);
+    }
+
+    // Backward-compatible fallback for the old GAS. Safe reads still work, but
+    // full version-aware protection requires the bundled v2.43.5 GAS update.
+    const res = await fetch(buildSyncGetUrl('categories'));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const cloudData = await res.json();
+    return {
+        categories: Array.isArray(cloudData) ? cloudData : [],
+        version: null,
+        updatedAt: '',
+        source: 'legacy'
+    };
+}
+
+function applyCloudCategories(cloudState) {
+    const cloudData = Array.isArray(cloudState?.categories) ? cloudState.categories : [];
+    const cloudSignature = categorySignature(cloudData);
+    categorySyncState.baselineLoaded = true;
+    categorySyncState.baselineSignature = cloudSignature;
+    localStorage.setItem('f_categories_baseline_signature_v2435', cloudSignature);
+
+    if (cloudState?.version) {
+        localStorage.setItem('f_categories_version', String(cloudState.version));
+    }
+
+    // Exact signature of the old starter set = known corruption. Never accept it
+    // as the user's master data. Keep the embedded recovery master and repair cloud.
+    if (isLegacyGenericDefaultSet(cloudData)) {
+        categories = cloneCategorySet(CATEGORY_RECOVERY_MASTER);
+        categorySyncState.source = 'recovery';
+        categorySyncState.repairNeeded = true;
+        normalizeCategories();
+        persistCategoriesLocally('recovery');
+        return { accepted: false, repairNeeded: true };
+    }
+
+    if (cloudData.length > 0) {
+        categories = cloudData;
+        categorySyncState.source = 'cloud';
+        categorySyncState.repairNeeded = false;
+        ensureDataIntegrity();
+        persistCategoriesLocally('cloud');
+        return { accepted: true, repairNeeded: false };
+    }
+
+    // Empty cloud is not permission to overwrite it with defaults/recovery data.
+    // Keep recovery locally, mark it untrusted and wait for explicit user action.
+    categories = cloneCategorySet(CATEGORY_RECOVERY_MASTER);
+    categorySyncState.source = 'recovery';
+    categorySyncState.repairNeeded = false;
+    normalizeCategories();
+    persistCategoriesLocally('recovery');
+    return { accepted: false, repairNeeded: false };
+}
+
 async function syncCategories(action = 'push') {
     updateSyncUI('syncing');
 
     if (action === 'push') {
+        // Absolute client-side kill switch: the known generic starter set can never
+        // be sent to Google Sheets, even if some future UI bug reintroduces it.
+        if (isLegacyGenericDefaultSet(categories)) {
+            console.error('CATEGORY PUSH BLOCKED: generic default set detected');
+            pendingCatSync = false;
+            localStorage.removeItem('f_pending_cat_sync_v20');
+            categorySyncState.source = 'recovery';
+            categories = cloneCategorySet(CATEGORY_RECOVERY_MASTER);
+            normalizeCategories();
+            persistCategoriesLocally('recovery');
+            updateSyncUI('ok');
+            return;
+        }
+
+        // After cache/cookies are cleared, never push before first reading the cloud.
+        if (!categorySyncState.baselineLoaded && categorySyncState.source === 'recovery') {
+            try {
+                const cloudState = await fetchCategoryCloudState();
+                const applied = applyCloudCategories(cloudState);
+                renderCatGrid();
+                if (applied.repairNeeded) {
+                    // Known bad cloud signature: safe automatic repair from confirmed master.
+                    categorySyncState.baselineLoaded = true;
+                    categorySyncState.source = 'recovery-repair';
+                    const baseVersion = cloudState.version || parseInt(localStorage.getItem('f_categories_version') || '0', 10) || 0;
+                    localStorage.setItem('f_categories_version', String(baseVersion + 1));
+                } else {
+                    // A real cloud set wins. Do not overwrite it with recovery data.
+                    pendingCatSync = false;
+                    localStorage.removeItem('f_pending_cat_sync_v20');
+                    updateSyncUI('ok');
+                    return;
+                }
+            } catch (e) {
+                console.error('CATEGORY PUSH PRE-FLIGHT ERROR:', e);
+                pendingCatSync = true;
+                localStorage.setItem('f_pending_cat_sync_v20', 'true');
+                syncRetryAttempt++;
+                scheduleSyncRetry();
+                updateSyncUI('ok');
+                return;
+            }
+        }
+
         try {
+            if (!Array.isArray(categories) || categories.length === 0) {
+                throw new Error('Refusing to sync empty categories');
+            }
+
+            normalizeCategories();
             const res = await fetch(GOOGLE_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -373,12 +500,48 @@ async function syncCategories(action = 'push') {
             const result = await res.json();
 
             if (result && result.status === 'conflict') {
-                throw new Error('Category sync conflict');
+                // Preserve an explicit local edit only when cloud CONTENT is still the
+                // exact baseline we edited. If cloud content changed, server wins.
+                const localDesired = cloneCategorySet(categories);
+                const localSource = categorySyncState.source;
+                const cloudState = await fetchCategoryCloudState();
+                const currentCloudSignature = categorySignature(cloudState.categories || []);
+                const sameBaseline = Boolean(categorySyncState.baselineSignature) &&
+                    currentCloudSignature === categorySyncState.baselineSignature;
+
+                if (localSource === 'local-edit' && sameBaseline) {
+                    categories = localDesired;
+                    categorySyncState.source = 'local-edit';
+                    categorySyncState.baselineLoaded = true;
+                    const serverVersion = cloudState.version || parseInt(result.version || '1', 10) || 1;
+                    localStorage.setItem('f_categories_version', String(serverVersion + 1));
+                    await syncCategories('push');
+                    return;
+                }
+
+                pendingCatSync = false;
+                localStorage.removeItem('f_pending_cat_sync_v20');
+                applyCloudCategories(cloudState);
+                if (typeof showToast === 'function') {
+                    showToast({
+                        type: 'warning',
+                        title: 'Kategórie boli novšie v cloude',
+                        text: 'Aplikácia zachovala novšiu cloudovú verziu namiesto prepísania.'
+                    });
+                }
+                return;
             }
             if (result && result.status === 'error') {
                 throw new Error(result.message || 'Category server error');
             }
 
+            if (result?.version) localStorage.setItem('f_categories_version', String(result.version));
+            categorySyncState.source = 'cloud';
+            categorySyncState.baselineLoaded = true;
+            categorySyncState.repairNeeded = false;
+            categorySyncState.baselineSignature = categorySignature(categories);
+            localStorage.setItem('f_categories_baseline_signature_v2435', categorySyncState.baselineSignature);
+            persistCategoriesLocally('cloud');
             pendingCatSync = false;
             localStorage.removeItem('f_pending_cat_sync_v20');
         } catch (e) {
@@ -390,21 +553,24 @@ async function syncCategories(action = 'push') {
         }
     } else {
         try {
-            const res = await fetch(buildSyncGetUrl('categories'));
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const cloudState = await fetchCategoryCloudState();
+            const applied = applyCloudCategories(cloudState);
 
-            const cloudData = await res.json();
+            renderCatGrid();
+            const settings = document.getElementById('settings-screen');
+            if (settings && !settings.classList.contains('hidden') && activeSettingsCat === null) {
+                renderManageCats();
+            }
 
-            if (Array.isArray(cloudData) && cloudData.length > 0) {
-                categories = cloudData;
-                ensureDataIntegrity();
-                localStorage.setItem('f_cats_v20', JSON.stringify(categories));
-                renderCatGrid();
-
-                const settings = document.getElementById('settings-screen');
-                if (settings && !settings.classList.contains('hidden') && activeSettingsCat === null) {
-                    renderManageCats();
-                }
+            if (applied.repairNeeded) {
+                // The only automatic write is a repair of the exact known bad generic set.
+                // Version is advanced from the cloud baseline when metadata is available.
+                const baseVersion = cloudState.version || parseInt(localStorage.getItem('f_categories_version') || '0', 10) || 0;
+                localStorage.setItem('f_categories_version', String(baseVersion + 1));
+                categorySyncState.source = 'recovery-repair';
+                pendingCatSync = true;
+                localStorage.setItem('f_pending_cat_sync_v20', 'true');
+                await syncCategories('push');
             }
         } catch (e) {
             console.error('CATEGORY PULL ERROR:', e);
