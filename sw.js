@@ -1,9 +1,9 @@
-const CACHE_NAME = 'flow-v20-cache-v2.43.5';
+const CACHE_NAME = 'flow-v20-cache-v2.44.0';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/styles.css?v=2.43.5',
+  './assets/css/styles.css?v=2.44.0',
   './assets/js/config.js',
   './assets/js/utils.js',
   './assets/js/sync.js',
@@ -12,6 +12,7 @@ const ASSETS = [
   './assets/js/transactions.js',
   './assets/js/analytics.js',
   './assets/js/budget.js',
+  './assets/js/cockpit.js',
   './assets/js/planning.js',
   './assets/js/app.js',
   'https://cdn.tailwindcss.com',

@@ -1,3 +1,12 @@
+# Flow changelog
+
+## v2.44.0 — Financial Cockpit
+- Pridaný read-only Finančný cockpit na obrazovku Transakcie.
+- Zobrazuje existujúce metriky: minuté doteraz, forecast mesiaca, rezervu podľa forecastu a očakávaný zostatok.
+- Cockpit používa existujúci `getBudgetDataset()` a `buildBudgetInsights()`; nevytvára nový forecast ani nemení výpočty.
+- Pri výbere viacerých mesiacov sa mesačné KPI zámerne nezlučujú.
+- Budget, Annual Plan, Forecast model, Income Engine, kategórie, synchronizácia a GAS ostávajú funkčne nezmenené.
+
 # Flow – CHANGELOG
 
 ## v2.43.5 – Category Data Protection

@@ -44,6 +44,7 @@ function showScreen(screen) {
         if (typeof processRecurringPayments === 'function') processRecurringPayments();
         if (typeof renderList === 'function') renderList();
         if (typeof renderSwipeHint === 'function') renderSwipeHint();
+        if (typeof renderFinancialCockpit === 'function') renderFinancialCockpit();
     }
 
     if (typeof lucide !== 'undefined') {
@@ -57,6 +58,7 @@ function refreshAllViews() {
     if (typeof updateAnalytics === 'function') updateAnalytics();
     if (typeof updateBurnRateTab === 'function') updateBurnRateTab();
     if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    if (typeof renderFinancialCockpit === 'function') renderFinancialCockpit();
     if (typeof renderPlanningScreens === 'function') renderPlanningScreens();
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -71,6 +73,7 @@ function refreshAllViews() {
     if (typeof renderList === 'function') renderList();
     if (typeof renderSwipeHint === 'function') renderSwipeHint();
     if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+    if (typeof renderFinancialCockpit === 'function') renderFinancialCockpit();
     if (typeof initPlanning === 'function') initPlanning();
 
     if (pendingCatSync) {
