@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.44.1 — Safe to Spend 2.0 + Cockpit Placement
+- Finančný cockpit je presunutý nad filtre na obrazovke Transakcie, aby nebol vložený medzi filtre a zoznam transakcií.
+- Pridaný read-only blok `Safe to Spend`: voľný budget do konca aktuálneho mesiaca, orientačný denný limit a 7-dňový limit.
+- Safe to Spend priamo používa existujúcu rezervu `Budget − Forecast`; nepridáva nový finančný model ani nové odpočty.
+- Denný a 7-dňový údaj sú iba rozpočítaním tejto existujúcej rezervy na zostávajúci čas mesiaca.
+- Safe to Spend je iba prezentačný odvodený údaj; nič nezapisuje a nemení Budget, Forecast, Annual Plan, transakcie, recurring plány ani synchronizáciu.
+- Budget modul, Forecast model, Income Engine, kategórie a GAS zostávajú funkčne bez zmien.
+
 ## v2.44.0 — Financial Cockpit
 - Pridaný read-only Finančný cockpit na obrazovku Transakcie.
 - Zobrazuje existujúce metriky: minuté doteraz, forecast mesiaca, rezervu podľa forecastu a očakávaný zostatok.
