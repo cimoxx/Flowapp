@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <link rel="stylesheet" href="assets/css/styles.css?v=2.44.2">
+    <link rel="stylesheet" href="assets/css/styles.css?v=2.44.3">
 </head>
 <body class="desktop-safe-body">
 
@@ -195,7 +195,9 @@
 
             <div id="analytics-summary-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-2"></div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
+            <details class="burn-advanced-panel">
+                <summary><span><i data-lucide="sliders-horizontal"></i> Detail analýzy</span><small>Graf · úroveň · dáta</small></summary>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[10px] burn-advanced-content">
                 <div>
                     <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
                     <select id="chart-type" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
@@ -227,6 +229,7 @@
                 </div>
             </div>
 
+            <div class="burn-section-heading"><span>Rozloženie výdavkov</span><small>Ťukni na kategóriu nižšie pre filtrovanie transakcií</small></div>
             <div class="desktop-chart-card bg-white dark:bg-slate-800/80 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm relative min-h-[300px] flex items-center justify-center">
                 <canvas id="analyticsChart" class="max-h-[360px]"></canvas>
             </div>
@@ -241,7 +244,7 @@
                     <div class="w-7 h-7 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
                         <i data-lucide="flame" class="w-4 h-4"></i>
                     </div>
-                    <h2 class="text-xl font-extrabold">Burn Rate Analýza</h2>
+                    <div><h2 class="text-xl font-extrabold">Tempo míňania</h2><p class="text-[10px] font-semibold text-slate-400 mt-0.5">Ako rýchlo peniaze odchádzajú a kam smerujú</p></div>
                 </div>
             </div>
 
@@ -294,7 +297,8 @@
                         <option value="balance">Bilancia</option>
                     </select>
                 </div>
-            </div>
+                </div>
+            </details>
 
             <div id="burn-metrics-cards" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
 
@@ -422,8 +426,12 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.2</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.3</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Budget má kompaktnejší mesačný overview a kategórie ukazujú najprv čerpanie a zostávajúcu sumu.</li><li>Forecast a ďalšie sekundárne údaje sú dostupné pod Detail mesiaca / Detail kategórie.</li><li>Burn Rate je v UI pomenovaný zrozumiteľnejšie ako Tempo míňania.</li><li>Pokročilé ovládanie grafu je schované pod Detail analýzy, všetky pôvodné ovládače a eventy zostali zachované.</li><li>Finančné výpočty, sync, kategórie, transakcie, Planning, Income Engine a GAS sa nemenia.</li></ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.44.2</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
                     <li>Zjednodušený Financial Cockpit: jedna dominantná metrika a tri rýchle údaje.</li>

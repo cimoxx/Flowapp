@@ -358,44 +358,24 @@ function getSignedResultStatus(value) {
 function renderBudgetHeroCards(data) {
     const el = document.getElementById('budget-hero-cards');
     if (!el) return;
-
-    const cards = [
-        {
-            label: 'Odporúčaný budget',
-            value: formatCurrency(data.totalRecommended),
-            sub: 'Na základe posledných 3 uzavretých mesiacov',
-            tone: 'neutral'
-        },
-        {
-            label: 'Minuté zatiaľ',
-            value: formatCurrency(data.totalSpent),
-            sub: 'Aktuálne výdavky v zvolenom mesiaci',
-            tone: 'neutral'
-        },
-        {
-            label: 'Forecast mesiaca',
-            value: formatCurrency(data.totalForecast),
-            sub: 'Odhad podľa aktuálneho tempa',
-            tone: data.totalForecast > data.totalRecommended ? 'warn' : 'good'
-        },
-        {
-            label: 'Safe to spend',
-            value: formatCurrency(data.safeToSpend),
-            sub: data.safeToSpend >= 0 ? 'Rezerva bez prekročenia plánu' : 'Pravdepodobné prekročenie plánu',
-            tone: data.safeToSpend >= 0 ? 'good' : 'danger'
-        }
-    ];
-
-    el.innerHTML = cards.map(card => `
-        <div class="budget-hero-card tone-${card.tone} ${card.label === 'Safe to spend' ? `balance-result-card ${getSignedResultSurfaceClass(data.safeToSpend)}` : ''}">
-            <div class="budget-hero-label">${card.label}</div>
-            <div class="budget-hero-value ${card.label === 'Safe to spend' ? getSignedResultClass(data.safeToSpend) : ''}">${card.value}</div>
-            ${card.label === 'Safe to spend' ? `<div class="balance-status ${getSignedResultClass(data.safeToSpend)}"><span class="balance-status-dot"></span>${getSignedResultStatus(data.safeToSpend)}</div>` : ''}
-            <div class="budget-hero-sub">${card.sub}</div>
+    const remaining = round2(data.totalRecommended - data.totalSpent);
+    const progress = data.totalRecommended > 0 ? Math.max(0, (data.totalSpent / data.totalRecommended) * 100) : 0;
+    const forecastDelta = round2(data.totalRecommended - data.totalForecast);
+    el.className = 'budget-overview-card';
+    el.innerHTML = `
+        <div class="budget-overview-top">
+            <div><span class="budget-overview-eyebrow">Mesačný budget</span><strong>${formatCurrency(data.totalRecommended)}</strong></div>
+            <div class="budget-overview-remaining ${getSignedResultClass(remaining)}"><span>Zostáva</span><strong>${formatCurrency(remaining)}</strong></div>
         </div>
-    `).join('');
+        <div class="budget-overview-progress"><div style="width:${Math.min(progress,100)}%" class="${progress > 100 ? 'is-over' : progress > 85 ? 'is-warning' : ''}"></div></div>
+        <div class="budget-overview-meta"><span>${formatCurrency(data.totalSpent)} minuté · ${Math.round(progress)} % budgetu</span><span>Forecast ${formatCurrency(data.totalForecast)}</span></div>
+        <details class="budget-overview-details"><summary>Detail mesiaca</summary><div class="budget-overview-detail-grid">
+            <div><span>Budget</span><b>${formatCurrency(data.totalRecommended)}</b></div>
+            <div><span>Minuté</span><b>${formatCurrency(data.totalSpent)}</b></div>
+            <div><span>Forecast</span><b>${formatCurrency(data.totalForecast)}</b></div>
+            <div><span>Rezerva forecastu</span><b class="${getSignedResultClass(forecastDelta)}">${formatCurrency(forecastDelta)}</b></div>
+        </div></details>`;
 }
-
 function renderBudgetRiskSummary(data) {
     const el = document.getElementById('budget-risk-summary');
     if (!el) return;
@@ -412,65 +392,21 @@ function renderBudgetRiskSummary(data) {
 function renderBudgetCategoryList(data) {
     const el = document.getElementById('budget-category-list');
     if (!el) return;
-
     if (!data.categoryRows.length) {
         el.innerHTML = `<div class="empty-state"><div class="empty-state-title">Zatiaľ nie sú dáta</div><div class="empty-state-text">Pridaj viac transakcií a budget tabu začne zobrazovať odporúčania.</div></div>`;
         return;
     }
-
-    el.innerHTML = data.categoryRows.map(row => `
-        <div class="budget-cat-card">
-            <div class="budget-cat-top">
-                <div class="budget-cat-left">
-                    <div class="budget-cat-icon">
-                        <i data-lucide="${row.icon}"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <div class="budget-cat-name">${row.category}</div>
-                        <div class="budget-cat-confidence">${row.confidenceLabel}</div>
-                    </div>
-                </div>
-                <div class="budget-cat-status tone-${row.status.tone}">${row.status.label}</div>
-            </div>
-
-            <div class="budget-cat-values grid grid-cols-3 gap-2">
-                <div class="budget-mini-stat">
-                    <div class="budget-mini-label">Budget</div>
-                    <div class="budget-mini-value">${formatCurrency(row.recommended)}</div>
-                </div>
-                <div class="budget-mini-stat">
-                    <div class="budget-mini-label">Minuté</div>
-                    <div class="budget-mini-value">${formatCurrency(row.spent)}</div>
-                </div>
-                <div class="budget-mini-stat">
-                    <div class="budget-mini-label">Forecast</div>
-                    <div class="budget-mini-value">${formatCurrency(row.forecast)}</div>
-                </div>
-            </div>
-
-            <div class="category-balance-strip ${getSignedResultSurfaceClass(row.safe)}">
-                <div class="category-balance-copy">
-                    <span class="category-balance-label">Zostáva</span>
-                    <span class="category-balance-hint">${row.safe >= 0 ? 'Rezerva v kategórii' : 'Nad plánom'}</span>
-                </div>
-                <div class="category-balance-value ${getSignedResultClass(row.safe)}">${formatCurrency(row.safe)}</div>
-            </div>
-
-            <div class="budget-progress-wrap">
-                <div class="budget-progress-head">
-                    <span>Čerpanie budgetu</span>
-                    <span>${Math.round(row.progressPct)} %</span>
-                </div>
-                <div class="budget-progress-bar">
-                    <div class="budget-progress-fill tone-${row.status.tone}" style="width: ${Math.min(row.progressPct, 100)}%"></div>
-                </div>
-            </div>
-        </div>
-    `).join('');
-
+    el.innerHTML = data.categoryRows.map(row => {
+        const remaining = round2(row.recommended - row.spent);
+        const pct = row.recommended > 0 ? Math.max(0,(row.spent/row.recommended)*100) : 0;
+        return `<div class="budget-cat-card budget-cat-simple">
+            <div class="budget-cat-top"><div class="budget-cat-left"><div class="budget-cat-icon"><i data-lucide="${row.icon}"></i></div><div class="min-w-0"><div class="budget-cat-name">${row.category}</div><div class="budget-cat-compact-line">${formatCurrency(row.spent)} / ${formatCurrency(row.recommended)}</div></div></div><div class="budget-cat-status tone-${row.status.tone}">${row.status.label}</div></div>
+            <div class="budget-progress-wrap compact"><div class="budget-progress-bar"><div class="budget-progress-fill tone-${row.status.tone}" style="width:${Math.min(pct,100)}%"></div></div><div class="budget-progress-head"><span>${Math.round(pct)} % vyčerpané</span><strong class="${getSignedResultClass(remaining)}">${remaining >= 0 ? 'Zostáva' : 'Nad budgetom'} ${formatCurrency(Math.abs(remaining))}</strong></div></div>
+            <details class="budget-cat-details"><summary>Detail kategórie</summary><div class="budget-cat-values grid grid-cols-3 gap-2"><div class="budget-mini-stat"><div class="budget-mini-label">Budget</div><div class="budget-mini-value">${formatCurrency(row.recommended)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Minuté</div><div class="budget-mini-value">${formatCurrency(row.spent)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Forecast</div><div class="budget-mini-value">${formatCurrency(row.forecast)}</div></div></div><div class="budget-cat-confidence">${row.confidenceLabel}</div></details>
+        </div>`;
+    }).join('');
     if (window.lucide) lucide.createIcons();
 }
-
 function renderBudgetForecastList(data) {
     const el = document.getElementById('budget-forecast-list');
     if (!el) return;

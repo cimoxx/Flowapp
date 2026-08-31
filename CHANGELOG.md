@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.44.3 — Budget & Tempo míňania UX
+- Budget: dominantný mesačný overview, čerpanie a zostávajúca suma.
+- Kategórie: na prvý pohľad iba minuté / budget, percento čerpania, zostáva a stav.
+- Forecast, confidence a sekundárne metriky sú pod progressive disclosure.
+- Burn Rate je v UI premenovaný na Tempo míňania; technické ovládanie grafu je pod Detail analýzy.
+- Existujúce ID filtrov, event handlery a analytické výpočty zostávajú zachované.
+- Sync, kategórie, transakcie, Planning, Income Engine a GAS bez zmien.
+
 ## v2.44.2 — UI Simplification
 - Financial Cockpit má jednu dominantnú metriku: očakávaný zostatok.
 - Minuté, Forecast a Safe to Spend sú kompaktné sekundárne metriky.
