@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.44.2 — UI Simplification
+- Financial Cockpit má jednu dominantnú metriku: očakávaný zostatok.
+- Minuté, Forecast a Safe to Spend sú kompaktné sekundárne metriky.
+- Menej používané údaje sú pod natívnym rozbaľovacím `Detail mesiaca` (progressive disclosure).
+- Filter panel Transakcií je vizuálne zjednotený bez zmeny jeho logiky alebo event handlerov.
+- Farebnosť je obmedzená na stavové informácie; bežné údaje zostávajú neutrálne.
+- Budget, Forecast, Planning, sync, kategórie, transakcie, Income Engine a GAS sú bez funkčných zmien.
+
 ## v2.44.1 — Safe to Spend 2.0 + Cockpit Placement
 - Finančný cockpit je presunutý nad filtre na obrazovke Transakcie, aby nebol vložený medzi filtre a zoznam transakcií.
 - Pridaný read-only blok `Safe to Spend`: voľný budget do konca aktuálneho mesiaca, orientačný denný limit a 7-dňový limit.
