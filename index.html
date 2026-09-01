@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <link rel="stylesheet" href="assets/css/styles.css?v=2.44.3">
+    <link rel="stylesheet" href="assets/css/styles.css?v=2.44.5">
 </head>
 <body class="desktop-safe-body">
 
@@ -173,7 +173,7 @@
 
         <main id="screen-analytics" class="p-4 flex-1 hidden space-y-4 screen-content">
             <div class="flex justify-between items-center mb-1">
-                <h2 class="text-xl font-extrabold">Grafická analýza</h2>
+                <div><h2 class="text-xl font-extrabold">Analytika</h2><div class="text-[10px] font-bold text-slate-400">Rýchla odpoveď na to, čo sa deje s peniazmi</div></div>
             </div>
 
             <div class="analytics-toolbar space-y-1.5">
@@ -229,7 +229,7 @@
                 </div>
             </div>
 
-            <div class="burn-section-heading"><span>Rozloženie výdavkov</span><small>Ťukni na kategóriu nižšie pre filtrovanie transakcií</small></div>
+            <div class="burn-section-heading analytics-question-heading"><span id="analytics-question-title">Kam idú peniaze?</span><small id="analytics-question-hint">Rozdelenie podľa kategórií</small></div>
             <div class="desktop-chart-card bg-white dark:bg-slate-800/80 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm relative min-h-[300px] flex items-center justify-center">
                 <canvas id="analyticsChart" class="max-h-[360px]"></canvas>
             </div>
@@ -426,8 +426,31 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.3</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.5</span>
                     <span class="text-[11px] font-bold text-slate-400">Aktuálna</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Opravená presnosť plánu priamo v kartách uzavretých mesiacov.</li>
+                    <li>Aktuálny mesiac automaticky archivuje Budget/Forecast snapshot pre neskoršie porovnanie so skutočnosťou.</li>
+                    <li>Ak práve uzavretému mesiacu porovnanie chýba, Flow ho doplní walk-forward výpočtom na pozadí.</li>
+                    <li>Skutočné výdavky sa naďalej berú zo zapísaných transakcií.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.4</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Ročný plán teraz začína jedným hlavným výsledkom – očakávaným ročným zostatkom – a tri sekundárne sumy sú kompaktnejšie.</li>
+                    <li>Technické informácie o modeli a presnosti sú schované pod „Ako vzniká ročný plán“.</li>
+                    <li>Analytika používa jednu dominantnú sumu, najväčšiu kategóriu a ostatné štatistiky sú dostupné až po rozbalení.</li>
+                    <li>Nad grafom sa podľa dát zobrazuje otázka „Kam idú peniaze?“, „Odkiaľ prichádzajú príjmy?“ alebo „Ako vyzerá bilancia?“.</li>
+                    <li>Filtre, grafy, ročný plán, forecast, Budget, sync a backendová logika zostávajú funkčne nezmenené.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.44.3</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Budget má kompaktnejší mesačný overview a kategórie ukazujú najprv čerpanie a zostávajúcu sumu.</li><li>Forecast a ďalšie sekundárne údaje sú dostupné pod Detail mesiaca / Detail kategórie.</li><li>Burn Rate je v UI pomenovaný zrozumiteľnejšie ako Tempo míňania.</li><li>Pokročilé ovládanie grafu je schované pod Detail analýzy, všetky pôvodné ovládače a eventy zostali zachované.</li><li>Finančné výpočty, sync, kategórie, transakcie, Planning, Income Engine a GAS sa nemenia.</li></ul>
             </div>

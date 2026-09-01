@@ -2012,13 +2012,29 @@ function renderAnnualPlanScreen() {
     const metrics = calculateForecastMetrics();
 
     el.innerHTML = `
-      <div class="annual-hero-grid">
-        <div class="annual-hero-card"><div class="annual-label">Ročný budget</div><div class="annual-value">${formatCurrency(totalBudget)}</div><div class="annual-sub">Plán výdavkov na ${year}</div></div>
-        <div class="annual-hero-card"><div class="annual-label">Forecast</div><div class="annual-value">${formatCurrency(totalForecast)}</div><div class="annual-sub">Priebežne prepočítavaný</div></div>
-        <div class="annual-hero-card"><div class="annual-label">Príjem</div><div class="annual-value">${formatCurrency(totalIncome)}</div><div class="annual-sub">Dostupné dáta + plán</div></div>
-        <div class="annual-hero-card balance-result-card tone-${totalBalance >= 0 ? 'good':'danger'} ${getPlanningSignedSurfaceClass(totalBalance)}"><div class="annual-label">Očakávaný zostatok</div><div class="annual-value ${getPlanningSignedClass(totalBalance)}">${formatCurrency(totalBalance)}</div><div class="balance-status ${getPlanningSignedClass(totalBalance)}"><span class="balance-status-dot"></span>${getPlanningSignedStatus(totalBalance)}</div><div class="annual-sub">Príjem mínus forecast</div></div>
-      </div>
-      <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Výdavky používajú stabilného championa pre každú kategóriu; challenger ho nahradí iba pri jasnom zlepšení. Príjmový model zostáva nezmenený.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
+      <section class="annual-overview-pro">
+        <div class="annual-overview-main balance-result-card ${getPlanningSignedSurfaceClass(totalBalance)}">
+          <div>
+            <span class="annual-overview-eyebrow">${year} · očakávaný výsledok</span>
+            <div class="annual-overview-balance ${getPlanningSignedClass(totalBalance)}">${formatCurrency(totalBalance)}</div>
+            <div class="annual-overview-status ${getPlanningSignedClass(totalBalance)}"><span class="balance-status-dot"></span>${getPlanningSignedStatus(totalBalance)}</div>
+          </div>
+          <div class="annual-overview-equation">Príjem ${formatCurrency(totalIncome)} − forecast ${formatCurrency(totalForecast)}</div>
+        </div>
+
+        <div class="annual-overview-metrics">
+          <div><span>Ročný budget</span><strong>${formatCurrency(totalBudget)}</strong></div>
+          <div><span>Forecast výdavkov</span><strong>${formatCurrency(totalForecast)}</strong></div>
+          <div><span>Plánovaný príjem</span><strong>${formatCurrency(totalIncome)}</strong></div>
+        </div>
+      </section>
+
+      <details class="planning-method-details">
+        <summary><span><i data-lucide="info"></i> Ako vzniká ročný plán</span><small>Model · presnosť · história</small></summary>
+        <div class="planning-method-body">
+          <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Výdavky používajú stabilného championa pre každú kategóriu; challenger ho nahradí iba pri jasnom zlepšení. Príjmový model zostáva nezmenený.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
+        </div>
+      </details>
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
       <div class="annual-month-list">
       ${renderAnnualYearStrip(months)}
@@ -2361,6 +2377,36 @@ function initPlanning() {
         const runIdle = window.requestIdleCallback || (cb => setTimeout(cb, 1200));
         runIdle(async()=>{
             await refreshArchiveEvaluations();
+
+            // Archive the current month's real Budget/Forecast state so that
+            // its accuracy can be shown after the month closes.
+            try {
+                await archiveCurrentForecastSnapshot();
+            } catch (error) {
+                console.warn('Current forecast snapshot save failed:', error);
+            }
+
+            // Repair the just-closed month if it predates live snapshots.
+            // Runs in idle time and does not block the initial UI.
+            try {
+                const now = new Date();
+                const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const prevKey = getMonthKey(prev.getFullYear(), prev.getMonth());
+                const hasPreviousComparison = (Array.isArray(flowForecastArchive) ? flowForecastArchive : [])
+                    .some(r => String(r.targetMonth || '') === prevKey &&
+                               String(r.category || '') !== '__INCOME__' &&
+                               (Number.isFinite(Number(r.forecastAmount)) || Number.isFinite(Number(r.budgetAmount))));
+                if (!hasPreviousComparison) {
+                    const missingRows = await buildForecastArchiveBackfill();
+                    if (missingRows.length) {
+                        await archiveForecastRows(missingRows, { chunkSize: 100 });
+                        await refreshArchiveEvaluations();
+                    }
+                }
+            } catch (error) {
+                console.warn('Closed-month comparison backfill failed:', error);
+            }
+
             if (document.visibilityState !== 'hidden') renderPlanningScreens();
         });
     });

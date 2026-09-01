@@ -389,27 +389,27 @@ function renderAnalyticsSummaryCards(filtered, sums, dataMode) {
 
     const avg = transactionCount > 0 ? total / transactionCount : 0;
 
+    const modeLabel = dataMode === 'expense' ? 'Výdavky' : dataMode === 'income' ? 'Príjmy' : 'Bilancia';
     container.innerHTML = `
-        <div class="summary-insight-card">
-            <div class="summary-insight-label">Celková suma</div>
-            <div class="summary-insight-value">${total.toFixed(2)} €</div>
-            <div class="summary-insight-sub">${dataMode === 'balance' ? 'Výsledná bilancia za zvolené obdobie.' : 'Súčet zvolených dát za aktuálny pohľad.'}</div>
+        <div class="analytics-primary-card">
+            <div class="summary-insight-label">${modeLabel} · spolu</div>
+            <div class="analytics-primary-value">${total.toFixed(2)} €</div>
+            <div class="summary-insight-sub">${dataMode === 'balance' ? 'Výsledná bilancia za zvolené obdobie.' : 'Súčet za aktuálne zvolené obdobie.'}</div>
         </div>
-        <div class="summary-insight-card">
-            <div class="summary-insight-label">Top kategória</div>
-            <div class="summary-insight-value">${topCategory}</div>
+
+        <div class="analytics-secondary-card">
+            <div class="summary-insight-label">Najväčšia kategória</div>
+            <div class="analytics-secondary-value">${topCategory}</div>
             <div class="summary-insight-sub">${topCategory !== '—' ? `${Math.abs(sums[topCategory]).toFixed(2)} €` : 'Bez dostupných dát.'}</div>
         </div>
-        <div class="summary-insight-card">
-            <div class="summary-insight-label">Počet transakcií</div>
-            <div class="summary-insight-value">${transactionCount}</div>
-            <div class="summary-insight-sub">Počet záznamov započítaných do grafu.</div>
-        </div>
-        <div class="summary-insight-card">
-            <div class="summary-insight-label">Priemer / transakciu</div>
-            <div class="summary-insight-value">${avg.toFixed(2)} €</div>
-            <div class="summary-insight-sub">Priemerná hodnota jednej položky.</div>
-        </div>
+
+        <details class="analytics-more-stats">
+            <summary>Ďalšie štatistiky</summary>
+            <div class="analytics-more-grid">
+                <div><span>Počet transakcií</span><strong>${transactionCount}</strong></div>
+                <div><span>Priemer / transakciu</span><strong>${avg.toFixed(2)} €</strong></div>
+            </div>
+        </details>
     `;
 }
 
@@ -443,6 +443,21 @@ function updateAnalytics() {
         const statsContainer = document.getElementById('chart-stats-summary');
         const summaryCards = document.getElementById('analytics-summary-cards');
         const subStatsContainer = document.getElementById('chart-sub-stats-summary');
+
+        const chartHeading = document.getElementById('analytics-question-title');
+        const chartHint = document.getElementById('analytics-question-hint');
+        if (chartHeading) {
+            chartHeading.textContent = dataMode === 'expense'
+                ? 'Kam idú peniaze?'
+                : dataMode === 'income'
+                    ? 'Odkiaľ prichádzajú príjmy?'
+                    : 'Ako vyzerá bilancia?';
+        }
+        if (chartHint) {
+            chartHint.textContent = levelMode === 'sub'
+                ? 'Rozdelenie podľa podkategórií'
+                : 'Rozdelenie podľa kategórií';
+        }
 
         if (labels.length === 0) {
             if (analyticsChartInstance) {

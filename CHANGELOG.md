@@ -1,5 +1,31 @@
 # Flow changelog
 
+## v2.44.5 – Closed Month Plan Accuracy
+
+- Presnosť plánu sa zobrazuje priamo v kartách uzavretých mesiacov.
+- Aktuálny mesiac automaticky archivuje live Budget/Forecast snapshot.
+- Po uzavretí sa Budget a Forecast porovnajú so skutočnými výdavkami z transakcií.
+- Ak práve uzavretému mesiacu snapshot chýba, Flow doplní walk-forward porovnanie na pozadí.
+- Forecast/Budget algoritmy sa nemenia.
+
+## v2.44.4 – Annual Plan & Analytics UX
+
+### Ročný plán
+- Dominantný výsledok je očakávaný ročný zostatok.
+- Budget, forecast a príjem sú sekundárne kompaktné metriky.
+- Model, backtest a presnosť sú schované pod `Ako vzniká ročný plán`.
+- Existujúce mesačné karty, klikateľné mesiace, percentá zhody a detail kategórií zostávajú zachované.
+
+### Analytika
+- Jedna dominantná suma + najväčšia kategória.
+- Počet transakcií a priemer sú pod `Ďalšie štatistiky`.
+- Dynamický nadpis grafu vysvetľuje, na akú otázku graf odpovedá.
+- Pôvodné filtre, typ grafu, kategórie/podkategórie a Výdavky/Príjmy/Bilancia zostávajú funkčne nezmenené.
+
+### Bezpečnosť regresie
+- Bez zmeny: Budget, transakcie, synchronizácia, kategórie, Cockpit, GAS a forecast výpočty.
+- Zmeny v `planning.js` a `analytics.js` sú iba render/UI vrstva.
+
 ## v2.44.3 — Budget & Tempo míňania UX
 - Budget: dominantný mesačný overview, čerpanie a zostávajúca suma.
 - Kategórie: na prvý pohľad iba minuté / budget, percento čerpania, zostáva a stav.
