@@ -1,5 +1,11 @@
 # Flow changelog
 
+## v2.45.0 – Čo je dobré vedieť
+
+- Najviac 3 dôležité mesačné informácie.
+- Jednoduchšie texty.
+- Bez zmeny finančných výpočtov.
+
 ## v2.44.6 – Presnosť starších mesiacov
 
 - Flow spätne doplní chýbajúce porovnania pre staršie uzavreté mesiace.

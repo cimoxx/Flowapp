@@ -26,8 +26,8 @@
         const projectedBalance=Number.isFinite(Number(data.plannedBalance))?Number(data.plannedBalance):(Number(data.totalIncome)||0)-(Number(data.totalForecast)||0);
         const budgetUsage=data.totalRecommended>0?Math.round((data.totalSpent/data.totalRecommended)*100):0;
         const progressWidth=Math.max(0,Math.min(100,budgetUsage));
-        const insights=typeof buildBudgetInsights==='function'?buildBudgetInsights(data).slice(0,1):[];
-        const topInsight=insights[0], safe=buildSafeToSpend(data,meta);
+        const insights=typeof buildBudgetInsights==='function'?buildBudgetInsights(data).slice(0,3):[];
+        const safe=buildSafeToSpend(data,meta);
         const primaryLabel=meta.isCurrent?'Očakávaný zostatok':'Odhadovaný zostatok';
         root.innerHTML=`<section class="cockpit-shell cockpit-simple" aria-label="Finančný prehľad pre ${esc(meta.label)}">
           <div class="cockpit-simple-head"><div><div class="cockpit-eyebrow"><i data-lucide="layout-dashboard"></i>${meta.isCurrent?'Tento mesiac':'Vybraný mesiac'}</div><h2>${esc(meta.label)}</h2></div><button type="button" class="cockpit-budget-link" onclick="showScreen('budget')">Budget <i data-lucide="arrow-up-right"></i></button></div>
@@ -38,7 +38,10 @@
             ${safe?`<div class="cockpit-glance-safe ${signedClass(safe.available)}"><span>Safe to Spend</span><strong>${formatCurrency(safe.available)}</strong><small>${safe.available>=0?`${formatCurrency(safe.daily)} / deň`:'forecast nad budgetom'}</small></div>`:`<div><span>Rezerva</span><strong>${formatCurrency(data.safeToSpend)}</strong><small>budget − forecast</small></div>`}
           </div>
           <div class="cockpit-progress-row"><div><span>Čerpanie budgetu</span><b>${budgetUsage}%</b></div><div class="cockpit-progress"><i style="width:${progressWidth}%"></i></div></div>
-          ${topInsight?`<div class="cockpit-signal tone-${esc(topInsight.tone)}"><div class="cockpit-signal-icon"><i data-lucide="${esc(topInsight.icon)}"></i></div><div><strong>${esc(topInsight.title)}</strong><span>${esc(topInsight.text)}</span></div></div>`:''}
+          ${insights.length?`<section class="smart-insights" aria-label="Čo je dobré vedieť">
+            <div class="smart-insights-head"><div><span>Čo je dobré vedieť</span><small>Najdôležitejšie veci pre tento mesiac</small></div><span class="smart-insights-count">${insights.length}</span></div>
+            <div class="smart-insights-list">${insights.map((item,index)=>`<article class="smart-insight tone-${esc(item.tone)} ${index===0?'is-primary':''}"><div class="smart-insight-icon"><i data-lucide="${esc(item.icon)}"></i></div><div class="smart-insight-copy"><strong>${esc(item.title)}</strong><span>${esc(item.text)}</span></div></article>`).join('')}</div>
+          </section>`:''}
           <details class="cockpit-more"><summary>Detail mesiaca <i data-lucide="chevron-down"></i></summary><div class="cockpit-more-grid">
             <div><span>Budget</span><strong>${formatCurrency(data.totalRecommended)}</strong></div>
             <div><span>Rezerva podľa forecastu</span><strong class="${signedClass(data.safeToSpend)}">${formatCurrency(data.safeToSpend)}</strong></div>

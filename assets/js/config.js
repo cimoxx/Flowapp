@@ -1,4 +1,4 @@
-const APP_VERSION = '2.44.6';
+const APP_VERSION = '2.45.0';
 const GOOGLE_URL = 'https://script.google.com/macros/s/AKfycbwL3Yvp-zAL16wUyslfeqPUOCp9XWPY6BRckXR2Qdnrx6bX5ogu1DZV10xJFpPzQY0DiQ/exec';
 // Shared endpoint access token. This is basic endpoint protection, not full user authentication.
 const FLOW_API_TOKEN = 'XMdXUXce7yB6d8mle2v_o78BUhNKvR4WOcfN9g5hWg';

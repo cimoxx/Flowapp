@@ -263,15 +263,15 @@ function buildBudgetInsights(data) {
         insights.push({
             tone: 'danger',
             icon: 'triangle-alert',
-            title: 'Mesiac smeruje nad plán',
-            text: `Odhad do konca mesiaca je približne o ${formatCurrency(Math.abs(data.safeToSpend))} vyšší než odporúčaný budget.`
+            title: 'Pozor, tento mesiac môže byť drahší',
+            text: `Ak budeš pokračovať podobne, výdavky môžu byť asi o ${formatCurrency(Math.abs(data.safeToSpend))} vyššie než rozpočet.`
         });
     } else {
         insights.push({
             tone: 'good',
             icon: 'shield-check',
-            title: 'Zatiaľ si v bezpečnom pásme',
-            text: `Podľa aktuálneho tempa máš ešte priestor približne ${formatCurrency(data.safeToSpend)} bez prekročenia odporúčaného budgetu.`
+            title: 'Mesiac zatiaľ vyzerá dobre',
+            text: `Podľa dnešného odhadu máš ešte približne ${formatCurrency(data.safeToSpend)} rezervu do rozpočtu.`
         });
     }
 
@@ -280,8 +280,8 @@ function buildBudgetInsights(data) {
         insights.push({
             tone: 'warn',
             icon: 'flame',
-            title: `${top.category} je najväčšie riziko`,
-            text: `Forecast pre túto kategóriu je ${formatCurrency(top.forecast)}, čo je nad odporúčaným budgetom ${formatCurrency(top.recommended)}.`
+            title: `Najviac si daj pozor na ${top.category}`,
+            text: `Do konca mesiaca tu odhadujeme ${formatCurrency(top.forecast)}. Rozpočet je ${formatCurrency(top.recommended)}.`
         });
     }
 
@@ -290,8 +290,8 @@ function buildBudgetInsights(data) {
         insights.push({
             tone: 'info',
             icon: 'gauge',
-            title: `${top.category} ide rýchlym tempom`,
-            text: `Zatiaľ je minutých ${Math.round(top.progressPct)} % budgetu v tejto kategórii.`
+            title: `${top.category}: míňaš rýchlejšie`,
+            text: `Už si minul ${Math.round(top.progressPct)} % rozpočtu tejto kategórie.`
         });
     }
 
@@ -300,10 +300,10 @@ function buildBudgetInsights(data) {
         insights.push({
             tone: leftover >= 0 ? 'good' : 'warn',
             icon: leftover >= 0 ? 'wallet' : 'badge-alert',
-            title: 'Hrubý mesačný výhľad',
+            title: 'Ako môže mesiac skončiť',
             text: leftover >= 0
-                ? `Ak sa forecast naplní, po výdavkoch by malo ostať približne ${formatCurrency(leftover)}.`
-                : `Ak sa forecast naplní, výdavky budú vyššie než príjmy približne o ${formatCurrency(Math.abs(leftover))}.`
+                ? `Ak sa odhad naplní, po výdavkoch by malo zostať približne ${formatCurrency(leftover)}.`
+                : `Ak sa odhad naplní, výdavky môžu byť približne o ${formatCurrency(Math.abs(leftover))} vyššie než príjmy.`
         });
     }
 
