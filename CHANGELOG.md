@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.44.6 – Presnosť starších mesiacov
+
+- Flow spätne doplní chýbajúce porovnania pre staršie uzavreté mesiace.
+- Pre každý mesiac používa iba dáta dostupné pred jeho začiatkom.
+- Nové mesiace naďalej používajú plán reálne uložený počas mesiaca.
+- V UI sa používa ľudské označenie `uložené počas mesiaca` alebo `spätne dopočítané`.
+- Bez zmeny samotných Budget/Forecast algoritmov.
+
 ## v2.44.5 – Closed Month Plan Accuracy
 
 - Presnosť plánu sa zobrazuje priamo v kartách uzavretých mesiacov.

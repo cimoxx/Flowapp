@@ -1404,13 +1404,13 @@ function renderClosedMonthComparison(month) {
     if (!cmp) {
         return `<div class="planning-comparison-card is-muted">
             <div class="planning-comparison-head"><div><span class="planning-comparison-eyebrow">Presnosť plánu</span><strong>Zatiaľ bez uloženého porovnania</strong></div></div>
-            <p>Skutočné výdavky sú z transakcií. Pre tento mesiac nemáme uložený pôvodný budget/forecast, preto percento radšej nevymýšľame.</p>
+            <p>Skutočné výdavky sú z transakcií. Ak sa pôvodný plán nezachoval, Flow sa ho pokúsi spätne dopočítať iba z údajov, ktoré boli vtedy dostupné.</p>
         </div>`;
     }
 
     const budgetTone = getPlanningComparisonTone(cmp.budgetAccuracy, 'accuracy');
     const forecastTone = getPlanningComparisonTone(cmp.forecastAccuracy, 'accuracy');
-    const sourceLabel = cmp.source === 'snapshot' ? 'podľa uloženého plánu' : 'podľa spätného testu modelu';
+    const sourceLabel = cmp.source === 'snapshot' ? 'uložené počas mesiaca' : 'spätne dopočítané';
 
     return `<div class="planning-comparison-card">
         <div class="planning-comparison-head">
@@ -1420,12 +1420,12 @@ function renderClosedMonthComparison(month) {
 
         <div class="planning-closed-summary">
             <div class="planning-closed-summary-item">
-                <span>Budget</span>
+                <span>Rozpočet</span>
                 <strong>${formatCurrency(cmp.budget)}</strong>
                 <small>${cmp.budgetDelta >= 0 ? 'rezerva ' : 'prekročenie '}${formatCurrency(Math.abs(cmp.budgetDelta))}</small>
             </div>
             <div class="planning-closed-summary-item">
-                <span>Forecast</span>
+                <span>Odhad</span>
                 <strong>${formatCurrency(cmp.forecast)}</strong>
                 <small>odchýlka ${formatCurrency(Math.abs(cmp.forecastDelta))}</small>
             </div>
@@ -2386,25 +2386,20 @@ function initPlanning() {
                 console.warn('Current forecast snapshot save failed:', error);
             }
 
-            // Repair the just-closed month if it predates live snapshots.
-            // Runs in idle time and does not block the initial UI.
+            // One-time repair for ALL older closed months.
+            // Each historical month uses only information available before it.
             try {
-                const now = new Date();
-                const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                const prevKey = getMonthKey(prev.getFullYear(), prev.getMonth());
-                const hasPreviousComparison = (Array.isArray(flowForecastArchive) ? flowForecastArchive : [])
-                    .some(r => String(r.targetMonth || '') === prevKey &&
-                               String(r.category || '') !== '__INCOME__' &&
-                               (Number.isFinite(Number(r.forecastAmount)) || Number.isFinite(Number(r.budgetAmount))));
-                if (!hasPreviousComparison) {
+                const repairKey = `flowHistoricalAccuracyRepair:${FLOW_MODEL_VERSION}:v2446`;
+                if (localStorage.getItem(repairKey) !== 'done') {
                     const missingRows = await buildForecastArchiveBackfill();
                     if (missingRows.length) {
                         await archiveForecastRows(missingRows, { chunkSize: 100 });
                         await refreshArchiveEvaluations();
                     }
+                    localStorage.setItem(repairKey, 'done');
                 }
             } catch (error) {
-                console.warn('Closed-month comparison backfill failed:', error);
+                console.warn('Historical month accuracy repair failed:', error);
             }
 
             if (document.visibilityState !== 'hidden') renderPlanningScreens();
