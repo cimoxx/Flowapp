@@ -246,7 +246,8 @@ function getLocalDataHealth() {
 function renderDataHealth(local,remote){
     const title=document.getElementById('data-health-title'),badge=document.getElementById('data-health-badge'),
       summary=document.getElementById('data-health-summary'),issues=document.getElementById('data-health-issues'),
-      last=document.getElementById('data-last-backup');
+      last=document.getElementById('data-last-backup'),
+      auto=document.getElementById('data-auto-backup');
     if(!title||!badge||!summary||!issues||!last)return;
     const ok=local.ok && (!remote||remote.status==='success');
     title.textContent=ok?'Všetko vyzerá v poriadku':'Našiel som veci na kontrolu';
@@ -257,6 +258,7 @@ function renderDataHealth(local,remote){
     else{issues.classList.add('hidden');issues.innerHTML='';}
     if(remote?.lastBackupAt){const d=new Date(remote.lastBackupAt);last.textContent=isNaN(d)?remote.lastBackupAt:d.toLocaleString('sk-SK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
     else if(remote?.status==='success')last.textContent='Zatiaľ nevytvorená'; else last.textContent=remote?.message||'Cloud sa nepodarilo overiť';
+    if(auto) auto.textContent=remote?.autoBackupEnabled ? 'Zapnutá · posledný deň mesiaca' : 'Vypnutá';
     if(window.lucide)lucide.createIcons();
 }
 async function refreshDataProtection(){
@@ -285,5 +287,21 @@ async function createCloudBackup(btn){
       refreshDataProtection();
     }catch(error){
       showToast({type:'error',title:'Záloha sa nevytvorila',text:error?.message||'Nepodarilo sa spojiť so serverom.'});
+    }finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}}
+}
+
+
+async function setupAutoBackup(btn){
+    if(btn){btn.disabled=true;btn.classList.add('opacity-60');}
+    showToast({type:'info',title:'Nastavujem automatickú zálohu',text:'Flow ju spustí v posledný deň každého mesiaca.'});
+    try{
+      const r=await fetch(GOOGLE_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'setupAutoBackup',token:getSyncToken()})});
+      const text=await r.text(); let result;
+      try{result=JSON.parse(text);}catch(_){throw new Error(`Neplatná odpoveď servera (${r.status})`);}
+      if(!r.ok||!result||result.status!=='success')throw new Error(result?.message||`HTTP ${r.status}`);
+      showToast({type:'success',title:'Automatická záloha je zapnutá',text:'Flow zálohuje v posledný deň mesiaca a drží najviac 5 záloh.'});
+      refreshDataProtection();
+    }catch(error){
+      showToast({type:'error',title:'Automatická záloha sa nezapla',text:error?.message||'Skontroluj nový Google Apps Script v2.49.2.'});
     }finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}}
 }

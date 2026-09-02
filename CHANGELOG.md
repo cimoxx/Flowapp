@@ -1,5 +1,12 @@
 # Flow changelog
 
+## v2.49.2 – Automatické zálohy
+
+- Záloha v posledný deň mesiaca.
+- Maximálne 5 cloudových záloh.
+- Najstaršia sa pri ďalšej zálohe prepíše.
+- Stav auto zálohy v Nastaveniach.
+
 ## v2.49.1 – Backup fix
 
 - Záloha cez Spreadsheet.copy namiesto DriveApp.
