@@ -256,21 +256,34 @@ function renderDataHealth(local,remote){
     if(all.length){issues.classList.remove('hidden');issues.innerHTML=all.map(x=>`<div><i data-lucide="triangle-alert"></i><span>${x}</span></div>`).join('');}
     else{issues.classList.add('hidden');issues.innerHTML='';}
     if(remote?.lastBackupAt){const d=new Date(remote.lastBackupAt);last.textContent=isNaN(d)?remote.lastBackupAt:d.toLocaleString('sk-SK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
-    else if(remote?.status==='success')last.textContent='Zatiaľ nevytvorená'; else last.textContent='Cloud sa nepodarilo overiť';
+    else if(remote?.status==='success')last.textContent='Zatiaľ nevytvorená'; else last.textContent=remote?.message||'Cloud sa nepodarilo overiť';
     if(window.lucide)lucide.createIcons();
 }
 async function refreshDataProtection(){
     const local=getLocalDataHealth(); renderDataHealth(local,null);
-    try{const r=await fetch(buildSyncGetUrl('data_health'),{cache:'no-store'});renderDataHealth(local,await r.json());}
-    catch(_){renderDataHealth(local,{status:'error'});}
+    try{
+      const r=await fetch(buildSyncGetUrl('data_health'),{cache:'no-store'});
+      const text=await r.text();
+      let remote;
+      try{ remote=JSON.parse(text); }catch(_){ throw new Error(`Neplatná odpoveď servera (${r.status})`); }
+      if(!r.ok) throw new Error(remote?.message||`HTTP ${r.status}`);
+      renderDataHealth(local,remote);
+    }catch(error){
+      renderDataHealth(local,{status:'error',message:error?.message||'Cloud sa nepodarilo overiť'});
+    }
 }
 async function createCloudBackup(btn){
     if(btn){btn.disabled=true;btn.classList.add('opacity-60');}
     showToast({type:'info',title:'Vytváram zálohu',text:'Kopírujem celú Google tabuľku.'});
     try{
       const r=await fetch(GOOGLE_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'createBackup',token:getSyncToken(),userId:typeof FLOW_USER_ID!=='undefined'?FLOW_USER_ID:'default'})});
-      const result=await r.json(); if(!result||result.status!=='success')throw new Error(result?.message||'Backup failed');
-      showToast({type:'success',title:'Záloha je hotová',text:'Celá Google tabuľka bola uložená ako samostatná kópia.'}); refreshDataProtection();
-    }catch(_){showToast({type:'error',title:'Záloha sa nevytvorila',text:'Skontroluj, či je nasadený Google Apps Script v2.49.0.'});}
-    finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}}
+      const text=await r.text();
+      let result;
+      try{ result=JSON.parse(text); }catch(_){ throw new Error(`Neplatná odpoveď servera (${r.status})`); }
+      if(!r.ok || !result || result.status!=='success')throw new Error(result?.message||`HTTP ${r.status}`);
+      showToast({type:'success',title:'Záloha je hotová',text:`Uložené ako ${result.name||'nová kópia'}.`});
+      refreshDataProtection();
+    }catch(error){
+      showToast({type:'error',title:'Záloha sa nevytvorila',text:error?.message||'Nepodarilo sa spojiť so serverom.'});
+    }finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}}
 }

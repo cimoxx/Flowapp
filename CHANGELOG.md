@@ -1,5 +1,11 @@
 # Flow changelog
 
+## v2.49.1 – Backup fix
+
+- Záloha cez Spreadsheet.copy namiesto DriveApp.
+- Ľahší read-only cloud health check.
+- Presné chybové hlášky zo servera.
+
 ## v2.49.0 – Data Protection & Backup
 
 - Opravený prázdny Rozpočet z v2.48.0.
