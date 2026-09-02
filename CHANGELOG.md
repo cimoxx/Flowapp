@@ -1,5 +1,12 @@
 # Flow changelog
 
+## v2.46.0 – Finančný kalendár
+
+- Najbližšie platby a príjmy na 31 dní.
+- Súhrn Príde / Odíde / Rozdiel.
+- Používa existujúce plány a udalosti.
+- Bez zmeny finančných výpočtov.
+
 ## v2.45.0 – Čo je dobré vedieť
 
 - Najviac 3 dôležité mesačné informácie.

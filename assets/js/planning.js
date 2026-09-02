@@ -2000,6 +2000,66 @@ function escPlanning(value) {
     return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+
+function getPlanningItemDate(item, year, month) {
+    if (item && item.date) {
+        const d = new Date(`${String(item.date).slice(0,10)}T12:00:00`);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (item && item.dayOfMonth) {
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        return new Date(year, month, Math.min(lastDay, Math.max(1, Number(item.dayOfMonth) || 1)), 12);
+    }
+    return new Date(year, month, 1, 12);
+}
+
+function getFinancialCalendarItems(year, month, daysAhead = 31) {
+    const now = new Date();
+    const start = year === now.getFullYear() && month === now.getMonth()
+        ? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0,0)
+        : new Date(year, month, 1, 0,0,0,0);
+    const end = new Date(start); end.setDate(end.getDate() + Math.max(1, daysAhead));
+    const recurring = getRecurringForMonth(year, month).map(plan => ({
+        id: plan.id, title: plan.name || plan.category || 'Pravidelná položka',
+        type: plan.type === 'income' ? 'income' : 'expense',
+        amount: Math.abs(Number(plan.amount)||0),
+        date: getPlanningItemDate(plan,year,month),
+        source: 'recurring'
+    }));
+    const events = getPlannedEventsForMonth(year, month).map(event => ({
+        id:event.id, title:event.title || 'Plánovaná udalosť',
+        type:event.type === 'income' ? 'income' : 'expense',
+        amount:Math.abs(Number(event.amount)||0),
+        date:getPlanningItemDate(event,year,month),
+        source:'event'
+    }));
+    return recurring.concat(events)
+        .filter(item => item.date && item.date >= start && item.date < end)
+        .sort((a,b)=>a.date-b.date);
+}
+
+function formatPlanningCalendarDate(date) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const d = new Date(date); d.setHours(0,0,0,0);
+    const diff = Math.round((d-today)/86400000);
+    if (diff === 0) return 'Dnes';
+    if (diff === 1) return 'Zajtra';
+    return `${d.getDate()}. ${MONTH_NAMES_SK[d.getMonth()].toLowerCase()}`;
+}
+
+function renderFinancialCalendar(year, month) {
+    const items = getFinancialCalendarItems(year, month, 31);
+    if (!items.length) return `<section class="financial-calendar"><div class="financial-calendar-head"><div><span>Najbližšie platby</span><small>Čo už Flow vie o najbližších dňoch</small></div><i data-lucide="calendar-days"></i></div><div class="financial-calendar-empty">Na najbližšie dni nemáš naplánované žiadne platby ani príjmy.</div></section>`;
+    const expenses=items.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+    const income=items.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+    return `<section class="financial-calendar">
+      <div class="financial-calendar-head"><div><span>Najbližšie platby</span><small>Najbližších 31 dní podľa tvojich plánov</small></div><i data-lucide="calendar-days"></i></div>
+      <div class="financial-calendar-summary"><div><span>Príde</span><strong class="planning-positive">+${formatCurrency(income)}</strong></div><div><span>Odíde</span><strong class="planning-negative">−${formatCurrency(expenses)}</strong></div><div><span>Rozdiel</span><strong class="${getPlanningSignedClass(income-expenses)}">${income-expenses>=0?'+':''}${formatCurrency(income-expenses)}</strong></div></div>
+      <div class="financial-calendar-list">${items.slice(0,5).map(item=>`<div class="financial-calendar-row"><div class="financial-calendar-date">${formatPlanningCalendarDate(item.date)}</div><div class="financial-calendar-name"><strong>${escPlanning(item.title)}</strong><small>${item.source==='recurring'?'Pravidelná položka':'Naplánovaná udalosť'}</small></div><div class="financial-calendar-amount ${item.type==='income'?'planning-positive':'planning-negative'}">${item.type==='income'?'+':'−'}${formatCurrency(item.amount)}</div></div>`).join('')}</div>
+      ${items.length>5?`<div class="financial-calendar-more">+ ${items.length-5} ďalších položiek</div>`:''}
+    </section>`;
+}
+
 function renderAnnualPlanScreen() {
     const el = document.getElementById('annual-plan-content');
     if (!el) return;
@@ -2036,6 +2096,7 @@ function renderAnnualPlanScreen() {
         </div>
       </details>
       <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
+      ${renderFinancialCalendar(year, new Date().getFullYear()===year ? new Date().getMonth() : 0)}
       <div class="annual-month-list">
       ${renderAnnualYearStrip(months)}
         ${months.map(m => {
