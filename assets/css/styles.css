@@ -2905,3 +2905,14 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
 .safe-spend-details{margin-top:10px;border-top:1px solid var(--border);padding-top:8px}.safe-spend-details summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;font-size:8.5px;font-weight:900;color:var(--text-dim)}.safe-spend-details summary::-webkit-details-marker{display:none}.safe-spend-details summary svg{width:13px;height:13px}.safe-spend-details[open] summary svg{transform:rotate(180deg)}
 .safe-spend-breakdown{display:grid;gap:5px;margin-top:8px}.safe-spend-breakdown>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 7px;border-radius:9px;background:var(--surface);font-size:8px}.safe-spend-breakdown span{color:var(--text-dim);font-weight:700}.safe-spend-breakdown b{color:var(--text-main);font-weight:900}.safe-spend-breakdown .safe-spend-result{border:1px solid var(--border)}.safe-spend-details p{margin:7px 2px 0;font-size:7.5px;line-height:1.4;font-weight:650;color:var(--text-dim)}
 .dark .safe-spend-card{background:rgba(15,23,42,.72);border-color:#334155}.dark .safe-spend-breakdown>div{background:rgba(30,41,59,.52)}.dark .safe-spend-status.tone-good{color:#6ee7b7}.dark .safe-spend-status.tone-warn{color:#fbbf24}.dark .safe-spend-status.tone-danger{color:#fca5a5}
+
+/* FLOW v2.48.0 — UX consolidation */
+.cockpit-glance.cockpit-glance-two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.budget-secondary-details{padding:0;overflow:hidden}
+.budget-secondary-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;cursor:pointer;list-style:none}
+.budget-secondary-summary::-webkit-details-marker{display:none}.budget-secondary-summary>svg{flex:0 0 auto;color:var(--text-dim);transition:transform .18s ease}
+.budget-secondary-details[open] .budget-secondary-summary>svg{transform:rotate(180deg)}
+.budget-secondary-body{padding:0 14px 14px;border-top:1px solid var(--border);padding-top:10px}
+.screen-content>div:first-child h2,.screen-content>div:first-child>div h2{letter-spacing:-.02em}
+@media(max-width:420px){.cockpit-glance.cockpit-glance-two{grid-template-columns:repeat(2,minmax(0,1fr))}.budget-secondary-summary{padding:12px}}
+.dark .budget-secondary-body{border-color:#334155}

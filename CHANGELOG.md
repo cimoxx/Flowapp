@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.48.0 – UX konsolidácia
+
+- Menej duplicitných údajov na Prehľade.
+- Jasnejšia hierarchia Rozpočtu.
+- Zrozumiteľnejšie názvy Rozpočet/Odhad.
+- Jednotnejšie filtre Analytiky a Tempa míňania.
+- Bez zmeny finančných algoritmov.
+
 ## v2.47.0 – Koľko ešte môžem minúť?
 
 - Rezerva do konca mesiaca a suma na deň.

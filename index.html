@@ -13,7 +13,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <link rel="stylesheet" href="assets/css/styles.css?v=2.47.0">
+    <link rel="stylesheet" href="assets/css/styles.css?v=2.48.0">
 </head>
 <body class="desktop-safe-body">
 
@@ -93,7 +93,7 @@
                     <div class="w-7 h-7 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
                         <i data-lucide="wallet-cards" class="w-4 h-4"></i>
                     </div>
-                    <h2 class="text-xl font-extrabold">Budget</h2>
+                    <h2 class="text-xl font-extrabold">Rozpočet</h2>
                 </div>
             </div>
 
@@ -101,7 +101,7 @@
                 <div class="budget-period-card">
                     <div class="budget-period-label">Aktívne obdobie</div>
                     <div id="budget-period-title" class="budget-period-title">Tento mesiac</div>
-                    <div class="budget-period-sub">Model kombinuje pravidelné záväzky, trend, sezónnosť a bezpečnostnú rezervu.</div>
+                    <div class="budget-period-sub">Koľko plánujeme minúť a ako sa nám zatiaľ darí.</div>
                 </div>
             </div>
 
@@ -119,31 +119,21 @@
                 <div id="budget-category-list" class="space-y-3"></div>
             </div>
 
-            <div class="budget-section-card">
-                <div class="budget-section-head">
-                    <div>
-                        <div class="budget-section-label">Forecast</div>
-                        <h3 class="budget-section-title">Odhad do konca mesiaca</h3>
-                    </div>
-                </div>
-                <div id="budget-forecast-list" class="space-y-2"></div>
-            </div>
+            <details class="budget-section-card budget-secondary-details">
+                <summary class="budget-secondary-summary"><div><div class="budget-section-label">Detail</div><h3 class="budget-section-title">Odhad podľa kategórií</h3></div><i data-lucide="chevron-down" class="w-4 h-4"></i></summary>
+                <div id="budget-forecast-list" class="space-y-2 budget-secondary-body"></div>
+            </details>
 
-            <div class="budget-section-card">
-                <div class="budget-section-head">
-                    <div>
-                        <div class="budget-section-label">Insighty</div>
-                        <h3 class="budget-section-title">Čo z toho vyplýva</h3>
-                    </div>
-                </div>
-                <div id="budget-insights-list" class="space-y-2"></div>
-            </div>
+            <details class="budget-section-card budget-secondary-details">
+                <summary class="budget-secondary-summary"><div><div class="budget-section-label">Detail</div><h3 class="budget-section-title">Ďalšie upozornenia</h3></div><i data-lucide="chevron-down" class="w-4 h-4"></i></summary>
+                <div id="budget-insights-list" class="space-y-2 budget-secondary-body"></div>
+            </details>
 
             <details class="budget-section-card budget-method-card">
-                <summary class="budget-method-summary"><span>Ako sa Budget a Forecast počítajú?</span><i data-lucide="chevron-down" class="w-4 h-4"></i></summary>
+                <summary class="budget-method-summary"><span>Ako sa počíta rozpočet a odhad?</span><i data-lucide="chevron-down" class="w-4 h-4"></i></summary>
                 <div class="budget-method-body">
-                    <div><b>Budget</b><span>Pravidelné platby + variabilný odhad + bezpečnostná rezerva + plánované udalosti.</span></div>
-                    <div><b>Forecast</b><span>Najlepší odhad skutočnej spotreby do konca obdobia bez toho, aby sa rezerva tvárila ako reálny výdavok.</span></div>
+                    <div><b>Rozpočet</b><span>Pravidelné platby + bežné výdavky + rezerva + naplánované udalosti.</span></div>
+                    <div><b>Odhad</b><span>Odhad, koľko pravdepodobne minieš do konca mesiaca.</span></div>
                     <div><b>História</b><span>Model používa posledné dostupné mesiace a pri dostatku dát zohľadňuje aj sezónnosť.</span></div>
                     <div><b>Ručná úprava</b><span>Tvoj plán má prednosť pred modelom, ale modelový odhad zostáva uložený pre spätné vyhodnotenie.</span></div>
                 </div>
@@ -154,7 +144,7 @@
             <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500"><i data-lucide="calendar-range" class="w-4 h-4"></i></div>
-                    <div><h2 class="text-xl font-extrabold">Ročný plán</h2><div class="text-[10px] font-bold text-slate-400">Budget, forecast a plánované udalosti</div></div>
+                    <div><h2 class="text-xl font-extrabold">Ročný plán</h2><div class="text-[10px] font-bold text-slate-400">Rozpočet, odhad a naplánované udalosti</div></div>
                 </div>
                 <select id="annual-plan-year" onchange="renderAnnualPlanScreen()" class="text-xs p-2 outline-none"></select>
             </div>
@@ -165,7 +155,7 @@
             <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500"><i data-lucide="repeat" class="w-4 h-4"></i></div>
-                    <div><h2 class="text-xl font-extrabold">Pravidelné</h2><div class="text-[10px] font-bold text-slate-400">Záväzky oddelené od bežných transakcií</div></div>
+                    <div><h2 class="text-xl font-extrabold">Pravidelné</h2><div class="text-[10px] font-bold text-slate-400">Platby a príjmy, ktoré sa pravidelne opakujú</div></div>
                 </div>
             </div>
             <div id="recurring-plan-content"></div>
@@ -182,7 +172,7 @@
                     <select id="chart-year-filter" onchange="setAnalyticsYear(this.value)" class="w-auto min-w-[88px] text-[11px] font-bold p-1.5 outline-none rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     </select>
                 </div>
-                <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie Grafu</label>
+                <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie</label>
                 <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
                     <button type="button" onclick="setChartPeriod('current_month')" id="p-chip-current_month" class="period-chip active">Tento mesiac</button>
                     <button type="button" onclick="setChartPeriod('3m')" id="p-chip-3m" class="period-chip">3 Mesiace</button>
@@ -199,7 +189,7 @@
                 <summary><span><i data-lucide="sliders-horizontal"></i> Detail analýzy</span><small>Graf · úroveň · dáta</small></summary>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[10px] burn-advanced-content">
                 <div>
-                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ grafu</label>
                     <select id="chart-type" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
                         <option value="doughnut">Koláčový</option>
                         <option value="bar">Stĺpcový</option>
@@ -207,7 +197,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Úroveň Dát</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Zobraziť podľa</label>
                     <select id="chart-level-mode" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
                         <option value="category">Kategórie</option>
                         <option value="sub">Podkategórie</option>
@@ -254,7 +244,7 @@
                     <select id="burn-year-filter" onchange="setAnalyticsYear(this.value)" class="w-auto min-w-[88px] text-[11px] font-bold p-1.5 outline-none rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     </select>
                 </div>
-                <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie Analýzy</label>
+                <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie</label>
                 <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
                     <button type="button" onclick="setChartPeriod('current_month')" id="bp-chip-current_month" class="period-chip active">Tento mesiac</button>
                     <button type="button" onclick="setChartPeriod('3m')" id="bp-chip-3m" class="period-chip">3 Mesiace</button>
@@ -269,7 +259,7 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
                 <div>
-                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ Grafu</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ grafu</label>
                     <select id="burn-chart-type" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
                         <option value="bar">Stĺpcový</option>
                         <option value="doughnut">Koláčový</option>
@@ -277,7 +267,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Úroveň Dát</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Zobraziť podľa</label>
                     <select id="burn-level-mode" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
                         <option value="category">Kategórie</option>
                         <option value="sub">Podkategórie</option>
@@ -312,12 +302,12 @@
 
         <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass-nav grid grid-cols-8 items-center h-16 px-1 z-30 desktop-nav">
             <button id="nav-home" onclick="showScreen('home')" class="nav-btn flex justify-center p-2" aria-label="Prehľad"><i data-lucide="layout-grid" class="w-5 h-5"></i></button>
-            <button id="nav-budget" onclick="showScreen('budget')" class="nav-btn flex justify-center p-2" aria-label="Budget"><i data-lucide="wallet-cards" class="w-5 h-5"></i></button>
+            <button id="nav-budget" onclick="showScreen('budget')" class="nav-btn flex justify-center p-2" aria-label="Rozpočet"><i data-lucide="wallet-cards" class="w-5 h-5"></i></button>
             <button id="nav-plan" onclick="showScreen('plan')" class="nav-btn flex justify-center p-2" aria-label="Ročný plán"><i data-lucide="calendar-range" class="w-5 h-5"></i></button>
             <div class="flex items-center justify-center"><button onclick="openModal()" class="bg-emerald-600 text-white w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg -mt-5 border-4 border-white dark:border-slate-900 active:scale-95 transition-all" aria-label="Pridať transakciu"><i data-lucide="plus" class="w-6 h-6"></i></button></div>
             <button id="nav-recurring" onclick="showScreen('recurring')" class="nav-btn flex justify-center p-2" aria-label="Pravidelné"><i data-lucide="repeat" class="w-5 h-5"></i></button>
             <button id="nav-analytics" onclick="showScreen('analytics')" class="nav-btn flex justify-center p-2" aria-label="Analytika"><i data-lucide="pie-chart" class="w-5 h-5"></i></button>
-            <button id="nav-burnrate" onclick="showScreen('burnrate')" class="nav-btn flex justify-center p-2" aria-label="Burn rate"><i data-lucide="flame" class="w-5 h-5"></i></button>
+            <button id="nav-burnrate" onclick="showScreen('burnrate')" class="nav-btn flex justify-center p-2" aria-label="Tempo míňania"><i data-lucide="flame" class="w-5 h-5"></i></button>
             <button id="nav-settings" onclick="showScreen('settings')" class="nav-btn flex justify-center p-2" aria-label="Nastavenia"><i data-lucide="settings" class="w-5 h-5"></i></button>
         </nav>
     </div>
@@ -426,7 +416,7 @@
         <div class="space-y-4 text-sm">
             <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div class="flex items-center gap-2 mb-1">
-                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.47.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nová karta „Koľko ešte môžem minúť?“ dá jednoduchú odpoveď pre zvyšok mesiaca.</li><li>Ukáže aj približnú dennú sumu a stav V pohode / Pozor na tempo / Treba ubrať.</li><li>Detail vysvetlí výpočet bez technických výrazov.</li><li>Pravidelné a naplánované výdavky zostávajú súčasťou existujúceho odhadu.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.46.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nový prehľad „Najbližšie platby“ ukáže, čo príde a odíde v najbližších 31 dňoch.</li><li>Zobrazuje pravidelné položky aj naplánované udalosti, ktoré už Flow pozná.</li><li>Na prvý pohľad vidíš príjmy, výdavky a ich rozdiel.</li><li>Existujúce finančné výpočty a synchronizácia zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.45.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nová sekcia „Čo je dobré vedieť“ ukazuje najviac 3 dôležité informácie o mesiaci.</li><li>Flow upozorní na riziko prekročenia rozpočtu, rýchle míňanie a očakávaný výsledok mesiaca.</li><li>Texty sú krátke a zrozumiteľné.</li><li>Finančné výpočty a synchronizácia zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.6</span>
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.48.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Prehľad mesiaca je jednoduchší: každé hlavné číslo sa zobrazuje iba raz.</li><li>Rozpočet má jasnejšiu hierarchiu; podrobné odhady a ďalšie upozornenia sú zbalené do detailu.</li><li>Technické názvy Budget/Forecast sú v používateľskom rozhraní nahradené výrazmi Rozpočet/Odhad.</li><li>Analytika a Tempo míňania používajú jednotnejšie názvy filtrov.</li><li>Finančné výpočty, transakcie, synchronizácia a kategórie zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.47.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nová karta „Koľko ešte môžem minúť?“ dá jednoduchú odpoveď pre zvyšok mesiaca.</li><li>Ukáže aj približnú dennú sumu a stav V pohode / Pozor na tempo / Treba ubrať.</li><li>Detail vysvetlí výpočet bez technických výrazov.</li><li>Pravidelné a naplánované výdavky zostávajú súčasťou existujúceho odhadu.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.46.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nový prehľad „Najbližšie platby“ ukáže, čo príde a odíde v najbližších 31 dňoch.</li><li>Zobrazuje pravidelné položky aj naplánované udalosti, ktoré už Flow pozná.</li><li>Na prvý pohľad vidíš príjmy, výdavky a ich rozdiel.</li><li>Existujúce finančné výpočty a synchronizácia zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.45.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nová sekcia „Čo je dobré vedieť“ ukazuje najviac 3 dôležité informácie o mesiaci.</li><li>Flow upozorní na riziko prekročenia rozpočtu, rýchle míňanie a očakávaný výsledok mesiaca.</li><li>Texty sú krátke a zrozumiteľné.</li><li>Finančné výpočty a synchronizácia zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.6</span>
                 </div>
                 <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
                     <li>Presnosť sa vie spätne doplniť aj pri starších uzavretých mesiacoch.</li>

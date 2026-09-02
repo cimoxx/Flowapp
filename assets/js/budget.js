@@ -144,7 +144,7 @@ function getBudgetStatus(spent, recommended, forecast) {
         return { tone: 'danger', label: 'Riziko prekročenia' };
     }
     if (spent > recommended) {
-        return { tone: 'danger', label: 'Nad budgetom' };
+        return { tone: 'danger', label: 'Nad rozpočtom' };
     }
     if (spent > recommended * 0.85) {
         return { tone: 'warn', label: 'Pozor' };
@@ -187,7 +187,7 @@ function getBudgetDataset() {
             const totalRecommended = round2(monthPlan.budget);
             const totalSpent = round2(monthPlan.actualExpenses);
             const totalIncome = round2(monthPlan.plannedIncome);
-            const totalForecast = round2(monthPlan.forecast);
+            const totalOdhad = round2(monthPlan.forecast);
             return {
                 month, year, categoryRows, totalRecommended, totalSpent,
                 totalIncome, totalForecast,
@@ -233,7 +233,7 @@ function getBudgetDataset() {
     const totalRecommended = round2(categoryRows.reduce((sum, row) => sum + row.recommended, 0));
     const totalSpent = round2(sumAmount(expenses));
     const totalIncome = round2(sumAmount(incomes));
-    const totalForecast = round2(categoryRows.reduce((sum, row) => sum + row.forecast, 0));
+    const totalOdhad = round2(categoryRows.reduce((sum, row) => sum + row.forecast, 0));
     const safeToSpend = round2(totalRecommended - totalForecast);
 
     return {
@@ -364,16 +364,16 @@ function renderBudgetHeroCards(data) {
     el.className = 'budget-overview-card';
     el.innerHTML = `
         <div class="budget-overview-top">
-            <div><span class="budget-overview-eyebrow">Mesačný budget</span><strong>${formatCurrency(data.totalRecommended)}</strong></div>
+            <div><span class="budget-overview-eyebrow">Mesačný rozpočet</span><strong>${formatCurrency(data.totalRecommended)}</strong></div>
             <div class="budget-overview-remaining ${getSignedResultClass(remaining)}"><span>Zostáva</span><strong>${formatCurrency(remaining)}</strong></div>
         </div>
         <div class="budget-overview-progress"><div style="width:${Math.min(progress,100)}%" class="${progress > 100 ? 'is-over' : progress > 85 ? 'is-warning' : ''}"></div></div>
-        <div class="budget-overview-meta"><span>${formatCurrency(data.totalSpent)} minuté · ${Math.round(progress)} % budgetu</span><span>Forecast ${formatCurrency(data.totalForecast)}</span></div>
+        <div class="budget-overview-meta"><span>${formatCurrency(data.totalSpent)} minuté · ${Math.round(progress)} % rozpočtu</span><span>Odhad ${formatCurrency(data.totalForecast)}</span></div>
         <details class="budget-overview-details"><summary>Detail mesiaca</summary><div class="budget-overview-detail-grid">
-            <div><span>Budget</span><b>${formatCurrency(data.totalRecommended)}</b></div>
+            <div><span>Rozpočet</span><b>${formatCurrency(data.totalRecommended)}</b></div>
             <div><span>Minuté</span><b>${formatCurrency(data.totalSpent)}</b></div>
-            <div><span>Forecast</span><b>${formatCurrency(data.totalForecast)}</b></div>
-            <div><span>Rezerva forecastu</span><b class="${getSignedResultClass(forecastDelta)}">${formatCurrency(forecastDelta)}</b></div>
+            <div><span>Odhad</span><b>${formatCurrency(data.totalForecast)}</b></div>
+            <div><span>Rezerva podľa odhadu</span><b class="${getSignedResultClass(forecastDelta)}">${formatCurrency(forecastDelta)}</b></div>
         </div></details>`;
 }
 function renderBudgetRiskSummary(data) {
@@ -401,7 +401,7 @@ function renderBudgetCategoryList(data) {
         const pct = row.recommended > 0 ? Math.max(0,(row.spent/row.recommended)*100) : 0;
         return `<div class="budget-cat-card budget-cat-simple">
             <div class="budget-cat-top"><div class="budget-cat-left"><div class="budget-cat-icon"><i data-lucide="${row.icon}"></i></div><div class="min-w-0"><div class="budget-cat-name">${row.category}</div><div class="budget-cat-compact-line">${formatCurrency(row.spent)} / ${formatCurrency(row.recommended)}</div></div></div><div class="budget-cat-status tone-${row.status.tone}">${row.status.label}</div></div>
-            <div class="budget-progress-wrap compact"><div class="budget-progress-bar"><div class="budget-progress-fill tone-${row.status.tone}" style="width:${Math.min(pct,100)}%"></div></div><div class="budget-progress-head"><span>${Math.round(pct)} % vyčerpané</span><strong class="${getSignedResultClass(remaining)}">${remaining >= 0 ? 'Zostáva' : 'Nad budgetom'} ${formatCurrency(Math.abs(remaining))}</strong></div></div>
+            <div class="budget-progress-wrap compact"><div class="budget-progress-bar"><div class="budget-progress-fill tone-${row.status.tone}" style="width:${Math.min(pct,100)}%"></div></div><div class="budget-progress-head"><span>${Math.round(pct)} % vyčerpané</span><strong class="${getSignedResultClass(remaining)}">${remaining >= 0 ? 'Zostáva' : 'Nad rozpočtom'} ${formatCurrency(Math.abs(remaining))}</strong></div></div>
             <details class="budget-cat-details"><summary>Detail kategórie</summary><div class="budget-cat-values grid grid-cols-3 gap-2"><div class="budget-mini-stat"><div class="budget-mini-label">Budget</div><div class="budget-mini-value">${formatCurrency(row.recommended)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Minuté</div><div class="budget-mini-value">${formatCurrency(row.spent)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Forecast</div><div class="budget-mini-value">${formatCurrency(row.forecast)}</div></div></div><div class="budget-cat-confidence">${row.confidenceLabel}</div></details>
         </div>`;
     }).join('');
@@ -417,7 +417,7 @@ function renderBudgetForecastList(data) {
         .slice(0, 6);
 
     if (!rows.length) {
-        el.innerHTML = `<div class="text-sm text-slate-400 font-semibold">Forecast sa zobrazí, keď budú v dátach aspoň základné výdavky.</div>`;
+        el.innerHTML = `<div class="text-sm text-slate-400 font-semibold">Odhad sa zobrazí, keď budú v dátach aspoň základné výdavky.</div>`;
         return;
     }
 
@@ -425,7 +425,7 @@ function renderBudgetForecastList(data) {
         <div class="forecast-row">
             <div class="forecast-row-left">
                 <div class="forecast-row-name">${row.category}</div>
-                <div class="forecast-row-sub">Odporúčaný budget ${formatCurrency(row.recommended)}</div>
+                <div class="forecast-row-sub">Rozpočet ${formatCurrency(row.recommended)}</div>
             </div>
             <div class="forecast-row-right">
                 <div class="forecast-row-value">${formatCurrency(row.forecast)}</div>
