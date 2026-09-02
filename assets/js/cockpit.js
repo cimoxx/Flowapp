@@ -12,8 +12,20 @@
     }
     function buildSafeToSpend(data,meta){
         if(!meta.isCurrent)return null;
-        const available=Number(data.safeToSpend)||0, daily=available>0?available/meta.daysInclusive:0;
-        return {available,daily,sevenDay:available>0?Math.min(available,daily*7):0};
+        // Keep the existing financial source of truth: recommended budget minus
+        // the current end-of-month forecast. Known recurring/event expenses are
+        // already part of that forecast in getBudgetDataset/getAnnualPlan.
+        const available=Number(data.safeToSpend)||0;
+        const days=Math.max(1,Number(meta.remaining)||Number(meta.daysInclusive)||1);
+        const daily=available>0?available/days:0;
+        const sevenDay=available>0?Math.min(available,daily*Math.min(7,days)):0;
+        const ratio=data.totalRecommended>0?available/data.totalRecommended:0;
+        const status=available<0
+            ? {tone:'danger',label:'Treba ubrať',text:'Odhad výdavkov je už nad rozpočtom.'}
+            : ratio<0.08
+                ? {tone:'warn',label:'Pozor na tempo',text:'Rezerva do rozpočtu je už malá.'}
+                : {tone:'good',label:'V pohode',text:'Podľa dnešného odhadu zostáva priestor v rozpočte.'};
+        return {available,daily,sevenDay,days,status};
     }
     function renderFinancialCockpit(){
         const root=document.getElementById('financial-cockpit');
@@ -35,17 +47,27 @@
           <div class="cockpit-glance">
             <div><span>Minuté</span><strong>${formatCurrency(data.totalSpent)}</strong><small>${budgetUsage}% z budgetu</small></div>
             <div><span>Forecast</span><strong>${formatCurrency(data.totalForecast)}</strong><small>odhad konca mesiaca</small></div>
-            ${safe?`<div class="cockpit-glance-safe ${signedClass(safe.available)}"><span>Safe to Spend</span><strong>${formatCurrency(safe.available)}</strong><small>${safe.available>=0?`${formatCurrency(safe.daily)} / deň`:'forecast nad budgetom'}</small></div>`:`<div><span>Rezerva</span><strong>${formatCurrency(data.safeToSpend)}</strong><small>budget − forecast</small></div>`}
+            ${safe?`<div class="cockpit-glance-safe ${signedClass(safe.available)}"><span>Ešte môžeš minúť</span><strong>${formatCurrency(safe.available)}</strong><small>${safe.available>=0?`približne ${formatCurrency(safe.daily)} denne`:'odhad je nad rozpočtom'}</small></div>`:`<div><span>Rezerva</span><strong>${formatCurrency(data.safeToSpend)}</strong><small>rozpočet − odhad</small></div>`}
           </div>
-          <div class="cockpit-progress-row"><div><span>Čerpanie budgetu</span><b>${budgetUsage}%</b></div><div class="cockpit-progress"><i style="width:${progressWidth}%"></i></div></div>
+          <div class="cockpit-progress-row"><div><span>Čerpanie rozpočtu</span><b>${budgetUsage}%</b></div><div class="cockpit-progress"><i style="width:${progressWidth}%"></i></div></div>
+          ${safe?`<section class="safe-spend-card tone-${safe.status.tone}" aria-label="Koľko ešte môžem minúť">
+            <div class="safe-spend-head"><div><span>Koľko ešte môžem minúť?</span><small>${safe.status.text}</small></div><span class="safe-spend-status tone-${safe.status.tone}">${safe.status.label}</span></div>
+            <div class="safe-spend-main ${signedClass(safe.available)}"><strong>${formatCurrency(safe.available)}</strong><span>${safe.available>=0?`≈ ${formatCurrency(safe.daily)} denne do konca mesiaca`:'Rozpočet už podľa odhadu nestačí'}</span></div>
+            <details class="safe-spend-details"><summary>Ako sme k tomu prišli? <i data-lucide="chevron-down"></i></summary><div class="safe-spend-breakdown">
+              <div><span>Rozpočet na mesiac</span><b>${formatCurrency(data.totalRecommended)}</b></div>
+              <div><span>Minuté doteraz</span><b>${formatCurrency(data.totalSpent)}</b></div>
+              <div><span>Odhad výdavkov do konca</span><b>${formatCurrency(data.totalForecast)}</b></div>
+              <div class="safe-spend-result"><span>Rezerva podľa dnešného odhadu</span><b class="${signedClass(safe.available)}">${formatCurrency(safe.available)}</b></div>
+            </div><p>V odhade sú zahrnuté aj pravidelné a naplánované výdavky, ktoré Flow pozná.</p></details>
+          </section>`:''}
           ${insights.length?`<section class="smart-insights" aria-label="Čo je dobré vedieť">
             <div class="smart-insights-head"><div><span>Čo je dobré vedieť</span><small>Najdôležitejšie veci pre tento mesiac</small></div><span class="smart-insights-count">${insights.length}</span></div>
             <div class="smart-insights-list">${insights.map((item,index)=>`<article class="smart-insight tone-${esc(item.tone)} ${index===0?'is-primary':''}"><div class="smart-insight-icon"><i data-lucide="${esc(item.icon)}"></i></div><div class="smart-insight-copy"><strong>${esc(item.title)}</strong><span>${esc(item.text)}</span></div></article>`).join('')}</div>
           </section>`:''}
           <details class="cockpit-more"><summary>Detail mesiaca <i data-lucide="chevron-down"></i></summary><div class="cockpit-more-grid">
-            <div><span>Budget</span><strong>${formatCurrency(data.totalRecommended)}</strong></div>
-            <div><span>Rezerva podľa forecastu</span><strong class="${signedClass(data.safeToSpend)}">${formatCurrency(data.safeToSpend)}</strong></div>
-            ${safe?`<div><span>Safe / 7 dní</span><strong>${formatCurrency(safe.sevenDay)}</strong></div><div><span>Do konca</span><strong>${meta.remaining} dní</strong></div>`:''}
+            <div><span>Rozpočet</span><strong>${formatCurrency(data.totalRecommended)}</strong></div>
+            <div><span>Rezerva podľa odhadu</span><strong class="${signedClass(data.safeToSpend)}">${formatCurrency(data.safeToSpend)}</strong></div>
+            ${safe?`<div><span>Na najbližších 7 dní</span><strong>${formatCurrency(safe.sevenDay)}</strong></div><div><span>Do konca</span><strong>${meta.remaining} dní</strong></div>`:''}
           </div></details>
         </section>`;
         if(window.lucide)lucide.createIcons();

@@ -1,5 +1,12 @@
 # Flow changelog
 
+## v2.47.0 – Koľko ešte môžem minúť?
+
+- Rezerva do konca mesiaca a suma na deň.
+- Jednoduchý stav tempa míňania.
+- Rozbaliteľné vysvetlenie výpočtu.
+- Bez nového finančného modelu.
+
 ## v2.46.0 – Finančný kalendár
 
 - Najbližšie platby a príjmy na 31 dní.
