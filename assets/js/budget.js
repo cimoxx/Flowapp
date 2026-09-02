@@ -187,7 +187,7 @@ function getBudgetDataset() {
             const totalRecommended = round2(monthPlan.budget);
             const totalSpent = round2(monthPlan.actualExpenses);
             const totalIncome = round2(monthPlan.plannedIncome);
-            const totalOdhad = round2(monthPlan.forecast);
+            const totalForecast = round2(monthPlan.forecast);
             return {
                 month, year, categoryRows, totalRecommended, totalSpent,
                 totalIncome, totalForecast,
@@ -233,7 +233,7 @@ function getBudgetDataset() {
     const totalRecommended = round2(categoryRows.reduce((sum, row) => sum + row.recommended, 0));
     const totalSpent = round2(sumAmount(expenses));
     const totalIncome = round2(sumAmount(incomes));
-    const totalOdhad = round2(categoryRows.reduce((sum, row) => sum + row.forecast, 0));
+    const totalForecast = round2(categoryRows.reduce((sum, row) => sum + row.forecast, 0));
     const safeToSpend = round2(totalRecommended - totalForecast);
 
     return {
@@ -402,7 +402,7 @@ function renderBudgetCategoryList(data) {
         return `<div class="budget-cat-card budget-cat-simple">
             <div class="budget-cat-top"><div class="budget-cat-left"><div class="budget-cat-icon"><i data-lucide="${row.icon}"></i></div><div class="min-w-0"><div class="budget-cat-name">${row.category}</div><div class="budget-cat-compact-line">${formatCurrency(row.spent)} / ${formatCurrency(row.recommended)}</div></div></div><div class="budget-cat-status tone-${row.status.tone}">${row.status.label}</div></div>
             <div class="budget-progress-wrap compact"><div class="budget-progress-bar"><div class="budget-progress-fill tone-${row.status.tone}" style="width:${Math.min(pct,100)}%"></div></div><div class="budget-progress-head"><span>${Math.round(pct)} % vyčerpané</span><strong class="${getSignedResultClass(remaining)}">${remaining >= 0 ? 'Zostáva' : 'Nad rozpočtom'} ${formatCurrency(Math.abs(remaining))}</strong></div></div>
-            <details class="budget-cat-details"><summary>Detail kategórie</summary><div class="budget-cat-values grid grid-cols-3 gap-2"><div class="budget-mini-stat"><div class="budget-mini-label">Budget</div><div class="budget-mini-value">${formatCurrency(row.recommended)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Minuté</div><div class="budget-mini-value">${formatCurrency(row.spent)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Forecast</div><div class="budget-mini-value">${formatCurrency(row.forecast)}</div></div></div><div class="budget-cat-confidence">${row.confidenceLabel}</div></details>
+            <details class="budget-cat-details"><summary>Detail kategórie</summary><div class="budget-cat-values grid grid-cols-3 gap-2"><div class="budget-mini-stat"><div class="budget-mini-label">Rozpočet</div><div class="budget-mini-value">${formatCurrency(row.recommended)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Minuté</div><div class="budget-mini-value">${formatCurrency(row.spent)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Odhad</div><div class="budget-mini-value">${formatCurrency(row.forecast)}</div></div></div><div class="budget-cat-confidence">${row.confidenceLabel}</div></details>
         </div>`;
     }).join('');
     if (window.lucide) lucide.createIcons();

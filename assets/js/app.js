@@ -28,6 +28,7 @@ function showScreen(screen) {
         if (detail) detail.classList.add('hidden');
         if (home) home.classList.remove('hidden');
         if (typeof renderManageCats === 'function') renderManageCats();
+        if (typeof refreshDataProtection === 'function') refreshDataProtection();
     } else if (screen === 'analytics') {
         if (typeof renderChartMonthChips === 'function') renderChartMonthChips();
         if (typeof updateAnalytics === 'function') updateAnalytics();

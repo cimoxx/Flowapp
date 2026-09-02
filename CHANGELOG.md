@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.49.0 – Data Protection & Backup
+
+- Opravený prázdny Rozpočet z v2.48.0.
+- Centrum ochrany dát a diagnostika.
+- Kompletné cloudové kópie Google tabuľky, posledných 30 záloh.
+- Safety snapshot pred importom JSON.
+- Bez zmeny finančného modelu.
+
 ## v2.48.0 – UX konsolidácia
 
 - Menej duplicitných údajov na Prehľade.

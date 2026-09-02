@@ -81,7 +81,7 @@ function exportData() {
         budgetOverrides: typeof flowBudgetOverrides !== 'undefined' ? flowBudgetOverrides : [],
         forecastArchive: typeof flowForecastArchive !== 'undefined' ? flowForecastArchive : [],
         exportedAt: new Date().toISOString(),
-        version: 'v2.33.1'
+        version: typeof APP_VERSION !== 'undefined' ? APP_VERSION : '2.49.0'
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -111,6 +111,17 @@ function importData(event) {
             if (!Array.isArray(parsed.db) && !Array.isArray(parsed.categories)) {
                 throw new Error('Neplatný Flow backup');
             }
+
+            try {
+                localStorage.setItem('f_safety_backup_v249', JSON.stringify({
+                    db, categories,
+                    recurringPlans: typeof flowRecurringPlans !== 'undefined' ? flowRecurringPlans : [],
+                    plannedEvents: typeof flowPlannedEvents !== 'undefined' ? flowPlannedEvents : [],
+                    budgetOverrides: typeof flowBudgetOverrides !== 'undefined' ? flowBudgetOverrides : [],
+                    forecastArchive: typeof flowForecastArchive !== 'undefined' ? flowForecastArchive : [],
+                    savedAt: new Date().toISOString(), reason: 'before_import'
+                }));
+            } catch (_) {}
 
             if (Array.isArray(parsed.db)) db = parsed.db;
             if (Array.isArray(parsed.categories)) categories = parsed.categories;
@@ -204,4 +215,62 @@ function dismissToast(toastEl) {
     setTimeout(() => {
         if (toastEl?.parentNode) toastEl.parentNode.removeChild(toastEl);
     }, 250);
+}
+
+
+// FLOW v2.49.0 — Data Protection Center
+function getLocalDataHealth() {
+    const rows = Array.isArray(db) ? db : [];
+    const cats = Array.isArray(categories) ? categories : [];
+    const ids = new Set(), categoryIds = new Set(cats.map(c => String(c?.id || '')).filter(Boolean));
+    let duplicateIds=0, badDates=0, badAmounts=0, missingCategory=0;
+    rows.forEach(item => {
+        const id=String(item?.id||'');
+        if(id){ if(ids.has(id)) duplicateIds++; ids.add(id); }
+        const clean=typeof getCleanDateStr==='function'?getCleanDateStr(item?.date):String(item?.date||'');
+        if(!clean || isNaN(new Date(clean+'T00:00:00').getTime())) badDates++;
+        if(!Number.isFinite(Number(item?.amount))) badAmounts++;
+        if(item?.category && item.type!=='income' && !categoryIds.has(String(item.category))) missingCategory++;
+    });
+    const issues=[];
+    if(!cats.length) issues.push('Chýbajú kategórie');
+    if(duplicateIds) issues.push(`${duplicateIds} duplicitných ID transakcií`);
+    if(badDates) issues.push(`${badDates} neplatných dátumov`);
+    if(badAmounts) issues.push(`${badAmounts} neplatných súm`);
+    if(missingCategory) issues.push(`${missingCategory} transakcií odkazuje na chýbajúcu kategóriu`);
+    if(typeof isLegacyGenericDefaultSet==='function' && isLegacyGenericDefaultSet(cats)) issues.push('Načítali sa chránené predvolené kategórie');
+    return {ok:!issues.length,issues,transactions:rows.filter(x=>!x.deleted).length,categories:cats.length,
+      recurring:typeof flowRecurringPlans!=='undefined'&&Array.isArray(flowRecurringPlans)?flowRecurringPlans.length:0,
+      pending:Array.isArray(syncQueue)?syncQueue.length:0};
+}
+function renderDataHealth(local,remote){
+    const title=document.getElementById('data-health-title'),badge=document.getElementById('data-health-badge'),
+      summary=document.getElementById('data-health-summary'),issues=document.getElementById('data-health-issues'),
+      last=document.getElementById('data-last-backup');
+    if(!title||!badge||!summary||!issues||!last)return;
+    const ok=local.ok && (!remote||remote.status==='success');
+    title.textContent=ok?'Všetko vyzerá v poriadku':'Našiel som veci na kontrolu';
+    badge.textContent=ok?'OK':'SKONTROLOVAŤ'; badge.className=`data-health-badge ${ok?'tone-good':'tone-warn'}`;
+    summary.innerHTML=`<div><b>${local.transactions}</b><span>transakcií</span></div><div><b>${local.categories}</b><span>kategórií</span></div><div><b>${local.recurring}</b><span>pravidelných</span></div><div><b>${local.pending}</b><span>čaká na sync</span></div>`;
+    const all=[...local.issues]; if(remote&&remote.status!=='success')all.push('Cloudový stav sa nepodarilo overiť');
+    if(all.length){issues.classList.remove('hidden');issues.innerHTML=all.map(x=>`<div><i data-lucide="triangle-alert"></i><span>${x}</span></div>`).join('');}
+    else{issues.classList.add('hidden');issues.innerHTML='';}
+    if(remote?.lastBackupAt){const d=new Date(remote.lastBackupAt);last.textContent=isNaN(d)?remote.lastBackupAt:d.toLocaleString('sk-SK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
+    else if(remote?.status==='success')last.textContent='Zatiaľ nevytvorená'; else last.textContent='Cloud sa nepodarilo overiť';
+    if(window.lucide)lucide.createIcons();
+}
+async function refreshDataProtection(){
+    const local=getLocalDataHealth(); renderDataHealth(local,null);
+    try{const r=await fetch(buildSyncGetUrl('data_health'),{cache:'no-store'});renderDataHealth(local,await r.json());}
+    catch(_){renderDataHealth(local,{status:'error'});}
+}
+async function createCloudBackup(btn){
+    if(btn){btn.disabled=true;btn.classList.add('opacity-60');}
+    showToast({type:'info',title:'Vytváram zálohu',text:'Kopírujem celú Google tabuľku.'});
+    try{
+      const r=await fetch(GOOGLE_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'createBackup',token:getSyncToken(),userId:typeof FLOW_USER_ID!=='undefined'?FLOW_USER_ID:'default'})});
+      const result=await r.json(); if(!result||result.status!=='success')throw new Error(result?.message||'Backup failed');
+      showToast({type:'success',title:'Záloha je hotová',text:'Celá Google tabuľka bola uložená ako samostatná kópia.'}); refreshDataProtection();
+    }catch(_){showToast({type:'error',title:'Záloha sa nevytvorila',text:'Skontroluj, či je nasadený Google Apps Script v2.49.0.'});}
+    finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}}
 }
