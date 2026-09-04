@@ -20,7 +20,7 @@ function updateSyncUI(status) {
 }
 
 function getSyncToken() {
-    return typeof FLOW_API_TOKEN === 'string' ? FLOW_API_TOKEN : '';
+    return typeof getFlowSessionToken === 'function' ? getFlowSessionToken() : '';
 }
 
 function buildSyncGetUrl(action) {

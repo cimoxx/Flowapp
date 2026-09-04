@@ -1,5 +1,20 @@
 # Flow changelog
 
+## v2.50.1 – Príjmy aktuálneho mesiaca
+
+- Nová karta Príjmy mesiaca v aktuálnom mesiaci Ročného plánu.
+- Prijaté doteraz, očakávaný príjem a percento splnenia.
+- Progress bar používa existujúce hodnoty actualIncome/plannedIncome; Income Engine sa nemení.
+- Ľudskejšie popisy čerpania výdavkov.
+
+## v2.50.0 – Google prihlásenie
+
+- Google login gate pred finančnými dátami.
+- Serverová 7-dňová session.
+- Povolené účty cez FlowUsers.
+- Backend chráni každý GET/POST.
+- Citlivá lokálna cache sa pri odhlásení vyčistí.
+
 ## v2.49.2 – Automatické zálohy
 
 - Záloha v posledný deň mesiaca.
