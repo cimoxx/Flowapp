@@ -1457,28 +1457,65 @@ function renderClosedMonthComparison(month) {
 function renderCurrentMonthProgress(month) {
     const budgetUsage = getPlanningUsagePercent(month.actualExpenses, month.budget);
     const forecastUsage = getPlanningUsagePercent(month.actualExpenses, month.forecast);
+    const incomeProgress = getPlanningUsagePercent(month.actualIncome, month.plannedIncome);
     const now = new Date();
     const monthDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const timeUsage = Math.round(now.getDate() / monthDays * 100);
+    const incomeRemaining = Math.max(0, round2((Number(month.plannedIncome) || 0) - (Number(month.actualIncome) || 0)));
 
-    return `<div class="planning-comparison-card is-live">
-        <div class="planning-comparison-head">
-            <div><span class="planning-comparison-eyebrow">Čerpanie mesiaca</span><strong>${formatCurrency(month.actualExpenses)} minuté doteraz</strong></div>
-            <span class="planning-source-pill current">${timeUsage}% mesiaca</span>
+    return `<div class="planning-live-progress-stack">
+        <div class="planning-comparison-card is-live">
+            <div class="planning-comparison-head">
+                <div>
+                    <span class="planning-comparison-eyebrow">Výdavky mesiaca</span>
+                    <strong>${formatCurrency(month.actualExpenses)} minuté doteraz</strong>
+                </div>
+                <span class="planning-source-pill current">${timeUsage}% mesiaca</span>
+            </div>
+            ${renderPlanningMeter({
+                label:'Z rozpočtu vyčerpané',
+                percent:budgetUsage,
+                tone:getPlanningComparisonTone(budgetUsage,'usage'),
+                amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.budget)}`
+            })}
+            ${renderPlanningMeter({
+                label:'Z odhadu výdavkov',
+                percent:forecastUsage,
+                tone:getPlanningComparisonTone(forecastUsage,'usage'),
+                amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.forecast)}`
+            })}
+            <div class="planning-comparison-foot">Koľko si už minul v porovnaní s rozpočtom a odhadom výdavkov na celý mesiac.</div>
         </div>
-        ${renderPlanningMeter({
-            label:'Z budgetu vyčerpané',
-            percent:budgetUsage,
-            tone:getPlanningComparisonTone(budgetUsage,'usage'),
-            amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.budget)}`
-        })}
-        ${renderPlanningMeter({
-            label:'Z forecastu dosiahnuté',
-            percent:forecastUsage,
-            tone:getPlanningComparisonTone(forecastUsage,'usage'),
-            amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.forecast)}`
-        })}
-        <div class="planning-comparison-foot">Čerpanie ukazuje realitu z transakcií voči celému mesačnému budgetu a aktuálnemu forecastu.</div>
+
+        <div class="planning-comparison-card is-live planning-income-progress">
+            <div class="planning-comparison-head">
+                <div>
+                    <span class="planning-comparison-eyebrow">Príjmy mesiaca</span>
+                    <strong>${formatCurrency(month.actualIncome)} prijaté doteraz</strong>
+                </div>
+                <span class="planning-source-pill income">${Math.round(incomeProgress)}%</span>
+            </div>
+
+            ${renderPlanningMeter({
+                label:'Z očakávaných príjmov prijaté',
+                percent:incomeProgress,
+                tone:incomeProgress >= 100 ? 'good' : 'current',
+                amountText:`${formatCurrency(month.actualIncome)} z ${formatCurrency(month.plannedIncome)}`
+            })}
+
+            <div class="planning-income-summary">
+                <div>
+                    <span>Očakávaný príjem</span>
+                    <strong>${formatCurrency(month.plannedIncome)}</strong>
+                </div>
+                <div>
+                    <span>Ešte očakávam</span>
+                    <strong>${formatCurrency(incomeRemaining)}</strong>
+                </div>
+            </div>
+
+            <div class="planning-comparison-foot">Prijaté sú reálne príjmy z transakcií. Očakávaný príjem je odhad Flow pre celý aktuálny mesiac.</div>
+        </div>
     </div>`;
 }
 
