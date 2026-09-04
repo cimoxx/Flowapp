@@ -1,19 +1,17 @@
 # Flow changelog
 
+## v2.50.2 – Dočasne bez prihlásenia
+
+- Google prihlasovanie z v2.50.0 bolo odstránené.
+- Flow sa opäť otvorí priamo bez login obrazovky.
+- Zachovaný prehľad príjmov aktuálneho mesiaca z v2.50.1.
+- Zachované automatické mesačné zálohy a ochrana dát.
+- Finančné výpočty sa nemenia.
+
 ## v2.50.1 – Príjmy aktuálneho mesiaca
 
-- Nová karta Príjmy mesiaca v aktuálnom mesiaci Ročného plánu.
-- Prijaté doteraz, očakávaný príjem a percento splnenia.
-- Progress bar používa existujúce hodnoty actualIncome/plannedIncome; Income Engine sa nemení.
-- Ľudskejšie popisy čerpania výdavkov.
-
-## v2.50.0 – Google prihlásenie
-
-- Google login gate pred finančnými dátami.
-- Serverová 7-dňová session.
-- Povolené účty cez FlowUsers.
-- Backend chráni každý GET/POST.
-- Citlivá lokálna cache sa pri odhlásení vyčistí.
+- Prijaté príjmy, očakávaný príjem a percento splnenia v Ročnom pláne.
+- Income Engine sa nemení.
 
 ## v2.49.2 – Automatické zálohy
 

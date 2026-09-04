@@ -1,7 +1,7 @@
-const APP_VERSION = '2.50.1';
+const APP_VERSION = '2.50.2';
 const GOOGLE_URL = 'https://script.google.com/macros/s/AKfycbwL3Yvp-zAL16wUyslfeqPUOCp9XWPY6BRckXR2Qdnrx6bX5ogu1DZV10xJFpPzQY0DiQ/exec';
-// v2.50: backend access is protected by a short-lived server session created
-// only after successful Google sign-in. No shared API password is stored in the app.
+// Shared endpoint access token. This is basic endpoint protection, not full user authentication.
+const FLOW_API_TOKEN = 'XMdXUXce7yB6d8mle2v_o78BUhNKvR4WOcfN9g5hWg';
 const FLOW_USER_ID = 'default';
 
 let db = JSON.parse(localStorage.getItem('f_db_v20') || '[]');

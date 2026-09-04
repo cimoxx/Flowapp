@@ -64,9 +64,7 @@ function refreshAllViews() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-window.startFlowApp = function startFlowApp() {
-    if (window.__flowAppStarted) return;
-    window.__flowAppStarted = true;
+(function initApp() {
     const currentYear = new Date().getFullYear();
     if (typeof refreshYearSelectors === 'function') refreshYearSelectors();
 
@@ -90,5 +88,4 @@ window.startFlowApp = function startFlowApp() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-
-};
+})();
