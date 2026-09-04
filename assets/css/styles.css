@@ -2926,14 +2926,3 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
 .data-health-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;border-top:1px solid var(--border);font-size:8.5px}.data-health-meta span{color:var(--text-dim);font-weight:700}.data-health-meta b{color:var(--text-main);font-weight:900;text-align:right}
 .data-protection-note{display:flex;gap:8px;align-items:flex-start;margin-top:9px;padding:9px 10px;border-radius:12px;background:var(--surface);font-size:8px;line-height:1.45;font-weight:650;color:var(--text-dim)}.data-protection-note svg{width:13px;height:13px;flex:0 0 auto}
 .dark .data-health-card{background:rgba(15,23,42,.72);border-color:#334155}.dark .data-health-summary>div,.dark .data-protection-note{background:rgba(30,41,59,.55)}.dark .data-health-badge.tone-good{color:#6ee7b7}.dark .data-health-badge.tone-warn{color:#fbbf24}
-
-/* v2.50.1 – current month income progress */
-.planning-live-progress-stack{display:grid;gap:12px}
-.planning-income-progress{border-color:rgba(16,185,129,.22)}
-.planning-source-pill.income{background:rgba(16,185,129,.10);color:#059669}
-.planning-income-summary{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--bg-soft)}
-.planning-income-summary span{font-size:10px;font-weight:750;color:var(--text-dim)}
-.planning-income-summary strong{font-size:15px;font-weight:950;color:var(--text-main);font-variant-numeric:tabular-nums;white-space:nowrap}
-.dark .planning-income-progress{border-color:rgba(52,211,153,.20)}
-.dark .planning-source-pill.income{background:rgba(16,185,129,.13);color:#6ee7b7}
-@media(max-width:370px){.planning-income-summary{align-items:flex-start;flex-direction:column;gap:4px}}
