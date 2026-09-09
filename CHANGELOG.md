@@ -1,13 +1,13 @@
 # Flow changelog
 
-## v2.49.4 – Trvalá Presnosť plánu
+## v2.49.5 – Ročný plán podľa správneho roku + Presnosť plánu
 
-- Opravené miznutie Presnosti plánu po reload/reštarte.
-- Mesačné výsledky presnosti sa ukladajú do kompaktnej lokálnej cache.
-- Neodoslané live snapshoty majú lokálnu retry queue a pri ďalšom štarte sa odošlú znova.
-- Historický backfill sa označí ako dokončený iba po úspešnom cloudovom uložení.
-- Plný ForecastArchive sa naďalej neukladá do localStorage, aby sa nevrátil problém s kvótou.
-- Income Engine, Budget a Forecast výpočty sú bez zmeny.
+- Verzia je postavená znovu zo stabilnej v2.49.3, nie z regresnej v2.49.4.
+- Výber roku v Ročnom pláne sa odovzdáva explicitne do renderu.
+- Pri zmene roku sa transakčný index znovu zostaví, takže každý rok používa vlastné historické dáta.
+- Presnosť plánu sa uchováva iba ako kompaktný mesačný súhrn.
+- Cloud ForecastArchive, Income Engine, Budget a Forecast výpočty zostávajú nezmenené.
+- Progress príjmov z v2.49.3 zostáva zachovaný.
 
 ## v2.49.3 – Príjmy aktuálneho mesiaca
 
