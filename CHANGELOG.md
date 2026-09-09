@@ -1,12 +1,22 @@
 # Flow changelog
 
-## v2.49.3 – Príjmy aktuálneho mesiaca
+## v2.49.4 – Bezpečné čistenie historických duplicít
 
-- Nová karta **Príjmy mesiaca** v aktuálnom mesiaci Ročného plánu.
-- Zobrazuje prijaté príjmy, očakávaný príjem, zostávajúcu očakávanú sumu a percento splnenia.
-- Progress bar používa existujúce hodnoty `actualIncome` a `plannedIncome`.
-- Income Engine, Budget, Forecast, synchronizácia, zálohy a GAS zostávajú nezmenené.
-- UX texty pri výdavkoch sú zjednodušené na Rozpočet/Odhad.
+- Nastavenia → Ochrana dát ukáže počet historických duplicitných riadkov v `Sheet1`.
+- Nové tlačidlo „Vyčistiť historické duplicity“ najprv spraví audit a zobrazí počet nálezov.
+- Pred akýmkoľvek mazaním sa povinne vytvorí kompletná cloudová záloha. Ak záloha zlyhá, `Sheet1` sa nemení.
+- Čistenie je úmyselne úzke: iba `HIST-*` záznamy s rovnakým dátumom, normalizovanou kategóriou, podkategóriou, sumou, typom a poznámkou.
+- Z každej duplicitnej skupiny sa preferuje riadok s platným `categoryId`; bežné `ID-*` transakcie sa nikdy nemažú.
+- Budget, Forecast, Income Engine, Ročný plán a uchovávanie presnosti sa nemenia.
+
+## v2.49.3 – Uchovávanie Presnosti plánu
+
+- Vychádza priamo z používateľom potvrdenej stabilnej v2.49.2.
+- Nový cloudový hárok `FlowPlanAccuracy` uchováva jeden nemenný snapshot na mesiac.
+- Ukladá sa pôvodný Budget a Forecast; skutočnosť sa vždy počíta z reálnych transakcií daného mesiaca.
+- Existujúce historické porovnania sa doplnia z `FlowForecastArchive`.
+- `getAnnualPlan(year)` zostáva byte-identický s v2.49.2.
+- Income Engine, Budget, Forecast a transakčná synchronizácia zostávajú bez zmeny.
 
 ## v2.49.2 – Automatické zálohy
 
