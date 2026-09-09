@@ -1,5 +1,14 @@
 # Flow changelog
 
+## v2.49.3 – Uchovávanie Presnosti plánu
+
+- Vychádza priamo z používateľom potvrdenej stabilnej v2.49.2.
+- Nový cloudový hárok `FlowPlanAccuracy` uchováva jeden nemenný snapshot na mesiac.
+- Ukladá sa pôvodný Budget a Forecast; skutočnosť sa vždy počíta z reálnych transakcií daného mesiaca.
+- Existujúce historické porovnania sa doplnia z `FlowForecastArchive`.
+- `getAnnualPlan(year)` zostáva byte-identický s v2.49.2.
+- Income Engine, Budget, Forecast a transakčná synchronizácia zostávajú bez zmeny.
+
 ## v2.49.2 – Automatické zálohy
 
 - Záloha v posledný deň mesiaca.
