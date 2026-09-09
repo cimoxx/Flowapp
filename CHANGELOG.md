@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.49.3 – Príjmy aktuálneho mesiaca
+
+- Nová karta **Príjmy mesiaca** v aktuálnom mesiaci Ročného plánu.
+- Zobrazuje prijaté príjmy, očakávaný príjem, zostávajúcu očakávanú sumu a percento splnenia.
+- Progress bar používa existujúce hodnoty `actualIncome` a `plannedIncome`.
+- Income Engine, Budget, Forecast, synchronizácia, zálohy a GAS zostávajú nezmenené.
+- UX texty pri výdavkoch sú zjednodušené na Rozpočet/Odhad.
+
 ## v2.49.2 – Automatické zálohy
 
 - Záloha v posledný deň mesiaca.
