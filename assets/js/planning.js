@@ -6,6 +6,17 @@ let flowBudgetOverrides = JSON.parse(localStorage.getItem('flow_budget_overrides
 // Forecast archive is cloud-first. Do not keep the full archive in localStorage;
 // multi-year walk-forward history can exceed browser storage quotas.
 let flowForecastArchive = [];
+// Do not persist the full forecast archive locally: historical backtests can be large.
+// Persist only compact month-level accuracy summaries and failed LIVE snapshots.
+let flowPlanAccuracyCache = {};
+let flowPendingArchiveRows = [];
+try {
+    flowPlanAccuracyCache = JSON.parse(localStorage.getItem('flow_plan_accuracy_cache_v2494') || '{}') || {};
+} catch (_) { flowPlanAccuracyCache = {}; }
+try {
+    flowPendingArchiveRows = JSON.parse(localStorage.getItem('flow_pending_live_archive_v2494') || '[]') || [];
+    if (!Array.isArray(flowPendingArchiveRows)) flowPendingArchiveRows = [];
+} catch (_) { flowPendingArchiveRows = []; }
 try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
@@ -148,6 +159,17 @@ function planningPersist() {
     localStorage.setItem('flow_planned_events_v235', JSON.stringify(flowPlannedEvents));
     localStorage.setItem('flow_budget_overrides_v235', JSON.stringify(flowBudgetOverrides));
     localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState));
+    try {
+        localStorage.setItem('flow_plan_accuracy_cache_v2494', JSON.stringify(flowPlanAccuracyCache || {}));
+        // Only failed real/live snapshots are queued locally. Walk-forward backtests
+        // are intentionally excluded so localStorage cannot grow uncontrollably.
+        const livePending=(Array.isArray(flowPendingArchiveRows)?flowPendingArchiveRows:[])
+            .filter(r=>String(r?.backtest||'')!=='walk-forward')
+            .slice(-250);
+        localStorage.setItem('flow_pending_live_archive_v2494', JSON.stringify(livePending));
+    } catch (error) {
+        console.warn('Planning compact cache persist failed:', error);
+    }
 }
 
 function planningGetUrl() {
@@ -165,7 +187,13 @@ async function loadPlanningData() {
         if (Array.isArray(payload.recurring)) flowRecurringPlans = payload.recurring;
         if (Array.isArray(payload.events)) flowPlannedEvents = payload.events;
         if (Array.isArray(payload.overrides)) flowBudgetOverrides = payload.overrides;
-        if (Array.isArray(payload.archive)) flowForecastArchive = payload.archive;
+        if (Array.isArray(payload.archive)) {
+            const merged=new Map();
+            payload.archive.filter(r=>r?.id).forEach(r=>merged.set(String(r.id),r));
+            (Array.isArray(flowPendingArchiveRows)?flowPendingArchiveRows:[])
+                .filter(r=>r?.id).forEach(r=>{ if(!merged.has(String(r.id))) merged.set(String(r.id),r); });
+            flowForecastArchive=[...merged.values()];
+        }
         if (payload.modelState && typeof payload.modelState === 'object') flowModelState = payload.modelState;
 
         planningLoaded = true;
@@ -1333,13 +1361,36 @@ function getPlanningComparisonTone(percent, mode = 'accuracy') {
 }
 
 function getMonthArchiveComparison(targetMonth, actualExpenses) {
+    const monthKey=String(targetMonth || '');
+    const actual = Math.max(0, Number(actualExpenses) || 0);
     const rows = (Array.isArray(flowForecastArchive) ? flowForecastArchive : [])
-        .filter(r => String(r.targetMonth || '') === String(targetMonth || ''))
+        .filter(r => String(r.targetMonth || '') === monthKey)
         .filter(r => String(r.category || '') !== '__INCOME__')
         .filter(r => Number.isFinite(Number(r.forecastAmount)) || Number.isFinite(Number(r.budgetAmount)));
 
-    const actual = Math.max(0, Number(actualExpenses) || 0);
-    if (!rows.length) return null;
+    const makeComparison=(budget,forecast,source)=>{
+        const b=Math.max(0,Number(budget)||0);
+        const f=Math.max(0,Number(forecast)||0);
+        const accuracy=value=>{
+            if(actual<=0) return value<=0 ? 100 : 0;
+            return Math.max(0,Math.min(100,round2(100-Math.abs(value-actual)/actual*100)));
+        };
+        return {
+            budget:b,
+            forecast:f,
+            actual,
+            budgetDelta:round2(b-actual),
+            forecastDelta:round2(f-actual),
+            budgetAccuracy:accuracy(b),
+            forecastAccuracy:accuracy(f),
+            source:source || 'cached'
+        };
+    };
+
+    if (!rows.length) {
+        const cached=flowPlanAccuracyCache?.[monthKey];
+        return cached ? makeComparison(cached.budget,cached.forecast,cached.source || 'cached') : null;
+    }
 
     // Prefer real snapshots created while the month was being planned/run.
     // Group by calendar day because all category rows of a snapshot are written together.
@@ -1348,7 +1399,10 @@ function getMonthArchiveComparison(targetMonth, actualExpenses) {
         ? liveRows
         : rows.filter(r => String(r.backtest || '') === 'walk-forward' && String(r.modelVersion || '') === String(FLOW_MODEL_VERSION));
 
-    if (!sourceRows.length) return null;
+    if (!sourceRows.length) {
+        const cached=flowPlanAccuracyCache?.[monthKey];
+        return cached ? makeComparison(cached.budget,cached.forecast,cached.source || 'cached') : null;
+    }
 
     const byDay = new Map();
     sourceRows.forEach(r => {
@@ -1359,7 +1413,10 @@ function getMonthArchiveComparison(targetMonth, actualExpenses) {
     });
 
     const days = [...byDay.keys()].sort();
-    if (!days.length) return null;
+    if (!days.length) {
+        const cached=flowPlanAccuracyCache?.[monthKey];
+        return cached ? makeComparison(cached.budget,cached.forecast,cached.source || 'cached') : null;
+    }
 
     const sumField = (group, field) => round2(group.reduce((sum, row) => {
         const value = Number(row?.[field]);
@@ -1372,31 +1429,22 @@ function getMonthArchiveComparison(targetMonth, actualExpenses) {
     const lastRows = byDay.get(days[days.length - 1]) || [];
     const archivedBudget = sumField(firstRows, 'budgetAmount');
     const archivedForecast = sumField(lastRows, 'forecastAmount');
+    const source=liveRows.length ? 'snapshot' : 'backfill';
+    const comparison=makeComparison(archivedBudget,archivedForecast,source);
 
-    return {
-        budget: archivedBudget,
-        forecast: archivedForecast,
-        budgetAccuracy: getPlanningHitAccuracy(archivedBudget, actual),
-        forecastAccuracy: getPlanningHitAccuracy(archivedForecast, actual),
-        budgetDelta: round2(archivedBudget - actual),
-        forecastDelta: round2(archivedForecast - actual),
-        source: liveRows.length ? 'snapshot' : 'backtest'
-    };
-}
-
-function renderPlanningMeter({label, percent, amountText, tone='good', accuracy=false}) {
-    const safePercent = Math.max(0, Number(percent) || 0);
-    const width = Math.min(100, safePercent);
-    return `<div class="planning-compare-row">
-        <div class="planning-compare-row-head">
-            <div><span>${label}</span><strong>${Math.round(safePercent)}%</strong></div>
-            <small>${amountText || ''}</small>
-        </div>
-        <div class="planning-compare-track" role="progressbar" aria-valuemin="0" aria-valuemax="${accuracy ? 100 : Math.max(100, Math.ceil(safePercent))}" aria-valuenow="${Math.round(safePercent)}">
-            <div class="planning-compare-fill tone-${tone}" style="width:${width}%"></div>
-            ${!accuracy && safePercent > 100 ? '<i class="planning-over-marker">+</i>' : ''}
-        </div>
-    </div>`;
+    // Keep only the tiny month-level result locally. This prevents the UI from
+    // losing an already known accuracy value after refresh/offline/cloud hiccups.
+    const previous=flowPlanAccuracyCache?.[monthKey];
+    if(!previous || Number(previous.budget)!==comparison.budget || Number(previous.forecast)!==comparison.forecast || previous.source!==source){
+        flowPlanAccuracyCache[monthKey]={
+            budget:comparison.budget,
+            forecast:comparison.forecast,
+            source,
+            savedAt:new Date().toISOString()
+        };
+        try { localStorage.setItem('flow_plan_accuracy_cache_v2494', JSON.stringify(flowPlanAccuracyCache)); } catch (_) {}
+    }
+    return comparison;
 }
 
 function renderClosedMonthComparison(month) {
@@ -1854,26 +1902,51 @@ async function buildForecastArchiveBackfill(onProgress = null) {
 async function archiveForecastRows(rows, options = {}) {
     if (!rows.length) return { saved:0, failed:0 };
     const chunkSize = Math.max(25, Math.min(150, Number(options.chunkSize) || 100));
-    rows.forEach(row => flowForecastArchive.push(row));
-    planningPersist();
+
+    // Merge by id; do not create duplicate in-memory rows on retries.
+    const byId=new Map((Array.isArray(flowForecastArchive)?flowForecastArchive:[]).filter(r=>r?.id).map(r=>[String(r.id),r]));
+    rows.forEach(row=>{ if(row?.id) byId.set(String(row.id),row); });
+    flowForecastArchive=[...byId.values()];
 
     let saved = 0;
     let failed = 0;
+    const failedLive=[];
+
     for (let i = 0; i < rows.length; i += chunkSize) {
         const chunk = rows.slice(i, i + chunkSize);
         try {
             const result = await planningPost({ action: 'archiveForecasts', rows: chunk });
             saved += Number(result?.saved) || chunk.length;
+            const successIds=new Set(chunk.map(r=>String(r?.id||'')));
+            flowPendingArchiveRows=(Array.isArray(flowPendingArchiveRows)?flowPendingArchiveRows:[])
+                .filter(r=>!successIds.has(String(r?.id||'')));
         } catch (error) {
             failed += chunk.length;
             console.warn('Forecast archive cloud save failed:', error);
+            // Real month snapshots are small and important. Keep them for retry.
+            chunk.filter(r=>String(r?.backtest||'')!=='walk-forward').forEach(r=>failedLive.push(r));
         }
         if (typeof options.onProgress === 'function') {
             options.onProgress(Math.min(rows.length, i + chunk.length), rows.length, saved, failed);
         }
         await new Promise(resolve => setTimeout(resolve, 0));
     }
+
+    if(failedLive.length){
+        const pendingById=new Map((Array.isArray(flowPendingArchiveRows)?flowPendingArchiveRows:[])
+            .filter(r=>r?.id).map(r=>[String(r.id),r]));
+        failedLive.forEach(r=>pendingById.set(String(r.id),r));
+        flowPendingArchiveRows=[...pendingById.values()].slice(-250);
+    }
+    planningPersist();
     return { saved, failed };
+}
+
+async function retryPendingArchiveRows() {
+    const pending=(Array.isArray(flowPendingArchiveRows)?flowPendingArchiveRows:[])
+        .filter(r=>r?.id && String(r?.backtest||'')!=='walk-forward');
+    if(!pending.length) return {saved:0,failed:0};
+    return archiveForecastRows(pending,{chunkSize:50});
 }
 
 async function archiveCurrentForecastSnapshot() {
@@ -2474,6 +2547,9 @@ function initPlanning() {
         // Re-evaluate only after the app has become idle; never block first paint.
         const runIdle = window.requestIdleCallback || (cb => setTimeout(cb, 1200));
         runIdle(async()=>{
+            // First retry any important live snapshots that previously failed to reach the cloud.
+            try { await retryPendingArchiveRows(); } catch (error) { console.warn('Pending forecast snapshot retry failed:', error); }
+
             await refreshArchiveEvaluations();
 
             // Archive the current month's real Budget/Forecast state so that
@@ -2490,11 +2566,15 @@ function initPlanning() {
                 const repairKey = `flowHistoricalAccuracyRepair:${FLOW_MODEL_VERSION}:v2446`;
                 if (localStorage.getItem(repairKey) !== 'done') {
                     const missingRows = await buildForecastArchiveBackfill();
+                    let repairFailed=0;
                     if (missingRows.length) {
-                        await archiveForecastRows(missingRows, { chunkSize: 100 });
+                        const repairResult=await archiveForecastRows(missingRows, { chunkSize: 100 });
+                        repairFailed=Number(repairResult?.failed)||0;
                         await refreshArchiveEvaluations();
                     }
-                    localStorage.setItem(repairKey, 'done');
+                    // Mark repair complete only after a successful cloud save.
+                    // A temporary backend/network failure must be retried on a later launch.
+                    if(repairFailed===0) localStorage.setItem(repairKey, 'done');
                 }
             } catch (error) {
                 console.warn('Historical month accuracy repair failed:', error);

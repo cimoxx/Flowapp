@@ -1,5 +1,14 @@
 # Flow changelog
 
+## v2.49.4 – Trvalá Presnosť plánu
+
+- Opravené miznutie Presnosti plánu po reload/reštarte.
+- Mesačné výsledky presnosti sa ukladajú do kompaktnej lokálnej cache.
+- Neodoslané live snapshoty majú lokálnu retry queue a pri ďalšom štarte sa odošlú znova.
+- Historický backfill sa označí ako dokončený iba po úspešnom cloudovom uložení.
+- Plný ForecastArchive sa naďalej neukladá do localStorage, aby sa nevrátil problém s kvótou.
+- Income Engine, Budget a Forecast výpočty sú bez zmeny.
+
 ## v2.49.3 – Príjmy aktuálneho mesiaca
 
 - Nová karta **Príjmy mesiaca** v aktuálnom mesiaci Ročného plánu.
