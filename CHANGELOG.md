@@ -1,13 +1,14 @@
 # Flow changelog
 
-## v2.49.5 – Ročný plán podľa správneho roku + Presnosť plánu
+## v2.49.6 – Ročný plán stabilný + Presnosť plánu v cloude
 
-- Verzia je postavená znovu zo stabilnej v2.49.3, nie z regresnej v2.49.4.
-- Výber roku v Ročnom pláne sa odovzdáva explicitne do renderu.
-- Pri zmene roku sa transakčný index znovu zostaví, takže každý rok používa vlastné historické dáta.
-- Presnosť plánu sa uchováva iba ako kompaktný mesačný súhrn.
-- Cloud ForecastArchive, Income Engine, Budget a Forecast výpočty zostávajú nezmenené.
-- Progress príjmov z v2.49.3 zostáva zachovaný.
+- Vychádza priamo zo stabilnej v2.49.3.
+- `getAnnualPlan(year)` zostáva byte-identický so stabilnou verziou.
+- Presnosť plánu má nový kompaktný serverový hárok `FlowPlanAccuracy`.
+- Prvý uložený Budget mesiaca sa zachová; Forecast sa priebežne aktualizuje.
+- Existujúci `FlowForecastArchive` ostáva zdrojom historických porovnaní a dopĺňa kompaktné snapshoty.
+- PWA používa verziované JS/CSS URL a network-first pre lokálne súbory, aby starý cache kód neprežil nový deploy.
+- Income Engine, Budget a Forecast model sa nemenia.
 
 ## v2.49.3 – Príjmy aktuálneho mesiaca
 

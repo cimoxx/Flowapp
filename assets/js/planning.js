@@ -6,12 +6,7 @@ let flowBudgetOverrides = JSON.parse(localStorage.getItem('flow_budget_overrides
 // Forecast archive is cloud-first. Do not keep the full archive in localStorage;
 // multi-year walk-forward history can exceed browser storage quotas.
 let flowForecastArchive = [];
-let flowPlanAccuracyCache = {};
-try {
-    flowPlanAccuracyCache = JSON.parse(localStorage.getItem('flow_plan_accuracy_cache_v2495') || '{}') || {};
-} catch (_) {
-    flowPlanAccuracyCache = {};
-}
+let flowPlanAccuracySnapshots = {};
 try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
@@ -154,12 +149,6 @@ function planningPersist() {
     localStorage.setItem('flow_planned_events_v235', JSON.stringify(flowPlannedEvents));
     localStorage.setItem('flow_budget_overrides_v235', JSON.stringify(flowBudgetOverrides));
     localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState));
-    try {
-        // Only one compact record per month. Never persist the full ForecastArchive.
-        localStorage.setItem('flow_plan_accuracy_cache_v2495', JSON.stringify(flowPlanAccuracyCache || {}));
-    } catch (error) {
-        console.warn('Plan accuracy cache save failed:', error);
-    }
 }
 
 function planningGetUrl() {
@@ -178,6 +167,13 @@ async function loadPlanningData() {
         if (Array.isArray(payload.events)) flowPlannedEvents = payload.events;
         if (Array.isArray(payload.overrides)) flowBudgetOverrides = payload.overrides;
         if (Array.isArray(payload.archive)) flowForecastArchive = payload.archive;
+        if (Array.isArray(payload.accuracy)) {
+            flowPlanAccuracySnapshots = {};
+            payload.accuracy.forEach(row => {
+                const key=String(row?.targetMonth || '');
+                if(key) flowPlanAccuracySnapshots[key]=row;
+            });
+        }
         if (payload.modelState && typeof payload.modelState === 'object') flowModelState = payload.modelState;
 
         planningLoaded = true;
@@ -1346,11 +1342,12 @@ function getPlanningComparisonTone(percent, mode = 'accuracy') {
 
 function getMonthArchiveComparison(targetMonth, actualExpenses) {
     const monthKey=String(targetMonth || '');
-    const actual = Math.max(0, Number(actualExpenses) || 0);
     const rows = (Array.isArray(flowForecastArchive) ? flowForecastArchive : [])
         .filter(r => String(r.targetMonth || '') === monthKey)
         .filter(r => String(r.category || '') !== '__INCOME__')
         .filter(r => Number.isFinite(Number(r.forecastAmount)) || Number.isFinite(Number(r.budgetAmount)));
+
+    const actual = Math.max(0, Number(actualExpenses) || 0);
 
     const makeComparison=(budget,forecast,source)=>{
         const b=Math.max(0,Number(budget)||0);
@@ -1367,25 +1364,29 @@ function getMonthArchiveComparison(targetMonth, actualExpenses) {
             forecastDelta:round2(f-actual),
             budgetAccuracy:accuracy(b),
             forecastAccuracy:accuracy(f),
-            source:source || 'cached'
+            source:source || 'snapshot'
         };
     };
 
-    // If cloud/archive is temporarily unavailable, keep showing the last known
-    // month-level plan values. The actual amount is always recalculated from transactions.
     if (!rows.length) {
-        const cached=flowPlanAccuracyCache?.[monthKey];
-        return cached ? makeComparison(cached.budget,cached.forecast,cached.source || 'cached') : null;
+        const compact=flowPlanAccuracySnapshots?.[monthKey];
+        if(compact && (Number.isFinite(Number(compact.budgetAmount)) || Number.isFinite(Number(compact.forecastAmount)))){
+            return makeComparison(compact.budgetAmount,compact.forecastAmount,'snapshot');
+        }
+        return null;
     }
 
+    // Prefer real snapshots created while the month was being planned/run.
+    // Group by calendar day because all category rows of a snapshot are written together.
     const liveRows = rows.filter(r => String(r.backtest || '') !== 'walk-forward');
     const sourceRows = liveRows.length
         ? liveRows
         : rows.filter(r => String(r.backtest || '') === 'walk-forward' && String(r.modelVersion || '') === String(FLOW_MODEL_VERSION));
 
     if (!sourceRows.length) {
-        const cached=flowPlanAccuracyCache?.[monthKey];
-        return cached ? makeComparison(cached.budget,cached.forecast,cached.source || 'cached') : null;
+        const compact=flowPlanAccuracySnapshots?.[monthKey];
+        if(compact) return makeComparison(compact.budgetAmount,compact.forecastAmount,'snapshot');
+        return null;
     }
 
     const byDay = new Map();
@@ -1408,20 +1409,7 @@ function getMonthArchiveComparison(targetMonth, actualExpenses) {
     const lastRows = byDay.get(days[days.length - 1]) || [];
     const archivedBudget = sumField(firstRows, 'budgetAmount');
     const archivedForecast = sumField(lastRows, 'forecastAmount');
-    const source=liveRows.length ? 'snapshot' : 'backfill';
-    const comparison=makeComparison(archivedBudget,archivedForecast,source);
-
-    flowPlanAccuracyCache[monthKey]={
-        budget:comparison.budget,
-        forecast:comparison.forecast,
-        source,
-        savedAt:new Date().toISOString()
-    };
-    try {
-        localStorage.setItem('flow_plan_accuracy_cache_v2495', JSON.stringify(flowPlanAccuracyCache));
-    } catch (_) {}
-
-    return comparison;
+    return makeComparison(archivedBudget,archivedForecast,liveRows.length ? 'snapshot' : 'backfill');
 }
 
 function renderClosedMonthComparison(month) {
@@ -1918,6 +1906,21 @@ async function archiveCurrentForecastSnapshot() {
         inputsJson:JSON.stringify({type:'income',plannedIncome:plan.plannedIncome,eventIncome:plan.eventIncome}),evaluatedAt:''
     });
     await archiveForecastRows(rows);
+
+    // Persist one tiny server-side row per month as a durable source for
+    // "Presnosť plánu". The first budget is preserved; forecast is refreshed.
+    try {
+        const compact=await planningPost({
+            action:'savePlanAccuracySnapshot',
+            targetMonth:key,
+            budgetAmount:plan.budget,
+            forecastAmount:plan.forecast,
+            modelVersion:FLOW_MODEL_VERSION
+        });
+        if(compact?.row?.targetMonth) flowPlanAccuracySnapshots[String(compact.row.targetMonth)]=compact.row;
+    } catch(error) {
+        console.warn('Compact plan accuracy snapshot save failed:',error);
+    }
 }
 
 async function refreshArchiveEvaluations() {
@@ -2122,20 +2125,10 @@ function renderFinancialCalendar(year, month) {
     </section>`;
 }
 
-function renderAnnualPlanScreen(selectedYear = null) {
+function renderAnnualPlanScreen() {
     const el = document.getElementById('annual-plan-content');
     if (!el) return;
-    const selector=document.getElementById('annual-plan-year');
-    const requested=selectedYear !== null ? Number(selectedYear) : Number(selector?.value);
-    const year=Number.isInteger(requested) && requested >= 2000 && requested <= new Date().getFullYear()+10
-        ? requested
-        : new Date().getFullYear();
-    if(selector && String(selector.value)!==String(year)) selector.value=String(year);
-
-    // Annual Plan is rendered infrequently. Rebuilding the lightweight transaction
-    // index here guarantees the selected year always uses its own transaction data,
-    // even immediately after cloud sync or a year switch.
-    rebuildForecastIndex(true);
+    const year = parseInt(document.getElementById('annual-plan-year')?.value || new Date().getFullYear(),10);
     const months = getAnnualPlan(year);
     const totalBudget = months.reduce((s,m)=>s+m.budget,0);
     const totalForecast = months.reduce((s,m)=>s+m.forecast,0);
@@ -2490,6 +2483,38 @@ async function submitBudgetOverride(event,key,category){
     await savePlanningEntity('override',entity); closePlanningModal();
 }
 
+async function persistClosedAccuracySummaries() {
+    const now=new Date();
+    const currentYear=now.getFullYear();
+    const years=(typeof getTransactionDataYears==='function' ? getTransactionDataYears() : []).filter(y=>y<=currentYear);
+    const pending=[];
+
+    years.forEach(year=>{
+        const months=getAnnualPlan(year);
+        months.filter(m=>m.closed && m.archiveComparison).forEach(m=>{
+            if(flowPlanAccuracySnapshots?.[m.key]) return;
+            pending.push({
+                targetMonth:m.key,
+                budgetAmount:m.archiveComparison.budget,
+                forecastAmount:m.archiveComparison.forecast,
+                modelVersion:FLOW_MODEL_VERSION
+            });
+        });
+    });
+
+    // Keep startup light. These are one-row writes and only missing months are sent.
+    for(const row of pending.slice(0,120)){
+        try{
+            const result=await planningPost({action:'savePlanAccuracySnapshot',...row});
+            if(result?.row?.targetMonth) flowPlanAccuracySnapshots[String(result.row.targetMonth)]=result.row;
+        }catch(error){
+            console.warn('Closed plan accuracy summary save failed:',row.targetMonth,error);
+            break;
+        }
+        await new Promise(resolve=>setTimeout(resolve,0));
+    }
+}
+
 function renderPlanningScreens() {
     // Do not calculate the entire 12-month model while another tab is visible.
     const planScreen = document.getElementById('screen-plan');
@@ -2510,6 +2535,11 @@ function initPlanning() {
         const runIdle = window.requestIdleCallback || (cb => setTimeout(cb, 1200));
         runIdle(async()=>{
             await refreshArchiveEvaluations();
+
+            // Copy already-known historical comparisons into the compact server-side
+            // accuracy table. This is independent of Annual Plan calculations.
+            try { await persistClosedAccuracySummaries(); }
+            catch(error) { console.warn('Plan accuracy summary backfill failed:',error); }
 
             // Archive the current month's real Budget/Forecast state so that
             // its accuracy can be shown after the month closes.
