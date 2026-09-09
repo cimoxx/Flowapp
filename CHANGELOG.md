@@ -1,5 +1,15 @@
 # Flow changelog
 
+## v2.49.5 – Bezpečný cloud pre čistenie duplicít
+
+- `data_health` už nevolá `ScriptApp.getProjectTriggers()`, takže bežná kontrola dát nepotrebuje trigger scope.
+- Stav auto-zálohy sa pri kontrole číta z Script Properties.
+- Čistenie je zablokované, ak existujú lokálne položky čakajúce na synchronizáciu.
+- Frontend sa pred čistením pokúsi sync dokončiť a následne overí cloud.
+- Backend odmietne čistenie pri čakajúcej sync fronte alebo ak sa počet duplicít zmenil od auditu.
+- Po vytvorení povinnej zálohy sa audit zopakuje; pri zmene dát sa nič nemaže.
+- Budget, Forecast, Income Engine, Ročný plán a samotné historické dedup pravidlá sa nemenia.
+
 ## v2.49.4 – Bezpečné čistenie historických duplicít
 
 - Nastavenia → Ochrana dát ukáže počet historických duplicitných riadkov v `Sheet1`.

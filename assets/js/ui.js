@@ -219,6 +219,8 @@ function dismissToast(toastEl) {
 
 
 // FLOW v2.49.0 — Data Protection Center
+let flowLastRemoteDataHealth = null;
+
 function getLocalDataHealth() {
     const rows = Array.isArray(db) ? db : [];
     const cats = Array.isArray(categories) ? categories : [];
@@ -247,19 +249,45 @@ function renderDataHealth(local,remote){
     const title=document.getElementById('data-health-title'),badge=document.getElementById('data-health-badge'),
       summary=document.getElementById('data-health-summary'),issues=document.getElementById('data-health-issues'),
       last=document.getElementById('data-last-backup'),
-      auto=document.getElementById('data-auto-backup');
+      auto=document.getElementById('data-auto-backup'),
+      cleanBtn=document.getElementById('historical-clean-btn');
     if(!title||!badge||!summary||!issues||!last)return;
-    const ok=local.ok && (!remote||remote.status==='success');
+
+    flowLastRemoteDataHealth=remote||null;
+    const cloudOk=Boolean(remote&&remote.status==='success');
+    const syncOk=Number(local.pending||0)===0;
+    const ok=local.ok && cloudOk;
+
     title.textContent=ok?'Všetko vyzerá v poriadku':'Našiel som veci na kontrolu';
     badge.textContent=ok?'OK':'SKONTROLOVAŤ'; badge.className=`data-health-badge ${ok?'tone-good':'tone-warn'}`;
     summary.innerHTML=`<div><b>${local.transactions}</b><span>transakcií</span></div><div><b>${local.categories}</b><span>kategórií</span></div><div><b>${local.recurring}</b><span>pravidelných</span></div><div><b>${local.pending}</b><span>čaká na sync</span></div>`;
-    const all=[...local.issues]; if(remote&&remote.status!=='success')all.push('Cloudový stav sa nepodarilo overiť');
+
+    const all=[...local.issues];
+    if(remote&&remote.status!=='success') all.push('Cloudový stav sa nepodarilo overiť');
     if(Number(remote?.historicalDuplicateRows||0)>0) all.push(`${Number(remote.historicalDuplicateRows)} historických duplicitných riadkov v Sheet1`);
+    if(!syncOk) all.push('Čistenie je zablokované, kým sa nedokončí synchronizácia');
     if(all.length){issues.classList.remove('hidden');issues.innerHTML=all.map(x=>`<div><i data-lucide="triangle-alert"></i><span>${x}</span></div>`).join('');}
     else{issues.classList.add('hidden');issues.innerHTML='';}
+
     if(remote?.lastBackupAt){const d=new Date(remote.lastBackupAt);last.textContent=isNaN(d)?remote.lastBackupAt:d.toLocaleString('sk-SK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
-    else if(remote?.status==='success')last.textContent='Zatiaľ nevytvorená'; else last.textContent=remote?.message||'Cloud sa nepodarilo overiť';
-    if(auto) auto.textContent=remote?.autoBackupEnabled ? 'Zapnutá · posledný deň mesiaca' : 'Vypnutá';
+    else if(cloudOk)last.textContent='Zatiaľ nevytvorená'; else last.textContent=remote?.message||'Cloud sa nepodarilo overiť';
+
+    if(auto){
+      if(remote?.autoBackupEnabled===true) auto.textContent='Zapnutá · posledný deň mesiaca';
+      else if(remote?.autoBackupEnabled===false) auto.textContent='Vypnutá';
+      else auto.textContent='Neoverené';
+    }
+
+    // Never allow destructive cleanup while local mutations are waiting or
+    // while the cloud cannot be verified.
+    if(cleanBtn){
+      const blocked=!cloudOk || !syncOk;
+      cleanBtn.disabled=blocked;
+      cleanBtn.classList.toggle('opacity-50',blocked);
+      cleanBtn.classList.toggle('cursor-not-allowed',blocked);
+      cleanBtn.title=!cloudOk?'Najprv musí byť dostupný a overený cloud':!syncOk?'Najprv dokonči synchronizáciu':'Bezpečné čistenie s povinnou zálohou';
+    }
+
     if(window.lucide)lucide.createIcons();
 }
 async function refreshDataProtection(){
@@ -295,6 +323,23 @@ async function createCloudBackup(btn){
 async function cleanHistoricalDuplicates(btn){
     if(btn){btn.disabled=true;btn.classList.add('opacity-60');}
     try{
+      // 1) Local queue must be empty. Try to finish it once automatically.
+      let pending=Array.isArray(syncQueue)?syncQueue.length:0;
+      if(pending>0){
+        showToast({type:'info',title:'Najprv dokončujem synchronizáciu',text:`Čaká ${pending} zmien. Čistenie sa nespustí, kým nebudú v cloude.`});
+        if(typeof processSyncQueue==='function') await processSyncQueue();
+        if(typeof syncTransactions==='function') await syncTransactions('pull');
+        pending=Array.isArray(syncQueue)?syncQueue.length:0;
+        if(pending>0) throw new Error(`Stále čaká ${pending} zmien na synchronizáciu. Historické dáta som nemenil.`);
+      }
+
+      // 2) Cloud health must succeed independently of trigger permissions.
+      const healthResponse=await fetch(buildSyncGetUrl('data_health'),{cache:'no-store'});
+      const healthText=await healthResponse.text(); let health;
+      try{health=JSON.parse(healthText);}catch(_){throw new Error(`Neplatná odpoveď servera (${healthResponse.status})`);}
+      if(!healthResponse.ok||health?.status!=='success') throw new Error(health?.message||'Cloudový stav sa nepodarilo bezpečne overiť.');
+
+      // 3) Audit only after sync + cloud preflight.
       const auditResponse=await fetch(buildSyncGetUrl('historical_duplicate_audit'),{cache:'no-store'});
       const auditText=await auditResponse.text(); let audit;
       try{audit=JSON.parse(auditText);}catch(_){throw new Error(`Neplatná odpoveď servera (${auditResponse.status})`);}
@@ -303,19 +348,40 @@ async function cleanHistoricalDuplicates(btn){
         showToast({type:'success',title:'Žiadne historické duplicity',text:'Sheet1 netreba čistiť.'});
         refreshDataProtection(); return;
       }
-      const ok=confirm(`Flow našiel ${audit.removeCount} duplicitných historických riadkov v ${audit.groups} skupinách. Pred čistením automaticky vytvorí kompletnú cloudovú zálohu. Pokračovať?`);
+
+      const ok=confirm(`Flow našiel ${audit.removeCount} duplicitných historických riadkov v ${audit.groups} skupinách.\n\nPred čistením server ešte raz overí bezpečnostné podmienky a vytvorí kompletnú cloudovú zálohu. Bežné transakcie ID-* sa nebudú mazať.\n\nPokračovať?`);
       if(!ok) return;
-      showToast({type:'info',title:'Čistím historické duplicity',text:'Najprv vytváram bezpečnostnú zálohu. Bežné transakcie sa nemenia.'});
-      const r=await fetch(GOOGLE_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'cleanHistoricalDuplicates',token:getSyncToken(),userId:typeof FLOW_USER_ID!=='undefined'?FLOW_USER_ID:'default'})});
+
+      showToast({type:'info',title:'Bezpečné čistenie',text:'Vytváram povinnú zálohu a až potom odstránim potvrdené HIST-* duplicity.'});
+      const r=await fetch(GOOGLE_URL,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({
+          action:'cleanHistoricalDuplicates',
+          token:getSyncToken(),
+          userId:typeof FLOW_USER_ID!=='undefined'?FLOW_USER_ID:'default',
+          syncQueueCount:Array.isArray(syncQueue)?syncQueue.length:0,
+          expectedDuplicateRows:Number(audit.removeCount||0)
+        })
+      });
       const text=await r.text(); let result;
       try{result=JSON.parse(text);}catch(_){throw new Error(`Neplatná odpoveď servera (${r.status})`);}
       if(!r.ok||result?.status!=='success') throw new Error(result?.message||`HTTP ${r.status}`);
-      showToast({type:'success',title:'Historické duplicity odstránené',text:`Odstránených ${result.cleaned||0} riadkov. Záloha: ${result.backup?.name||'vytvorená'}.`});
-      if(typeof manualSync==='function') await manualSync();
+
+      showToast({
+        type:'success',
+        title:'Historické duplicity odstránené',
+        text:`Odstránených ${result.cleaned||0} riadkov. Záloha: ${result.backup?.name||'vytvorená'}.`
+      });
+
+      if(typeof syncTransactions==='function') await syncTransactions('pull');
       refreshDataProtection();
     }catch(error){
       showToast({type:'error',title:'Čistenie sa nevykonalo',text:error?.message||'Sheet1 zostal nezmenený.'});
-    }finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}}
+      refreshDataProtection();
+    }finally{
+      if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}
+    }
 }
 
 async function setupAutoBackup(btn){
