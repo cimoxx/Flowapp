@@ -6,7 +6,6 @@ let flowBudgetOverrides = JSON.parse(localStorage.getItem('flow_budget_overrides
 // Forecast archive is cloud-first. Do not keep the full archive in localStorage;
 // multi-year walk-forward history can exceed browser storage quotas.
 let flowForecastArchive = [];
-let flowPlanAccuracySnapshots = {};
 try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
@@ -167,13 +166,6 @@ async function loadPlanningData() {
         if (Array.isArray(payload.events)) flowPlannedEvents = payload.events;
         if (Array.isArray(payload.overrides)) flowBudgetOverrides = payload.overrides;
         if (Array.isArray(payload.archive)) flowForecastArchive = payload.archive;
-        if (Array.isArray(payload.accuracy)) {
-            flowPlanAccuracySnapshots = {};
-            payload.accuracy.forEach(row => {
-                const key=String(row?.targetMonth || '');
-                if(key) flowPlanAccuracySnapshots[key]=row;
-            });
-        }
         if (payload.modelState && typeof payload.modelState === 'object') flowModelState = payload.modelState;
 
         planningLoaded = true;
@@ -1341,40 +1333,13 @@ function getPlanningComparisonTone(percent, mode = 'accuracy') {
 }
 
 function getMonthArchiveComparison(targetMonth, actualExpenses) {
-    const monthKey=String(targetMonth || '');
     const rows = (Array.isArray(flowForecastArchive) ? flowForecastArchive : [])
-        .filter(r => String(r.targetMonth || '') === monthKey)
+        .filter(r => String(r.targetMonth || '') === String(targetMonth || ''))
         .filter(r => String(r.category || '') !== '__INCOME__')
         .filter(r => Number.isFinite(Number(r.forecastAmount)) || Number.isFinite(Number(r.budgetAmount)));
 
     const actual = Math.max(0, Number(actualExpenses) || 0);
-
-    const makeComparison=(budget,forecast,source)=>{
-        const b=Math.max(0,Number(budget)||0);
-        const f=Math.max(0,Number(forecast)||0);
-        const accuracy=value=>{
-            if(actual<=0) return value<=0 ? 100 : 0;
-            return Math.max(0,Math.min(100,round2(100-Math.abs(value-actual)/actual*100)));
-        };
-        return {
-            budget:b,
-            forecast:f,
-            actual,
-            budgetDelta:round2(b-actual),
-            forecastDelta:round2(f-actual),
-            budgetAccuracy:accuracy(b),
-            forecastAccuracy:accuracy(f),
-            source:source || 'snapshot'
-        };
-    };
-
-    if (!rows.length) {
-        const compact=flowPlanAccuracySnapshots?.[monthKey];
-        if(compact && (Number.isFinite(Number(compact.budgetAmount)) || Number.isFinite(Number(compact.forecastAmount)))){
-            return makeComparison(compact.budgetAmount,compact.forecastAmount,'snapshot');
-        }
-        return null;
-    }
+    if (!rows.length) return null;
 
     // Prefer real snapshots created while the month was being planned/run.
     // Group by calendar day because all category rows of a snapshot are written together.
@@ -1383,11 +1348,7 @@ function getMonthArchiveComparison(targetMonth, actualExpenses) {
         ? liveRows
         : rows.filter(r => String(r.backtest || '') === 'walk-forward' && String(r.modelVersion || '') === String(FLOW_MODEL_VERSION));
 
-    if (!sourceRows.length) {
-        const compact=flowPlanAccuracySnapshots?.[monthKey];
-        if(compact) return makeComparison(compact.budgetAmount,compact.forecastAmount,'snapshot');
-        return null;
-    }
+    if (!sourceRows.length) return null;
 
     const byDay = new Map();
     sourceRows.forEach(r => {
@@ -1405,11 +1366,37 @@ function getMonthArchiveComparison(targetMonth, actualExpenses) {
         return sum + (Number.isFinite(value) ? value : 0);
     }, 0));
 
+    // Budget = earliest stored plan for the month.
+    // Forecast = latest stored forecast for the month.
     const firstRows = byDay.get(days[0]) || [];
     const lastRows = byDay.get(days[days.length - 1]) || [];
     const archivedBudget = sumField(firstRows, 'budgetAmount');
     const archivedForecast = sumField(lastRows, 'forecastAmount');
-    return makeComparison(archivedBudget,archivedForecast,liveRows.length ? 'snapshot' : 'backfill');
+
+    return {
+        budget: archivedBudget,
+        forecast: archivedForecast,
+        budgetAccuracy: getPlanningHitAccuracy(archivedBudget, actual),
+        forecastAccuracy: getPlanningHitAccuracy(archivedForecast, actual),
+        budgetDelta: round2(archivedBudget - actual),
+        forecastDelta: round2(archivedForecast - actual),
+        source: liveRows.length ? 'snapshot' : 'backtest'
+    };
+}
+
+function renderPlanningMeter({label, percent, amountText, tone='good', accuracy=false}) {
+    const safePercent = Math.max(0, Number(percent) || 0);
+    const width = Math.min(100, safePercent);
+    return `<div class="planning-compare-row">
+        <div class="planning-compare-row-head">
+            <div><span>${label}</span><strong>${Math.round(safePercent)}%</strong></div>
+            <small>${amountText || ''}</small>
+        </div>
+        <div class="planning-compare-track" role="progressbar" aria-valuemin="0" aria-valuemax="${accuracy ? 100 : Math.max(100, Math.ceil(safePercent))}" aria-valuenow="${Math.round(safePercent)}">
+            <div class="planning-compare-fill tone-${tone}" style="width:${width}%"></div>
+            ${!accuracy && safePercent > 100 ? '<i class="planning-over-marker">+</i>' : ''}
+        </div>
+    </div>`;
 }
 
 function renderClosedMonthComparison(month) {
@@ -1470,65 +1457,28 @@ function renderClosedMonthComparison(month) {
 function renderCurrentMonthProgress(month) {
     const budgetUsage = getPlanningUsagePercent(month.actualExpenses, month.budget);
     const forecastUsage = getPlanningUsagePercent(month.actualExpenses, month.forecast);
-    const incomeProgress = getPlanningUsagePercent(month.actualIncome, month.plannedIncome);
     const now = new Date();
     const monthDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const timeUsage = Math.round(now.getDate() / monthDays * 100);
-    const incomeRemaining = Math.max(0, round2((Number(month.plannedIncome) || 0) - (Number(month.actualIncome) || 0)));
 
-    return `<div class="planning-live-progress-stack">
-        <div class="planning-comparison-card is-live">
-            <div class="planning-comparison-head">
-                <div>
-                    <span class="planning-comparison-eyebrow">Výdavky mesiaca</span>
-                    <strong>${formatCurrency(month.actualExpenses)} minuté doteraz</strong>
-                </div>
-                <span class="planning-source-pill current">${timeUsage}% mesiaca</span>
-            </div>
-            ${renderPlanningMeter({
-                label:'Z rozpočtu vyčerpané',
-                percent:budgetUsage,
-                tone:getPlanningComparisonTone(budgetUsage,'usage'),
-                amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.budget)}`
-            })}
-            ${renderPlanningMeter({
-                label:'Z odhadu výdavkov',
-                percent:forecastUsage,
-                tone:getPlanningComparisonTone(forecastUsage,'usage'),
-                amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.forecast)}`
-            })}
-            <div class="planning-comparison-foot">Koľko si už minul v porovnaní s rozpočtom a odhadom výdavkov na celý mesiac.</div>
+    return `<div class="planning-comparison-card is-live">
+        <div class="planning-comparison-head">
+            <div><span class="planning-comparison-eyebrow">Čerpanie mesiaca</span><strong>${formatCurrency(month.actualExpenses)} minuté doteraz</strong></div>
+            <span class="planning-source-pill current">${timeUsage}% mesiaca</span>
         </div>
-
-        <div class="planning-comparison-card is-live planning-income-progress">
-            <div class="planning-comparison-head">
-                <div>
-                    <span class="planning-comparison-eyebrow">Príjmy mesiaca</span>
-                    <strong>${formatCurrency(month.actualIncome)} prijaté doteraz</strong>
-                </div>
-                <span class="planning-source-pill income">${Math.round(incomeProgress)}%</span>
-            </div>
-
-            ${renderPlanningMeter({
-                label:'Z očakávaných príjmov prijaté',
-                percent:incomeProgress,
-                tone:incomeProgress >= 100 ? 'good' : 'current',
-                amountText:`${formatCurrency(month.actualIncome)} z ${formatCurrency(month.plannedIncome)}`
-            })}
-
-            <div class="planning-income-summary">
-                <div>
-                    <span>Očakávaný príjem</span>
-                    <strong>${formatCurrency(month.plannedIncome)}</strong>
-                </div>
-                <div>
-                    <span>Ešte očakávam</span>
-                    <strong>${formatCurrency(incomeRemaining)}</strong>
-                </div>
-            </div>
-
-            <div class="planning-comparison-foot">Prijaté sú reálne príjmy z transakcií. Očakávaný príjem je odhad Flow pre celý aktuálny mesiac.</div>
-        </div>
+        ${renderPlanningMeter({
+            label:'Z budgetu vyčerpané',
+            percent:budgetUsage,
+            tone:getPlanningComparisonTone(budgetUsage,'usage'),
+            amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.budget)}`
+        })}
+        ${renderPlanningMeter({
+            label:'Z forecastu dosiahnuté',
+            percent:forecastUsage,
+            tone:getPlanningComparisonTone(forecastUsage,'usage'),
+            amountText:`${formatCurrency(month.actualExpenses)} z ${formatCurrency(month.forecast)}`
+        })}
+        <div class="planning-comparison-foot">Čerpanie ukazuje realitu z transakcií voči celému mesačnému budgetu a aktuálnemu forecastu.</div>
     </div>`;
 }
 
@@ -1906,21 +1856,6 @@ async function archiveCurrentForecastSnapshot() {
         inputsJson:JSON.stringify({type:'income',plannedIncome:plan.plannedIncome,eventIncome:plan.eventIncome}),evaluatedAt:''
     });
     await archiveForecastRows(rows);
-
-    // Persist one tiny server-side row per month as a durable source for
-    // "Presnosť plánu". The first budget is preserved; forecast is refreshed.
-    try {
-        const compact=await planningPost({
-            action:'savePlanAccuracySnapshot',
-            targetMonth:key,
-            budgetAmount:plan.budget,
-            forecastAmount:plan.forecast,
-            modelVersion:FLOW_MODEL_VERSION
-        });
-        if(compact?.row?.targetMonth) flowPlanAccuracySnapshots[String(compact.row.targetMonth)]=compact.row;
-    } catch(error) {
-        console.warn('Compact plan accuracy snapshot save failed:',error);
-    }
 }
 
 async function refreshArchiveEvaluations() {
@@ -2483,38 +2418,6 @@ async function submitBudgetOverride(event,key,category){
     await savePlanningEntity('override',entity); closePlanningModal();
 }
 
-async function persistClosedAccuracySummaries() {
-    const now=new Date();
-    const currentYear=now.getFullYear();
-    const years=(typeof getTransactionDataYears==='function' ? getTransactionDataYears() : []).filter(y=>y<=currentYear);
-    const pending=[];
-
-    years.forEach(year=>{
-        const months=getAnnualPlan(year);
-        months.filter(m=>m.closed && m.archiveComparison).forEach(m=>{
-            if(flowPlanAccuracySnapshots?.[m.key]) return;
-            pending.push({
-                targetMonth:m.key,
-                budgetAmount:m.archiveComparison.budget,
-                forecastAmount:m.archiveComparison.forecast,
-                modelVersion:FLOW_MODEL_VERSION
-            });
-        });
-    });
-
-    // Keep startup light. These are one-row writes and only missing months are sent.
-    for(const row of pending.slice(0,120)){
-        try{
-            const result=await planningPost({action:'savePlanAccuracySnapshot',...row});
-            if(result?.row?.targetMonth) flowPlanAccuracySnapshots[String(result.row.targetMonth)]=result.row;
-        }catch(error){
-            console.warn('Closed plan accuracy summary save failed:',row.targetMonth,error);
-            break;
-        }
-        await new Promise(resolve=>setTimeout(resolve,0));
-    }
-}
-
 function renderPlanningScreens() {
     // Do not calculate the entire 12-month model while another tab is visible.
     const planScreen = document.getElementById('screen-plan');
@@ -2535,11 +2438,6 @@ function initPlanning() {
         const runIdle = window.requestIdleCallback || (cb => setTimeout(cb, 1200));
         runIdle(async()=>{
             await refreshArchiveEvaluations();
-
-            // Copy already-known historical comparisons into the compact server-side
-            // accuracy table. This is independent of Annual Plan calculations.
-            try { await persistClosedAccuracySummaries(); }
-            catch(error) { console.warn('Plan accuracy summary backfill failed:',error); }
 
             // Archive the current month's real Budget/Forecast state so that
             // its accuracy can be shown after the month closes.
