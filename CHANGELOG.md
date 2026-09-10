@@ -1,21 +1,13 @@
 # Flow changelog
 
-## v2.49.9 – Ročný plán bez blokovania UI
+## v2.49.10 – Ročný plán obnovený zo stabilnej v2.49.2
 
-- Champion validácia už nebeží synchronne počas renderu Ročného plánu.
-- Flow okamžite použije posledného známeho championa; ak neexistuje, použije `legacy-adaptive`.
-- Nový champion sa dopočíta postupne cez idle queue a po dokončení sa obrazovka obnoví raz.
-- `getAnnualPlan(year)` zostáva byte-identický s v2.49.8.
-- Sync, HIST tombstones a Google Apps Script zostávajú bez zmeny.
-
-## v2.49.8 – Aktuálny rok v Ročnom pláne
-
-- Opravené pomalé/prázdne načítavanie aktuálneho roku po uložení alebo synchronizácii novej transakcie.
-- Príčina: podpis transakčných dát sa menil pri každej novej transakcii a tým zneplatnil uloženého championa každej kategórie.
-- Pre aktuálny cutoff mesiac sa uložený champion znovu použije; samotné forecast hodnoty sa stále počítajú z najnovších transakcií.
-- `getAnnualPlan(year)` zostáva byte-identický s v2.49.7.
-- Pridaný bezpečný render guard, aby runtime chyba nenechala Ročný plán úplne prázdny.
-- Sync v2.49.7, HIST tombstones, Budget, Income Engine a GAS zostávajú bez zmeny.
+- `assets/js/planning.js` je byte-for-byte identický s poslednou verziou v2.49.2, kde používateľ potvrdil funkčný Ročný plán.
+- Tým sa odstraňujú všetky regresie v Ročnom pláne zavedené po v2.49.2.
+- Zachovaná zostáva oprava synchronizácie z v2.49.7.
+- Zachovaná zostáva ochrana `FlowHistoricalTombstones` proti opätovnému vytváraniu historických duplicít.
+- Google Apps Script zostáva v2.49.7.
+- Budget, transakcie, kategórie, analytika a cockpit zostávajú bez zmeny.
 
 ## v2.49.7 – Oprava synchronizácie po HIST ochrane
 
