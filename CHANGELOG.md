@@ -1,5 +1,15 @@
 # Flow changelog
 
+## v2.49.6 – HIST duplicity sa po čistení už nevrátia
+
+- Opravená príčina opätovného vytvárania historických duplicít po serverovom čistení.
+- Backend pri čistení vráti presné `removedIds`.
+- Klient odstráni rovnaké ID z lokálnej `db` aj zo `syncQueue` ešte pred následným pullom.
+- Lokálne sa uchová tombstone zoznam vyčistených HIST ID, takže pull ich nereinterpretuje ako nové lokálne dáta.
+- Backend vytvára `FlowHistoricalTombstones` a odmietne znovu uložiť už vyčistené HIST ID, aj zo starého zariadenia.
+- Bežné ID-* transakcie nie sú týmto mechanizmom dotknuté.
+- Budget, Forecast, Income Engine a Ročný plán zostávajú bez zmeny.
+
 ## v2.49.5 – Bezpečný cloud pre čistenie duplicít
 
 - `data_health` už nevolá `ScriptApp.getProjectTriggers()`, takže bežná kontrola dát nepotrebuje trigger scope.

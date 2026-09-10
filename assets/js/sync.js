@@ -28,6 +28,41 @@ function buildSyncGetUrl(action) {
     return `${GOOGLE_URL}?get=${encodeURIComponent(action)}&token=${token}`;
 }
 
+const FLOW_HIST_TOMBSTONES_KEY = 'flow_hist_tombstones_v2496';
+
+function getHistoricalTombstones() {
+    try {
+        const values=JSON.parse(localStorage.getItem(FLOW_HIST_TOMBSTONES_KEY) || '[]');
+        return new Set(Array.isArray(values) ? values.map(String) : []);
+    } catch (_) {
+        return new Set();
+    }
+}
+
+function rememberHistoricalTombstones(ids) {
+    const set=getHistoricalTombstones();
+    (Array.isArray(ids)?ids:[]).forEach(id=>{
+        const value=String(id||'');
+        if(/^HIST-/i.test(value)) set.add(value);
+    });
+    const list=[...set].slice(-5000);
+    localStorage.setItem(FLOW_HIST_TOMBSTONES_KEY,JSON.stringify(list));
+    return new Set(list);
+}
+
+function purgeHistoricalIdsLocally(ids) {
+    const set=rememberHistoricalTombstones(ids);
+    const beforeDb=Array.isArray(db)?db.length:0;
+    const beforeQueue=Array.isArray(syncQueue)?syncQueue.length:0;
+    db=(Array.isArray(db)?db:[]).filter(item=>!set.has(String(item?.id||'')));
+    syncQueue=(Array.isArray(syncQueue)?syncQueue:[]).filter(item=>!set.has(String(item?.id||'')));
+    localStorage.setItem('f_db_v20',JSON.stringify(db));
+    localStorage.setItem('f_sync_q_v20',JSON.stringify(syncQueue));
+    if(typeof markForecastIndexDirty==='function') markForecastIndexDirty();
+    updateSyncUI('ok');
+    return {removedLocal:beforeDb-db.length,removedQueued:beforeQueue-syncQueue.length};
+}
+
 function queueMutation(item) {
     if (!item || !item.id) return;
 
@@ -196,6 +231,10 @@ async function processSyncQueue() {
                 if (r.status === 'success' || r.status === 'already_current') {
                     const original = batch.find(item => String(item.id) === String(r.id));
                     if (original) accepted.push(original);
+                } else if (r.status === 'historical_tombstoned') {
+                    const original = batch.find(item => String(item.id) === String(r.id));
+                    if (original) accepted.push(original);
+                    purgeHistoricalIdsLocally([r.id]);
                 } else if (r.status === 'conflict') {
                     conflicts.push(r);
                 }
@@ -330,8 +369,10 @@ async function syncTransactions(action = 'pull') {
             if (!cloud.deleted) merged.push(cloud);
         });
 
+        const historicalTombstones=getHistoricalTombstones();
         localById.forEach((local, id) => {
             if (!cloudData.some(c => String(c.id) === id) && !queuedById.has(id) && !local.deleted) {
+                if(/^HIST-/i.test(String(id)) && historicalTombstones.has(String(id))) return;
                 merged.push(local);
                 queueMutation({ ...local, action: 'save' });
             }

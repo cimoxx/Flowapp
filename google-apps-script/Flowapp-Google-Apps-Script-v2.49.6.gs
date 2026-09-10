@@ -17,7 +17,7 @@
  * is public, anyone who knows the endpoint URL may still call it.
  */
 
-const FLOW_BACKEND_VERSION = '2.49.6';
+const FLOW_BACKEND_VERSION = '2.49.5';
 const FLOW_API_TOKEN = 'XMdXUXce7yB6d8mle2v_o78BUhNKvR4WOcfN9g5hWg';
 
 function json_(payload) {
@@ -184,16 +184,23 @@ function getAutoBackupTrigger_() {
 }
 
 function setupAutoBackup_(ss) {
-  PropertiesService.getScriptProperties().setProperty('FLOW_SPREADSHEET_ID', ss.getId());
+  const props=PropertiesService.getScriptProperties();
+  props.setProperty('FLOW_SPREADSHEET_ID', ss.getId());
   let trigger=getAutoBackupTrigger_();
   if(!trigger){
     trigger=ScriptApp.newTrigger('runFlowAutoBackup').timeBased().everyDays(1).atHour(23).create();
   }
+  // Read-only health checks must never need ScriptApp permission.
+  props.setProperty('FLOW_AUTO_BACKUP_ENABLED','true');
   return {status:'success',enabled:true,backendVersion:FLOW_BACKEND_VERSION};
 }
 
 function getAutoBackupState_() {
-  return {enabled:Boolean(getAutoBackupTrigger_())};
+  // Deliberately does NOT call ScriptApp.getProjectTriggers().
+  // This makes data_health safe even when trigger scope has not been authorized.
+  const props=PropertiesService.getScriptProperties();
+  const value=props.getProperty('FLOW_AUTO_BACKUP_ENABLED');
+  return {enabled:value==='true',known:value==='true'||value==='false'};
 }
 
 function runFlowAutoBackup() {
@@ -208,6 +215,152 @@ function runFlowAutoBackup() {
 
   const ss=SpreadsheetApp.openById(spreadsheetId);
   createFullBackup_(ss,'system','monthly_auto');
+}
+
+function normalizeHistoricalText_(value) {
+  return String(value == null ? '' : value)
+    .trim().toLowerCase()
+    .replace(/\s+/g,' ')
+    .replace(/\s*\/\s*/g,' / ')
+    .replace(/(?:\s*\/\s*dovolenky){2,}$/i,' / dovolenky');
+}
+
+function historicalDuplicateSignature_(tx) {
+  if (!tx || !/^HIST-/i.test(String(tx.id || ''))) return '';
+  const date=String(tx.date || '').slice(0,10);
+  const type=normalizeHistoricalText_(tx.type);
+  const category=normalizeHistoricalText_(tx.category);
+  const sub=normalizeHistoricalText_(tx.sub);
+  const note=normalizeHistoricalText_(tx.note);
+  const amount=Number(tx.amount);
+  if (!date || !category || !Number.isFinite(amount)) return '';
+  return [date,type,category,sub,amount.toFixed(2),note].join('|');
+}
+
+function historicalSurvivorScore_(tx) {
+  let score=0;
+  if (String(tx.categoryId || '').trim()) score+=100;
+  if (/^cat_stable_/i.test(String(tx.categoryId || ''))) score+=20;
+  if (!/\/\s*dovolenky\s*\/\s*dovolenky/i.test(String(tx.id || ''))) score+=5;
+  if (String(tx.userId || '') !== 'default') score+=1;
+  return score;
+}
+
+function auditHistoricalDuplicates_(ss) {
+  const sheet=ss.getSheetByName('Sheet1');
+  if(!sheet) return {status:'error',message:'Sheet1 not found'};
+  ensureTransactionHeaders_(sheet);
+  const values=sheet.getDataRange().getValues();
+  const groups=new Map();
+  values.slice(1).forEach((row,i)=>{
+    if(!row[0]) return;
+    const tx=transactionFromRow_(row);
+    if(tx.deleted) return;
+    const signature=historicalDuplicateSignature_(tx);
+    if(!signature) return;
+    const list=groups.get(signature)||[];
+    list.push({rowIndex:i+2,tx:tx});
+    groups.set(signature,list);
+  });
+  const duplicates=[];
+  groups.forEach((list,signature)=>{
+    if(list.length<2) return;
+    const ranked=list.slice().sort((a,b)=>historicalSurvivorScore_(b.tx)-historicalSurvivorScore_(a.tx) || a.rowIndex-b.rowIndex);
+    duplicates.push({
+      signature:signature,
+      keepRow:ranked[0].rowIndex,
+      keepId:String(ranked[0].tx.id||''),
+      removeRows:ranked.slice(1).map(x=>x.rowIndex),
+      removeIds:ranked.slice(1).map(x=>String(x.tx.id||'')),
+      date:String(ranked[0].tx.date||''),
+      category:String(ranked[0].tx.category||''),
+      amount:Number(ranked[0].tx.amount)||0
+    });
+  });
+  const removeCount=duplicates.reduce((n,g)=>n+g.removeRows.length,0);
+  return {status:'success',groups:duplicates.length,removeCount:removeCount,duplicates:duplicates.slice(0,25)};
+}
+
+function cleanHistoricalDuplicates_(ss,userId,options) {
+  const opts=options||{};
+  const pending=Number(opts.syncQueueCount)||0;
+  if(pending>0){
+    return {status:'error',message:'Čistenie zablokované: lokálne zmeny ešte čakajú na synchronizáciu. Sheet1 zostal nezmenený.'};
+  }
+
+  const audit=auditHistoricalDuplicates_(ss);
+  if(audit.status!=='success') return {...audit,cleaned:0,backup:null};
+  if(!audit.removeCount) return {...audit,cleaned:0,backup:null};
+
+  const expected=Number(opts.expectedDuplicateRows);
+  if(Number.isFinite(expected) && expected>=0 && expected!==Number(audit.removeCount||0)){
+    return {
+      status:'error',
+      message:`Audit sa medzitým zmenil (${expected} → ${audit.removeCount}). Pre bezpečnosť spusti kontrolu znova. Sheet1 zostal nezmenený.`
+    };
+  }
+
+  // Safety invariant: never mutate Sheet1 without a successful full backup first.
+  const backup=createFullBackup_(ss,userId||'default','before_historical_dedup');
+  if(!backup || backup.status!=='success'){
+    return {status:'error',message:'Bezpečnostná záloha zlyhala. Sheet1 zostal nezmenený.',backup:backup||null};
+  }
+
+  // Re-audit AFTER backup. If data changed during backup, abort rather than deleting
+  // rows based on stale row indexes.
+  const afterBackupAudit=auditHistoricalDuplicates_(ss);
+  if(afterBackupAudit.status!=='success' || Number(afterBackupAudit.removeCount||0)!==Number(audit.removeCount||0)){
+    return {
+      status:'error',
+      message:'Dáta sa počas zálohy zmenili. Čistenie bolo z bezpečnostných dôvodov zastavené; záloha je vytvorená, Sheet1 zostal nezmenený.',
+      backup:backup
+    };
+  }
+
+  const sheet=ss.getSheetByName('Sheet1');
+  const values=sheet.getDataRange().getValues();
+  const groups=new Map();
+
+  values.slice(1).forEach((row,i)=>{
+    if(!row[0]) return;
+    const tx=transactionFromRow_(row);
+    if(tx.deleted) return;
+    const sig=historicalDuplicateSignature_(tx);
+    if(!sig) return;
+    const list=groups.get(sig)||[];
+    list.push({rowIndex:i+2,tx:tx});
+    groups.set(sig,list);
+  });
+
+  const allRows=[];
+  const removedIds=[];
+  groups.forEach(list=>{
+    if(list.length<2) return;
+    const ranked=list.slice().sort((a,b)=>historicalSurvivorScore_(b.tx)-historicalSurvivorScore_(a.tx) || a.rowIndex-b.rowIndex);
+    ranked.slice(1).forEach(x=>{
+      allRows.push(x.rowIndex);
+      removedIds.push(String(x.tx.id||''));
+    });
+  });
+
+  const uniqueRows=[...new Set(allRows)].sort((a,b)=>b-a);
+  const uniqueRemovedIds=[...new Set(removedIds.filter(Boolean))];
+
+  // Persist cloud tombstones BEFORE deleting rows. If an old phone/browser later
+  // tries to upload one of these HIST ids, the backend refuses to recreate it.
+  addHistoricalTombstones_(ss,uniqueRemovedIds,'historical_dedup');
+
+  uniqueRows.forEach(rowIndex=>sheet.deleteRow(rowIndex));
+
+  const remaining=auditHistoricalDuplicates_(ss).removeCount || 0;
+  return {
+    status:'success',
+    cleaned:uniqueRows.length,
+    groups:audit.groups,
+    backup:backup,
+    remaining:remaining,
+    removedIds:uniqueRemovedIds
+  };
 }
 
 function getDataHealth_(ss) {
@@ -229,7 +382,8 @@ function getDataHealth_(ss) {
     lastBackupAt:backup.lastBackupAt,
     lastBackupName:backup.lastBackupName,
     backupCount:backup.count,
-    autoBackupEnabled:getAutoBackupState_().enabled
+    autoBackupEnabled:getAutoBackupState_().known ? getAutoBackupState_().enabled : null,
+    historicalDuplicateRows:auditHistoricalDuplicates_(ss).removeCount || 0
   };
 }
 
@@ -399,12 +553,14 @@ function getPlanningData_(ss, archiveModel) {
       : archiveRows;
     out.archive = filtered.map(r=>rowToObject_(PLANNING_HEADERS_.archive,r));
   }
-  const accuracySheet = ensureSheet_(ss,'FlowPlanAccuracy',FLOW_PLAN_ACCURACY_HEADERS_);
-  if (accuracySheet.getLastRow() >= 2) {
-    out.accuracy = accuracySheet.getRange(2,1,accuracySheet.getLastRow()-1,FLOW_PLAN_ACCURACY_HEADERS_.length)
-      .getValues()
-      .filter(r=>r[0])
-      .map(r=>FLOW_PLAN_ACCURACY_HEADERS_.reduce((o,h,idx)=>{o[h]=r[idx];return o;},{}));
+  const accuracy = ensureSheet_(ss,'FlowPlanAccuracy',FLOW_PLAN_ACCURACY_HEADERS_);
+  if (accuracy.getLastRow() >= 2) {
+    out.accuracy = accuracy.getRange(2,1,accuracy.getLastRow()-1,FLOW_PLAN_ACCURACY_HEADERS_.length)
+      .getValues().filter(r=>r[0]).map(r=>{
+        const o={};
+        FLOW_PLAN_ACCURACY_HEADERS_.forEach((h,i)=>o[h]=r[i]);
+        return o;
+      });
   }
 
   const model = ensureSheet_(ss,'FlowModelState',PLANNING_HEADERS_.model);
@@ -436,31 +592,20 @@ function savePlanAccuracySnapshot_(ss, item) {
 
   const sheet=ensureSheet_(ss,'FlowPlanAccuracy',FLOW_PLAN_ACCURACY_HEADERS_);
   const last=sheet.getLastRow();
-  let rowIndex=-1;
   if(last>=2){
     const keys=sheet.getRange(2,1,last-1,1).getValues();
     for(let i=0;i<keys.length;i++){
-      if(String(keys[i][0]||'')===key){rowIndex=i+2;break;}
+      if(String(keys[i][0]||'')===key){
+        const values=sheet.getRange(i+2,1,1,FLOW_PLAN_ACCURACY_HEADERS_.length).getValues()[0];
+        const row={};
+        FLOW_PLAN_ACCURACY_HEADERS_.forEach((h,j)=>row[h]=values[j]);
+        // Historical baseline is immutable. Never overwrite it later.
+        return {status:'success',result:'already_saved',row:row};
+      }
     }
   }
 
   const now=nowIso_();
-  if(rowIndex>-1){
-    const current=FLOW_PLAN_ACCURACY_HEADERS_.reduce((o,h,idx)=>{o[h]=sheet.getRange(rowIndex,1,1,FLOW_PLAN_ACCURACY_HEADERS_.length).getValues()[0][idx];return o;},{});
-    const budget=Number(current.budgetAmount);
-    const next={
-      targetMonth:key,
-      // First saved budget is the historical plan baseline and must never drift later.
-      budgetAmount:Number.isFinite(budget) ? budget : (Number(item.budgetAmount)||0),
-      forecastAmount:Number(item.forecastAmount)||0,
-      modelVersion:String(item.modelVersion||current.modelVersion||''),
-      createdAt:current.createdAt||now,
-      updatedAt:now
-    };
-    sheet.getRange(rowIndex,1,1,FLOW_PLAN_ACCURACY_HEADERS_.length).setValues([FLOW_PLAN_ACCURACY_HEADERS_.map(h=>next[h]===undefined?'':next[h])]);
-    return {status:'success',row:next};
-  }
-
   const row={
     targetMonth:key,
     budgetAmount:Number(item.budgetAmount)||0,
@@ -470,7 +615,7 @@ function savePlanAccuracySnapshot_(ss, item) {
     updatedAt:now
   };
   sheet.appendRow(FLOW_PLAN_ACCURACY_HEADERS_.map(h=>row[h]===undefined?'':row[h]));
-  return {status:'success',row:row};
+  return {status:'success',result:'saved',row:row};
 }
 
 function archiveForecasts_(ss, rows) {
@@ -494,11 +639,18 @@ function archiveForecasts_(ss, rows) {
   return { status:'success', saved:updates.length+inserts.length };
 }
 
-function processTransactionMutation_(ss, item) {
+function processTransactionMutation_(ss, item, historicalTombstones) {
   const sheet = ss.getSheetByName('Sheet1');
   if (!sheet) return { status:'error', message:'Sheet1 not found', id:String(item.id||'') };
   ensureTransactionHeaders_(sheet);
   if (!item.id) return { status:'error', message:'Missing transaction id' };
+
+  const id=String(item.id||'');
+  const tombstones=historicalTombstones instanceof Set ? historicalTombstones : readHistoricalTombstoneSet_(ss);
+  if(item.action!=='delete' && /^HIST-/i.test(id) && tombstones.has(id)){
+    return {status:'historical_tombstoned',id:id,result:'ignored_cleaned_historical_duplicate'};
+  }
+
   const rowIndex = findTransactionRow_(sheet,item.id);
   const existing = rowIndex > -1 ? transactionFromRow_(sheet.getRange(rowIndex,1,1,16).getValues()[0]) : null;
   const incoming = { ...item, deleted:item.action==='delete' ? true : Boolean(item.deleted), version:toVersion_(item.version), updatedAt:toIso_(item.updatedAt,nowIso_()) };
@@ -517,6 +669,7 @@ function doGet(e) {
 
   try {
     if (get === 'data_health') return json_(getDataHealth_(ss));
+    if (get === 'historical_duplicate_audit') return json_(auditHistoricalDuplicates_(ss));
 
     if (get === 'transactions') {
       const sheet = ss.getSheetByName('Sheet1');
@@ -590,9 +743,12 @@ function doPost(e) {
 
     if (item.action === 'setupAutoBackup') return json_(setupAutoBackup_(ss));
 
+    if (item.action === 'cleanHistoricalDuplicates') return json_(cleanHistoricalDuplicates_(ss,item.userId,{syncQueueCount:item.syncQueueCount,expectedDuplicateRows:item.expectedDuplicateRows}));
+
     if (item.action === 'batchSync') {
       const items = Array.isArray(item.items) ? item.items : [];
-      const results = items.map(entry => processTransactionMutation_(ss, entry));
+      const historicalTombstones=readHistoricalTombstoneSet_(ss);
+      const results = items.map(entry => processTransactionMutation_(ss, entry, historicalTombstones));
       return json_({ status:'success', results });
     }
 

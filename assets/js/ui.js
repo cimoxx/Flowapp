@@ -368,10 +368,16 @@ async function cleanHistoricalDuplicates(btn){
       try{result=JSON.parse(text);}catch(_){throw new Error(`Neplatná odpoveď servera (${r.status})`);}
       if(!r.ok||result?.status!=='success') throw new Error(result?.message||`HTTP ${r.status}`);
 
+      const removedIds=Array.isArray(result.removedIds)?result.removedIds.map(String):[];
+      let localPurge={removedLocal:0,removedQueued:0};
+      if(removedIds.length && typeof purgeHistoricalIdsLocally==='function'){
+        localPurge=purgeHistoricalIdsLocally(removedIds);
+      }
+
       showToast({
         type:'success',
         title:'Historické duplicity odstránené',
-        text:`Odstránených ${result.cleaned||0} riadkov. Záloha: ${result.backup?.name||'vytvorená'}.`
+        text:`Odstránených ${result.cleaned||0} riadkov. Lokálne odstránených ${localPurge.removedLocal||0}. Záloha: ${result.backup?.name||'vytvorená'}.`
       });
 
       if(typeof syncTransactions==='function') await syncTransactions('pull');
