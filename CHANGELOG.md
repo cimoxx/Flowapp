@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.49.9 – Ročný plán bez blokovania UI
+
+- Champion validácia už nebeží synchronne počas renderu Ročného plánu.
+- Flow okamžite použije posledného známeho championa; ak neexistuje, použije `legacy-adaptive`.
+- Nový champion sa dopočíta postupne cez idle queue a po dokončení sa obrazovka obnoví raz.
+- `getAnnualPlan(year)` zostáva byte-identický s v2.49.8.
+- Sync, HIST tombstones a Google Apps Script zostávajú bez zmeny.
+
 ## v2.49.8 – Aktuálny rok v Ročnom pláne
 
 - Opravené pomalé/prázdne načítavanie aktuálneho roku po uložení alebo synchronizácii novej transakcie.

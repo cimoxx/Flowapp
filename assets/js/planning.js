@@ -22,6 +22,68 @@ let flowForecastIndexSignature = '';
 let flowForecastIndexDirty = true;
 let flowChampionCache = new Map();
 let flowChampionStateCache = new Map();
+const flowChampionRefreshQueue = new Map();
+let flowChampionRefreshRunning = false;
+
+function queueChampionRefresh(category, year, month, historical, cutoffKey, signature) {
+    const key=`${String(category)}|${cutoffKey}`;
+    if(flowChampionRefreshQueue.has(key)) return;
+    flowChampionRefreshQueue.set(key,{
+        category:String(category),
+        year:Number(year),
+        month:Number(month),
+        historical:Array.isArray(historical)?historical.map(r=>({...r})):[],
+        cutoffKey,
+        signature
+    });
+    if(flowChampionRefreshRunning) return;
+    flowChampionRefreshRunning=true;
+
+    const runNext=()=>{
+        const next=flowChampionRefreshQueue.entries().next();
+        if(next.done){
+            flowChampionRefreshRunning=false;
+            const plan=document.getElementById('screen-plan');
+            if(plan && !plan.classList.contains('hidden')){
+                try { renderAnnualPlanScreen(); } catch (_) {}
+            }
+            return;
+        }
+
+        const [queueKey,job]=next.value;
+        flowChampionRefreshQueue.delete(queueKey);
+        const runner=window.requestIdleCallback || (cb=>setTimeout(()=>cb({timeRemaining:()=>0,didTimeout:true}),50));
+        runner(()=>{
+            try{
+                const stateKey=`${job.category}|${job.cutoffKey}|${job.signature}`;
+                let state=flowChampionStateCache.get(stateKey);
+                if(!state){
+                    state=createOnlineChampionState();
+                    rowsChronological(job.historical).forEach(r=>{
+                        updateOnlineChampionState(state,job.category,r.year,r.month,Number(r.value)||0);
+                    });
+                    flowChampionStateCache.set(stateKey,state);
+                }
+                const selection=selectOnlineChampion(state,job.category);
+                flowModelState.champions=flowModelState.champions||{};
+                flowModelState.champions[job.category]={
+                    ...selection,
+                    cutoff:job.cutoffKey,
+                    signature:job.signature,
+                    updatedAt:new Date().toISOString()
+                };
+                flowChampionCache.set(queueKey,flowModelState.champions[job.category]);
+                try { localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState)); } catch (_) {}
+            }catch(error){
+                console.warn('Champion background refresh failed:',job.category,error);
+            }
+            setTimeout(runNext,0);
+        },{timeout:1500});
+    };
+
+    setTimeout(runNext,0);
+}
+
 
 function markForecastIndexDirty() {
     flowForecastIndexDirty = true;
@@ -1153,42 +1215,40 @@ function getChampionSelection(category, year, month, historical) {
     const signature=getForecastIndexSignature();
     const championKey=String(category);
     const stored=flowModelState?.champions?.[championKey];
+
     if(stored && stored.cutoff===cutoffKey && FLOW_FORECAST_CANDIDATES.includes(stored.candidate)){
-        // The selected champion is stable for the whole data cutoff month.
-        // A normal new transaction must refresh the forecast VALUES, but it does
-        // not need to rerun the expensive multi-year champion validation.
-        //
-        // This is especially important for the current year: every save/sync
-        // changes the transaction signature. Requiring an exact signature match
-        // made the 2026 Annual Plan recalculate all category champions before
-        // drawing anything, while closed historical years stayed fast.
         const restored={...stored,signature};
         flowChampionCache.set(cacheKey,restored);
-
-        // Refresh only the lightweight signature metadata. Candidate selection
-        // itself remains unchanged until the cutoff month changes or history is
-        // explicitly re-evaluated.
         if(stored.signature!==signature){
+            flowModelState.champions=flowModelState.champions||{};
             flowModelState.champions[championKey]=restored;
             try { localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState)); } catch (_) {}
         }
         return restored;
     }
 
-    const stateKey=`${String(category)}|${cutoffKey}|${signature}`;
-    let state=flowChampionStateCache.get(stateKey);
-    if(!state){
-        state=createOnlineChampionState();
-        rowsChronological(historical).forEach(r=>updateOnlineChampionState(state,category,r.year,r.month,Number(r.value)||0));
-        flowChampionStateCache.set(stateKey,state);
+    let immediate;
+    if(stored && FLOW_FORECAST_CANDIDATES.includes(stored.candidate)){
+        immediate={...stored,staleChampion:true};
+    }else{
+        immediate={
+            candidate:'legacy-adaptive',
+            reason:'fast-first-render',
+            validationCount:0,
+            validationWape:null,
+            validationBudgetWape:null,
+            validationBias:0,
+            monthValidationCount:0,
+            monthValidationWape:null,
+            baselineWape:null,
+            improvementPct:0,
+            ranking:[]
+        };
     }
 
-    const selection=selectOnlineChampion(state,category);
-    flowChampionCache.set(cacheKey,selection);
-    flowModelState.champions=flowModelState.champions||{};
-    flowModelState.champions[championKey]={...selection,cutoff:cutoffKey,signature,updatedAt:new Date().toISOString()};
-    try { localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState)); } catch (_) {}
-    return selection;
+    flowChampionCache.set(cacheKey,immediate);
+    queueChampionRefresh(category,year,month,historical,cutoffKey,signature);
+    return immediate;
 }
 
 function getVariableForecast(category, year, month) {
