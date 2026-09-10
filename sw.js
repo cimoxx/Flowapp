@@ -1,9 +1,9 @@
-const CACHE_NAME = 'flow-v20-cache-v2.49.10';
+const CACHE_NAME = 'flow-v20-cache-v2.49.11';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/styles.css?v=2.49.10',
+  './assets/css/styles.css?v=2.49.11',
   './assets/js/config.js',
   './assets/js/utils.js',
   './assets/js/sync.js',

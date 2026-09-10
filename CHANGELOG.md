@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.49.11 – Príjmy aktuálneho mesiaca
+
+- Na stabilný Ročný plán z v2.49.2 bola pridaná iba UI karta príjmov pre aktuálny mesiac.
+- Zobrazuje reálne prijaté príjmy, očakávaný príjem, zostávajúcu očakávanú sumu a percentuálny progress.
+- Použitá je už predtým funkčná implementácia z v2.49.3.
+- `getAnnualPlan(year)` zostáva byte-identický s v2.49.10/v2.49.2.
+- Sync, HIST ochrana, GAS, Budget a Forecast sa nemenia.
+
 ## v2.49.10 – Ročný plán obnovený zo stabilnej v2.49.2
 
 - `assets/js/planning.js` je byte-for-byte identický s poslednou verziou v2.49.2, kde používateľ potvrdil funkčný Ročný plán.
