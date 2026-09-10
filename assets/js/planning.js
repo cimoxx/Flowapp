@@ -1153,9 +1153,25 @@ function getChampionSelection(category, year, month, historical) {
     const signature=getForecastIndexSignature();
     const championKey=String(category);
     const stored=flowModelState?.champions?.[championKey];
-    if(stored && stored.cutoff===cutoffKey && stored.signature===signature && FLOW_FORECAST_CANDIDATES.includes(stored.candidate)){
-        const restored={...stored};
+    if(stored && stored.cutoff===cutoffKey && FLOW_FORECAST_CANDIDATES.includes(stored.candidate)){
+        // The selected champion is stable for the whole data cutoff month.
+        // A normal new transaction must refresh the forecast VALUES, but it does
+        // not need to rerun the expensive multi-year champion validation.
+        //
+        // This is especially important for the current year: every save/sync
+        // changes the transaction signature. Requiring an exact signature match
+        // made the 2026 Annual Plan recalculate all category champions before
+        // drawing anything, while closed historical years stayed fast.
+        const restored={...stored,signature};
         flowChampionCache.set(cacheKey,restored);
+
+        // Refresh only the lightweight signature metadata. Candidate selection
+        // itself remains unchanged until the cutoff month changes or history is
+        // explicitly re-evaluated.
+        if(stored.signature!==signature){
+            flowModelState.champions[championKey]=restored;
+            try { localStorage.setItem('flow_model_state_v235', JSON.stringify(flowModelState)); } catch (_) {}
+        }
         return restored;
     }
 
@@ -2092,7 +2108,23 @@ function renderAnnualPlanScreen() {
     const el = document.getElementById('annual-plan-content');
     if (!el) return;
     const year = parseInt(document.getElementById('annual-plan-year')?.value || new Date().getFullYear(),10);
-    const months = getAnnualPlan(year);
+
+    let months;
+    try {
+        months = getAnnualPlan(year);
+    } catch (error) {
+        console.error('Annual Plan render failed:', error);
+        el.innerHTML = `<div class="planning-comparison-card is-muted">
+            <div class="planning-comparison-head">
+                <div><span class="planning-comparison-eyebrow">Ročný plán ${year}</span><strong>Nepodarilo sa načítať výpočet</strong></div>
+            </div>
+            <p>${escPlanning(String(error?.message || error || 'Neznáma chyba'))}</p>
+            <button type="button" class="planning-small-btn" onclick="markForecastIndexDirty(); renderAnnualPlanScreen()">Skúsiť znova</button>
+        </div>`;
+        if(window.lucide) lucide.createIcons();
+        return;
+    }
+
     const totalBudget = months.reduce((s,m)=>s+m.budget,0);
     const totalForecast = months.reduce((s,m)=>s+m.forecast,0);
     const totalIncome = months.reduce((s,m)=>s+m.plannedIncome,0);
