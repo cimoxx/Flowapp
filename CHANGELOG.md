@@ -1,5 +1,15 @@
 # Flow changelog
 
+## v2.49.7 – Oprava synchronizácie po HIST ochrane
+
+- Opravená regresia v GAS v2.49.6: backend volal `readHistoricalTombstoneSet_()` a `addHistoricalTombstones_()`, ale ich definície v distribuovanom GAS súbore chýbali.
+- Táto chyba spôsobila pád `batchSync` ešte pred uložením novej transakcie.
+- Doplnené všetky tombstone helper funkcie.
+- Bežné `ID-*` transakcie tombstone hárok vôbec nečítajú.
+- `FlowHistoricalTombstones` sa používa iba pri `HIST-*` záznamoch.
+- Ochrana proti návratu historických duplicít zostáva zachovaná.
+- Budget, Forecast, Income Engine a Ročný plán sú bez zmeny.
+
 ## v2.49.6 – HIST duplicity sa po čistení už nevrátia
 
 - Opravená príčina opätovného vytvárania historických duplicít po serverovom čistení.
