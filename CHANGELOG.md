@@ -1,5 +1,26 @@
 # Flow changelog
 
+## v2.49.13 – Oprava už existujúcich pravidelných transakcií
+
+- V Nastaveniach pribudlo `Opraviť existujúce pravidelné platby`.
+- Audit hľadá legacy automatické `tx_*` položky a transakcie už prepojené cez `recurringPlanId`.
+- Pred každou opravou je povinná kompletná cloudová záloha.
+- Opraví `isRecurring`, `frequency` a `recurringPlanId`.
+- Pre rovnaký plán a dátum ponechá jednu generator-shaped transakciu a ostatné odstráni.
+- Bežné ručne vytvorené `ID-*` transakcie sa automaticky nemažú.
+- Po oprave frontend odstráni zmazané ID aj lokálne a urobí cloud pull.
+- Ročný plán, Budget, Forecast a Income Engine zostávajú bez zmeny.
+
+## v2.49.12 – Pravidelné platby bez duplicít
+
+- Sheet1 dostal polia `isRecurring`, `frequency`, `recurringPlanId`; metadata už po cloud pull synchronizácii nezmiznú.
+- Generované pravidelné transakcie používajú stabilné ID podľa plánu a dátumu.
+- Legacy `tx_*` položky sa pri spracovaní bezpečne priradia k správnemu plánu.
+- Ak pre rovnaký plán/dátum existuje viac generator-shaped transakcií, Flow ponechá jednu a ostatné pošle ako delete.
+- Editácia sumy/frekvencie/kategórie upravuje existujúce generované transakcie podľa zvoleného rozsahu.
+- Pridanie a editácia plánu používajú optimistické UI a okamžitý feedback.
+- Ročný plán `getAnnualPlan(year)` zostáva nezmenený oproti v2.49.11.
+
 ## v2.49.11 – Príjmy aktuálneho mesiaca
 
 - Na stabilný Ročný plán z v2.49.2 bola pridaná iba UI karta príjmov pre aktuálny mesiac.

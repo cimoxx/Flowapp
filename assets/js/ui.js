@@ -390,6 +390,86 @@ async function cleanHistoricalDuplicates(btn){
     }
 }
 
+async function repairExistingRecurringTransactions(btn){
+    if(btn){btn.disabled=true;btn.classList.add('opacity-60');}
+    try{
+      // Pending normal transaction sync must be empty first. Try once automatically.
+      let pending=Array.isArray(syncQueue)?syncQueue.length:0;
+      if(pending>0){
+        showToast({type:'info',title:'Najprv synchronizujem',text:`Čaká ${pending} zmien. Oprava sa spustí až po synchronizácii.`});
+        if(typeof processSyncQueue==='function') await processSyncQueue();
+        pending=Array.isArray(syncQueue)?syncQueue.length:0;
+        if(pending>0) throw new Error(`Stále čaká ${pending} zmien na synchronizáciu. Dáta som nemenil.`);
+      }
+
+      showToast({type:'info',title:'Kontrolujem pravidelné platby',text:'Hľadám iba automaticky vytvorené legacy tx_* položky. Bežné ID-* transakcie sa nekontrolujú na mazanie.'});
+
+      const auditResponse=await fetch(buildSyncGetUrl('recurring_repair_audit'),{cache:'no-store'});
+      const auditText=await auditResponse.text(); let audit;
+      try{audit=JSON.parse(auditText);}catch(_){throw new Error(`Neplatná odpoveď servera (${auditResponse.status})`);}
+      if(!auditResponse.ok||audit?.status!=='success') throw new Error(audit?.message||`HTTP ${auditResponse.status}`);
+
+      const duplicateRows=Number(audit.duplicateRows||0);
+      const metadataRows=Number(audit.metadataRows||0);
+      if(!duplicateRows && !metadataRows){
+        showToast({type:'success',title:'Pravidelné platby sú v poriadku',text:'Nenašiel som nič na opravu.'});
+        return;
+      }
+
+      const ok=confirm(
+        `Flow našiel:\n\n`+
+        `• ${duplicateRows} duplicitných automatických transakcií na odstránenie\n`+
+        `• ${metadataRows} transakcií, ktorým treba obnoviť príznak pravidelnej platby\n\n`+
+        `Pred opravou sa vytvorí kompletná cloudová záloha. Bežné ID-* transakcie sa nemažú.\n\nPokračovať?`
+      );
+      if(!ok) return;
+
+      showToast({type:'info',title:'Opravujem pravidelné platby',text:'Najprv vytváram zálohu. Potom opravím metadata a odstránim iba potvrdené automatické duplicity.'});
+
+      const response=await fetch(GOOGLE_URL,{
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({
+          action:'repairRecurringTransactions',
+          token:getSyncToken(),
+          userId:typeof FLOW_USER_ID!=='undefined'?FLOW_USER_ID:'default',
+          syncQueueCount:Array.isArray(syncQueue)?syncQueue.length:0,
+          expectedDuplicateRows:duplicateRows,
+          expectedMetadataRows:metadataRows
+        })
+      });
+      const text=await response.text(); let result;
+      try{result=JSON.parse(text);}catch(_){throw new Error(`Neplatná odpoveď servera (${response.status})`);}
+      if(!response.ok||result?.status!=='success') throw new Error(result?.message||`HTTP ${response.status}`);
+
+      // Purge deleted legacy IDs locally before pull so they cannot reappear.
+      const removedIds=Array.isArray(result.removedIds)?result.removedIds.map(String):[];
+      if(removedIds.length){
+        const removeSet=new Set(removedIds);
+        db=(Array.isArray(db)?db:[]).filter(tx=>!removeSet.has(String(tx?.id||'')));
+        syncQueue=(Array.isArray(syncQueue)?syncQueue:[]).filter(tx=>!removeSet.has(String(tx?.id||'')));
+        localStorage.setItem('f_db_v20',JSON.stringify(db));
+        localStorage.setItem('f_sync_q_v20',JSON.stringify(syncQueue));
+      }
+
+      // Pull repaired recurring metadata from Sheet1.
+      if(typeof syncTransactions==='function') await syncTransactions('pull');
+      if(typeof renderList==='function') renderList();
+      if(typeof renderPlanningScreens==='function') renderPlanningScreens();
+
+      showToast({
+        type:'success',
+        title:'Pravidelné platby opravené',
+        text:`Odstránené duplicity: ${result.cleanedDuplicates||0}. Opravený príznak: ${result.repairedMetadata||0}. Záloha: ${result.backup?.name||'vytvorená'}.`
+      });
+      refreshDataProtection();
+    }catch(error){
+      showToast({type:'error',title:'Oprava sa nevykonala',text:error?.message||'Dáta zostali nezmenené.'});
+    }finally{
+      if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}
+    }
+}
+
 async function setupAutoBackup(btn){
     if(btn){btn.disabled=true;btn.classList.add('opacity-60');}
     showToast({type:'info',title:'Nastavujem automatickú zálohu',text:'Flow ju spustí v posledný deň každého mesiaca.'});

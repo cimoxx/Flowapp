@@ -203,14 +203,21 @@ async function savePlanningEntity(type, entity) {
     const list = type === 'recurring' ? flowRecurringPlans : type === 'event' ? flowPlannedEvents : flowBudgetOverrides;
     const idx = list.findIndex(x => String(x.id) === String(normalized.id));
     if (idx > -1) list[idx] = normalized; else list.push(normalized);
+
+    // Optimistic UI: local state is authoritative immediately. Network latency
+    // must not make the recurring-payment form feel frozen.
     planningPersist();
+    renderPlanningScreens();
+
+    let cloudSaved = true;
     try {
         await planningPost({ action: 'savePlanning', type, entity: normalized });
     } catch (error) {
+        cloudSaved = false;
         console.warn('Planning save queued locally:', error);
         showToast?.({ type: 'warning', title: 'Uložené lokálne', text: 'Cloud sa zosynchronizuje pri ďalšom pokuse.' });
     }
-    renderPlanningScreens();
+    return { cloudSaved, entity: normalized };
 }
 
 async function deletePlanningEntity(type, id) {
@@ -2283,6 +2290,15 @@ function openRecurringPlanModal(id=null) {
 
 async function submitRecurringPlanForm(event, id) {
     event.preventDefault();
+    const form=event?.currentTarget || document.getElementById('recurring-plan-form');
+    const submitBtn=form?.querySelector('button[type="submit"], button:not([type])');
+    if(submitBtn){
+        submitBtn.disabled=true;
+        submitBtn.dataset.originalText=submitBtn.textContent;
+        submitBtn.textContent='UKLADÁM…';
+        submitBtn.classList.add('opacity-70');
+    }
+
     const old = id ? flowRecurringPlans.find(x=>String(x.id)===String(id)) : null;
     const category=document.getElementById('rp-category').value;
     const updated = {
@@ -2300,14 +2316,32 @@ async function submitRecurringPlanForm(event, id) {
         type:document.getElementById('rp-type').value,
         version:(Number(old?.version)||0)+1
     };
+
     if (old && (Number(old.amount)!==updated.amount || old.frequency!==updated.frequency || old.dayOfMonth!==updated.dayOfMonth || old.type!==updated.type || old.category!==updated.category || (old.sub||'')!==(updated.sub||''))) {
         showRecurringChangeChoice(old, updated);
         return;
     }
-    await savePlanningEntity('recurring', updated);
-    closePlanningModal();
-}
 
+    showToast?.({
+        type:'info',
+        title: old ? 'Ukladám zmenu' : 'Pridávam pravidelnú platbu',
+        text:'Zmena sa hneď zobrazí v aplikácii.'
+    });
+
+    const savePromise=savePlanningEntity('recurring', updated);
+    closePlanningModal();
+
+    // Plan already exists locally before the network request finishes.
+    if(typeof processRecurringPayments==='function') processRecurringPayments();
+    renderPlanningScreens();
+
+    const result=await savePromise;
+    showToast?.({
+        type:result?.cloudSaved===false?'warning':'success',
+        title:result?.cloudSaved===false?'Uložené lokálne':(old?'Pravidelná platba upravená':'Pravidelná platba pridaná'),
+        text:result?.cloudSaved===false?'Cloud sa skúsi zosynchronizovať neskôr.':'Hotovo.'
+    });
+}
 function showRecurringChangeChoice(oldPlan, newPlan) {
     const body=document.getElementById('planning-modal-body');
     body.innerHTML=`<div class="space-y-3"><div class="planning-change-summary"><b>${escPlanning(oldPlan.name)}</b><span>${formatCurrency(oldPlan.amount)} → ${formatCurrency(newPlan.amount)}</span></div><div class="planning-muted">Ako zmeníš pravidelnú položku, Flow môže zmenu použiť iba na plán alebo aj na už vytvorené transakcie.</div><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','future')"><b>Táto a všetky budúce</b><span>Od dneška sa budúce plánované položky prepočítajú.</span></button><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','all')"><b>Aj historické</b><span>Prepíše aj existujúce transakcie. Použi len ak história nemá zostať pôvodná.</span></button><button type="button" class="planning-choice-btn" onclick="applyRecurringChange('${oldPlan.id}','plan')"><b>Iba pravidelný plán</b><span>Existujúce transakcie sa nemenia.</span></button></div>`;
@@ -2318,20 +2352,64 @@ async function applyRecurringChange(id, scope) {
     const pending=window._pendingRecurringChange;
     if(!pending || String(pending.old.id)!==String(id))return;
     const {old,newPlan}=pending;
-    await savePlanningEntity('recurring',newPlan);
+
+    showToast?.({type:'info',title:'Upravujem pravidelnú platbu',text:'Zmenu zobrazím hneď, synchronizácia prebehne následne.'});
+
+    const savePromise=savePlanningEntity('recurring',newPlan);
     const today=getTodayStr();
-    const affected=db.filter(tx=>!tx.deleted && (tx.recurringPlanId===old.id || (tx.isRecurring && tx.category===old.category && (tx.sub||'')===(old.sub||'') && tx.type===old.type)));
+
+    const looksGeneratedForPlan=(tx,plan)=>{
+        if(!tx || tx.deleted) return false;
+        if(String(tx.recurringPlanId||'')===String(plan.id)) return true;
+        if(!/^tx_/i.test(String(tx.id||'')) && !tx.isRecurring) return false;
+        return String(tx.category||'')===String(plan.category||'')
+            && String(tx.sub||'')===String(plan.sub||'')
+            && String(tx.type||'expense')===String(plan.type||'expense')
+            && String(tx.note||'')===String(plan.name||'');
+    };
+
+    const affected=db.filter(tx=>looksGeneratedForPlan(tx,old));
     affected.forEach(tx=>{
         const txDate=getCleanDateStr(tx.date);
         const allowed=scope==='all' || (scope==='future' && txDate>=today);
         if(!allowed)return;
-        tx.amount=newPlan.amount; tx.frequency=newPlan.frequency; tx.category=newPlan.category; tx.categoryId=newPlan.categoryId; tx.sub=newPlan.sub||''; tx.type=newPlan.type||tx.type; tx.note=newPlan.name||tx.note||''; tx.recurringPlanId=newPlan.id; tx.updatedAt=new Date().toISOString(); tx.version=(Number(tx.version)||1)+1; queueMutation(tx);
-    });
-    saveData(false); processSyncQueue();
-    window._pendingRecurringChange=null; closePlanningModal(); renderList(); renderPlanningScreens(); updateBudgetScreen?.();
-    showToast?.({type:'success',title:'Pravidelná položka upravená',text:scope==='all'?'Zmenené aj historické transakcie.':scope==='future'?'Zmenené budúce transakcie.':'Zmenený iba plán.'});
-}
 
+        tx.amount=newPlan.amount;
+        tx.frequency=newPlan.frequency;
+        tx.category=newPlan.category;
+        tx.categoryId=newPlan.categoryId;
+        tx.sub=newPlan.sub||'';
+        tx.type=newPlan.type||tx.type;
+        tx.note=newPlan.name||tx.note||'';
+        tx.isRecurring=true;
+        tx.recurringPlanId=newPlan.id;
+        tx.updatedAt=new Date().toISOString();
+        tx.version=(Number(tx.version)||1)+1;
+        queueMutation(tx);
+    });
+
+    saveData(false);
+    processSyncQueue();
+    window._pendingRecurringChange=null;
+    closePlanningModal();
+
+    // Reconcile same-date generated rows immediately and keep exactly one
+    // occurrence per plan/date.
+    if(typeof processRecurringPayments==='function') processRecurringPayments();
+
+    renderList();
+    renderPlanningScreens();
+    updateBudgetScreen?.();
+
+    const result=await savePromise;
+    showToast?.({
+        type:result?.cloudSaved===false?'warning':'success',
+        title:result?.cloudSaved===false?'Zmena uložená lokálne':'Pravidelná položka upravená',
+        text:result?.cloudSaved===false
+            ? 'Cloud sa skúsi zosynchronizovať neskôr.'
+            : scope==='all'?'Zmenené aj historické transakcie.':scope==='future'?'Zmenené budúce transakcie.':'Zmenený iba plán.'
+    });
+}
 function pauseRecurringPlan(id) {
     const p=flowRecurringPlans.find(x=>String(x.id)===String(id));
     if(!p)return;

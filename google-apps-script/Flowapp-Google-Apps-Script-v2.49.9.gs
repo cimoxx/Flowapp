@@ -1,0 +1,1111 @@
+/**
+ * FLOW V20 / Flowapp - BACKEND v2.35.0
+ * Data integrity backend for Google Sheets.
+ *
+ * Sheet1 existing columns A:J are preserved.
+ * New metadata columns are appended:
+ * K categoryId
+ * L createdAt
+ * M updatedAt
+ * N version
+ * O deleted
+ * P userId
+ *
+ * IMPORTANT:
+ * This improves data integrity and conflict handling.
+ * It does NOT provide real authentication. If the Web App deployment
+ * is public, anyone who knows the endpoint URL may still call it.
+ */
+
+const FLOW_BACKEND_VERSION = '2.49.5';
+const FLOW_API_TOKEN = 'XMdXUXce7yB6d8mle2v_o78BUhNKvR4WOcfN9g5hWg';
+
+function json_(payload) {
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function nowIso_() {
+  return new Date().toISOString();
+}
+
+function toIso_(value, fallback) {
+  if (!value) return fallback || nowIso_();
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? (fallback || nowIso_()) : d.toISOString();
+}
+
+function toVersion_(value) {
+  const n = parseInt(value, 10);
+  return isNaN(n) || n < 1 ? 1 : n;
+}
+
+function categorySignature_(list) {
+  const normalized = (Array.isArray(list) ? list : []).map(function(cat) {
+    return {
+      id: String(cat && cat.id || ''),
+      icon: String(cat && cat.icon || ''),
+      subs: Array.isArray(cat && cat.subs) ? cat.subs.map(String) : []
+    };
+  });
+  return JSON.stringify(normalized);
+}
+
+function legacyGenericDefaultCategories_() {
+  return [
+    { id: 'Potraviny', icon: 'shopping-cart', subs: ['Billa','Lidl','Kaufland','Tesco','COOP'] },
+    { id: 'Byvanie', icon: 'home', subs: ['Najom','Elektrina','Plyn','Voda','Internet'] },
+    { id: 'Doprava', icon: 'car', subs: ['Tankovanie','MHD','Servis','Poistka'] },
+    { id: 'Zabava', icon: 'gamepad-2', subs: ['Kino','Restauracia','Bar','Streaming'] },
+    { id: 'Zdravie', icon: 'heart-pulse', subs: ['Lekaren','Doktor','Poistenie'] },
+    { id: 'Oblecenie', icon: 'shirt', subs: ['Topanky','Bunda','Doplnky'] },
+    { id: 'Prijem', icon: 'wallet', subs: ['Vyplata','Bonus','Predaj','Ine'] },
+    { id: 'Ine', icon: 'package', subs: ['Darcek','Domacnost','Ostatne'] }
+  ];
+}
+
+function isLegacyGenericDefaultCategories_(list) {
+  return categorySignature_(list) === categorySignature_(legacyGenericDefaultCategories_());
+}
+
+function readCategoriesState_(ss) {
+  const sheet = ss.getSheetByName('Categories');
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { sheet: sheet, categories: [], version: 1, updatedAt: '1970-01-01T00:00:00.000Z' };
+  }
+  const content = String(sheet.getRange(2, 1).getValue() || '');
+  let categories = [];
+  try { categories = content ? JSON.parse(content) : []; } catch (_) { categories = []; }
+  return {
+    sheet: sheet,
+    categories: Array.isArray(categories) ? categories : [],
+    version: toVersion_(sheet.getRange(2, 2).getValue()),
+    updatedAt: toIso_(sheet.getRange(2, 3).getValue(), '1970-01-01T00:00:00.000Z')
+  };
+}
+
+function backupCategories_(ss, state, userId, reason) {
+  if (!state || !Array.isArray(state.categories) || !state.categories.length) return;
+  let sheet = ss.getSheetByName('CategoriesBackup');
+  if (!sheet) sheet = ss.insertSheet('CategoriesBackup');
+  if (sheet.getLastRow() < 1) {
+    sheet.getRange(1, 1, 1, 6).setValues([['BackedUpAt','Version','UpdatedAt','UserId','Reason','Data']]);
+  }
+  sheet.appendRow([
+    nowIso_(),
+    state.version || 1,
+    state.updatedAt || '',
+    String(userId || ''),
+    String(reason || 'before_write'),
+    JSON.stringify(state.categories)
+  ]);
+
+  // Keep a practical rolling history. Header + last 100 snapshots.
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 101) sheet.deleteRows(2, lastRow - 101);
+}
+
+
+function ensureBackupLog_(ss) {
+  let sheet=ss.getSheetByName('FlowBackups');
+  if(!sheet) sheet=ss.insertSheet('FlowBackups');
+  if(sheet.getLastRow()<1) sheet.getRange(1,1,1,6).setValues([['CreatedAt','FileId','Name','UserId','Reason','Status']]);
+  return sheet;
+}
+function getBackupState_(ss) {
+  const sheet=ss.getSheetByName('FlowBackups');
+  if(!sheet||sheet.getLastRow()<2)return {count:0,lastBackupAt:'',lastBackupName:''};
+  const rows=sheet.getRange(2,1,sheet.getLastRow()-1,6).getValues().filter(r=>String(r[5]||'')==='ok');
+  if(!rows.length)return {count:0,lastBackupAt:'',lastBackupName:''};
+  rows.sort(function(a,b){ return new Date(a[0]).getTime()-new Date(b[0]).getTime(); });
+  const last=rows[rows.length-1];
+  return {count:Math.min(rows.length,5),lastBackupAt:toIso_(last[0],''),lastBackupName:String(last[2]||'')};
+}
+function overwriteBackupSpreadsheet_(sourceSs, targetId, newName) {
+  const target=SpreadsheetApp.openById(String(targetId));
+  target.rename(newName);
+
+  // A spreadsheet must always contain at least one sheet.
+  let temp=target.getSheetByName('__FLOW_TEMP__');
+  if(!temp) temp=target.insertSheet('__FLOW_TEMP__');
+
+  target.getSheets().forEach(function(sheet){
+    if(sheet.getSheetId()!==temp.getSheetId()) target.deleteSheet(sheet);
+  });
+
+  sourceSs.getSheets().forEach(function(sourceSheet){
+    const copied=sourceSheet.copyTo(target);
+    copied.setName(sourceSheet.getName());
+  });
+
+  target.deleteSheet(temp);
+  return target;
+}
+
+function createFullBackup_(ss,userId,reason) {
+  const stamp=Utilities.formatDate(new Date(),Session.getScriptTimeZone()||'Europe/Bratislava','yyyy-MM-dd_HH-mm-ss');
+  const name='Flow_Backup_'+stamp;
+  const log=ensureBackupLog_(ss);
+
+  let rows=[];
+  if(log.getLastRow()>=2){
+    rows=log.getRange(2,1,log.getLastRow()-1,6).getValues()
+      .map(function(r,idx){return {row:idx+2,data:r};})
+      .filter(function(x){return String(x.data[5]||'')==='ok' && x.data[1];})
+      .sort(function(a,b){return new Date(a.data[0]).getTime()-new Date(b.data[0]).getTime();});
+  }
+
+  let fileId='';
+  let reused=false;
+
+  if(rows.length<5){
+    const copy=ss.copy(name);
+    fileId=copy.getId();
+    log.appendRow([nowIso_(),fileId,name,String(userId||''),String(reason||'manual'),'ok']);
+  }else{
+    // Reuse the oldest backup slot. No sixth backup file is created.
+    const oldest=rows[0];
+    fileId=String(oldest.data[1]);
+    overwriteBackupSpreadsheet_(ss,fileId,name);
+    log.getRange(oldest.row,1,1,6).setValues([[nowIso_(),fileId,name,String(userId||''),String(reason||'manual'),'ok']]);
+    reused=true;
+  }
+
+  return {status:'success',createdAt:nowIso_(),fileId:fileId,name:name,reused:reused,backupCount:5,backendVersion:FLOW_BACKEND_VERSION};
+}
+
+function getAutoBackupTrigger_() {
+  const triggers=ScriptApp.getProjectTriggers();
+  for(let i=0;i<triggers.length;i++){
+    if(triggers[i].getHandlerFunction()==='runFlowAutoBackup') return triggers[i];
+  }
+  return null;
+}
+
+function setupAutoBackup_(ss) {
+  const props=PropertiesService.getScriptProperties();
+  props.setProperty('FLOW_SPREADSHEET_ID', ss.getId());
+  let trigger=getAutoBackupTrigger_();
+  if(!trigger){
+    trigger=ScriptApp.newTrigger('runFlowAutoBackup').timeBased().everyDays(1).atHour(23).create();
+  }
+  // Read-only health checks must never need ScriptApp permission.
+  props.setProperty('FLOW_AUTO_BACKUP_ENABLED','true');
+  return {status:'success',enabled:true,backendVersion:FLOW_BACKEND_VERSION};
+}
+
+function getAutoBackupState_() {
+  // Deliberately does NOT call ScriptApp.getProjectTriggers().
+  // This makes data_health safe even when trigger scope has not been authorized.
+  const props=PropertiesService.getScriptProperties();
+  const value=props.getProperty('FLOW_AUTO_BACKUP_ENABLED');
+  return {enabled:value==='true',known:value==='true'||value==='false'};
+}
+
+function runFlowAutoBackup() {
+  const props=PropertiesService.getScriptProperties();
+  const spreadsheetId=props.getProperty('FLOW_SPREADSHEET_ID');
+  if(!spreadsheetId) return;
+
+  const now=new Date();
+  const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+  const isLastDay=tomorrow.getMonth()!==now.getMonth();
+  if(!isLastDay) return;
+
+  const ss=SpreadsheetApp.openById(spreadsheetId);
+  createFullBackup_(ss,'system','monthly_auto');
+}
+
+function normalizeHistoricalText_(value) {
+  return String(value == null ? '' : value)
+    .trim().toLowerCase()
+    .replace(/\s+/g,' ')
+    .replace(/\s*\/\s*/g,' / ')
+    .replace(/(?:\s*\/\s*dovolenky){2,}$/i,' / dovolenky');
+}
+
+function historicalDuplicateSignature_(tx) {
+  if (!tx || !/^HIST-/i.test(String(tx.id || ''))) return '';
+  const date=String(tx.date || '').slice(0,10);
+  const type=normalizeHistoricalText_(tx.type);
+  const category=normalizeHistoricalText_(tx.category);
+  const sub=normalizeHistoricalText_(tx.sub);
+  const note=normalizeHistoricalText_(tx.note);
+  const amount=Number(tx.amount);
+  if (!date || !category || !Number.isFinite(amount)) return '';
+  return [date,type,category,sub,amount.toFixed(2),note].join('|');
+}
+
+function historicalSurvivorScore_(tx) {
+  let score=0;
+  if (String(tx.categoryId || '').trim()) score+=100;
+  if (/^cat_stable_/i.test(String(tx.categoryId || ''))) score+=20;
+  if (!/\/\s*dovolenky\s*\/\s*dovolenky/i.test(String(tx.id || ''))) score+=5;
+  if (String(tx.userId || '') !== 'default') score+=1;
+  return score;
+}
+
+function auditHistoricalDuplicates_(ss) {
+  const sheet=ss.getSheetByName('Sheet1');
+  if(!sheet) return {status:'error',message:'Sheet1 not found'};
+  ensureTransactionHeaders_(sheet);
+  const values=sheet.getDataRange().getValues();
+  const groups=new Map();
+  values.slice(1).forEach((row,i)=>{
+    if(!row[0]) return;
+    const tx=transactionFromRow_(row);
+    if(tx.deleted) return;
+    const signature=historicalDuplicateSignature_(tx);
+    if(!signature) return;
+    const list=groups.get(signature)||[];
+    list.push({rowIndex:i+2,tx:tx});
+    groups.set(signature,list);
+  });
+  const duplicates=[];
+  groups.forEach((list,signature)=>{
+    if(list.length<2) return;
+    const ranked=list.slice().sort((a,b)=>historicalSurvivorScore_(b.tx)-historicalSurvivorScore_(a.tx) || a.rowIndex-b.rowIndex);
+    duplicates.push({
+      signature:signature,
+      keepRow:ranked[0].rowIndex,
+      keepId:String(ranked[0].tx.id||''),
+      removeRows:ranked.slice(1).map(x=>x.rowIndex),
+      removeIds:ranked.slice(1).map(x=>String(x.tx.id||'')),
+      date:String(ranked[0].tx.date||''),
+      category:String(ranked[0].tx.category||''),
+      amount:Number(ranked[0].tx.amount)||0
+    });
+  });
+  const removeCount=duplicates.reduce((n,g)=>n+g.removeRows.length,0);
+  return {status:'success',groups:duplicates.length,removeCount:removeCount,duplicates:duplicates.slice(0,25)};
+}
+
+function cleanHistoricalDuplicates_(ss,userId,options) {
+  const opts=options||{};
+  const pending=Number(opts.syncQueueCount)||0;
+  if(pending>0){
+    return {status:'error',message:'Čistenie zablokované: lokálne zmeny ešte čakajú na synchronizáciu. Sheet1 zostal nezmenený.'};
+  }
+
+  const audit=auditHistoricalDuplicates_(ss);
+  if(audit.status!=='success') return {...audit,cleaned:0,backup:null};
+  if(!audit.removeCount) return {...audit,cleaned:0,backup:null};
+
+  const expected=Number(opts.expectedDuplicateRows);
+  if(Number.isFinite(expected) && expected>=0 && expected!==Number(audit.removeCount||0)){
+    return {
+      status:'error',
+      message:`Audit sa medzitým zmenil (${expected} → ${audit.removeCount}). Pre bezpečnosť spusti kontrolu znova. Sheet1 zostal nezmenený.`
+    };
+  }
+
+  // Safety invariant: never mutate Sheet1 without a successful full backup first.
+  const backup=createFullBackup_(ss,userId||'default','before_historical_dedup');
+  if(!backup || backup.status!=='success'){
+    return {status:'error',message:'Bezpečnostná záloha zlyhala. Sheet1 zostal nezmenený.',backup:backup||null};
+  }
+
+  // Re-audit AFTER backup. If data changed during backup, abort rather than deleting
+  // rows based on stale row indexes.
+  const afterBackupAudit=auditHistoricalDuplicates_(ss);
+  if(afterBackupAudit.status!=='success' || Number(afterBackupAudit.removeCount||0)!==Number(audit.removeCount||0)){
+    return {
+      status:'error',
+      message:'Dáta sa počas zálohy zmenili. Čistenie bolo z bezpečnostných dôvodov zastavené; záloha je vytvorená, Sheet1 zostal nezmenený.',
+      backup:backup
+    };
+  }
+
+  const sheet=ss.getSheetByName('Sheet1');
+  const values=sheet.getDataRange().getValues();
+  const groups=new Map();
+
+  values.slice(1).forEach((row,i)=>{
+    if(!row[0]) return;
+    const tx=transactionFromRow_(row);
+    if(tx.deleted) return;
+    const sig=historicalDuplicateSignature_(tx);
+    if(!sig) return;
+    const list=groups.get(sig)||[];
+    list.push({rowIndex:i+2,tx:tx});
+    groups.set(sig,list);
+  });
+
+  const allRows=[];
+  const removedIds=[];
+  groups.forEach(list=>{
+    if(list.length<2) return;
+    const ranked=list.slice().sort((a,b)=>historicalSurvivorScore_(b.tx)-historicalSurvivorScore_(a.tx) || a.rowIndex-b.rowIndex);
+    ranked.slice(1).forEach(x=>{
+      allRows.push(x.rowIndex);
+      removedIds.push(String(x.tx.id||''));
+    });
+  });
+
+  const uniqueRows=[...new Set(allRows)].sort((a,b)=>b-a);
+  const uniqueRemovedIds=[...new Set(removedIds.filter(Boolean))];
+
+  // Persist cloud tombstones BEFORE deleting rows. If an old phone/browser later
+  // tries to upload one of these HIST ids, the backend refuses to recreate it.
+  addHistoricalTombstones_(ss,uniqueRemovedIds,'historical_dedup');
+
+  uniqueRows.forEach(rowIndex=>sheet.deleteRow(rowIndex));
+
+  const remaining=auditHistoricalDuplicates_(ss).removeCount || 0;
+  return {
+    status:'success',
+    cleaned:uniqueRows.length,
+    groups:audit.groups,
+    backup:backup,
+    remaining:remaining,
+    removedIds:uniqueRemovedIds
+  };
+}
+
+function getDataHealth_(ss) {
+  // Read-only health check. Do not call getPlanningData_ here because that
+  // helper may create missing planning sheets and makes a simple status check heavier.
+  const tx=ss.getSheetByName('Sheet1');
+  const cat=readCategoriesState_(ss);
+  const recurring=ss.getSheetByName('FlowRecurringPlans');
+  const events=ss.getSheetByName('FlowPlannedEvents');
+  const backup=getBackupState_(ss);
+
+  return {
+    status:'success',
+    backendVersion:FLOW_BACKEND_VERSION,
+    transactions:tx?Math.max(0,tx.getLastRow()-1):0,
+    categories:Array.isArray(cat.categories)?cat.categories.length:0,
+    recurring:recurring?Math.max(0,recurring.getLastRow()-1):0,
+    events:events?Math.max(0,events.getLastRow()-1):0,
+    lastBackupAt:backup.lastBackupAt,
+    lastBackupName:backup.lastBackupName,
+    backupCount:backup.count,
+    autoBackupEnabled:getAutoBackupState_().known ? getAutoBackupState_().enabled : null,
+    historicalDuplicateRows:auditHistoricalDuplicates_(ss).removeCount || 0
+  };
+}
+
+function ensureTransactionHeaders_(sheet) {
+  const headers = [
+    'id', 'date', 'category', 'sub', 'amount', 'type', 'note',
+    'processed', 'rok', 'mesiac',
+    'categoryId', 'createdAt', 'updatedAt', 'version', 'deleted', 'userId',
+    'isRecurring', 'frequency', 'recurringPlanId'
+  ];
+
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  }
+
+  const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  const next = headers.map((h, i) => current[i] || h);
+  sheet.getRange(1, 1, 1, headers.length).setValues([next]);
+}
+
+function findTransactionRow_(sheet, id) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+
+  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const target = String(id);
+
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === target) return i + 2;
+  }
+  return -1;
+}
+
+function transactionFromRow_(row) {
+  const fallbackNow = toIso_(row[1], '2000-01-01T00:00:00.000Z');
+
+  return {
+    id: String(row[0]),
+    date: row[1],
+    category: String(row[2] || ''),
+    sub: String(row[3] || ''),
+    amount: parseFloat(row[4]) || 0,
+    type: String(row[5] || 'expense'),
+    note: String(row[6] || ''),
+    processed:
+      row[7] === true ||
+      String(row[7]).toUpperCase() === 'TRUE' ||
+      String(row[7]).toUpperCase() === 'ÁNO',
+    categoryId: String(row[10] || ''),
+    createdAt: toIso_(row[11], fallbackNow),
+    updatedAt: toIso_(row[12], row[11] || fallbackNow),
+    version: toVersion_(row[13]),
+    deleted:
+      row[14] === true ||
+      String(row[14]).toUpperCase() === 'TRUE' ||
+      String(row[14]).toUpperCase() === 'ÁNO',
+    userId: String(row[15] || 'default'),
+    user: String(row[15] || 'default'),
+    isRecurring:
+      row[16] === true ||
+      String(row[16]).toUpperCase() === 'TRUE' ||
+      String(row[16]).toUpperCase() === 'ÁNO',
+    frequency: String(row[17] || ''),
+    recurringPlanId: String(row[18] || '')
+  };
+}
+
+function transactionRow_(item, existing) {
+  const now = nowIso_();
+  const createdAt = toIso_(item.createdAt, existing ? existing.createdAt : now);
+  const updatedAt = toIso_(item.updatedAt, now);
+
+  const d = new Date(item.date || now);
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+
+  return [
+    String(item.id),
+    item.date || '',
+    item.category || '',
+    item.sub || '',
+    Number(item.amount) || 0,
+    item.type || 'expense',
+    item.note || '',
+    Boolean(item.processed),
+    validDate.getFullYear(),
+    String(validDate.getMonth() + 1).padStart(2, '0'),
+    item.categoryId || (existing ? existing.categoryId : ''),
+    createdAt,
+    updatedAt,
+    toVersion_(item.version),
+    Boolean(item.deleted),
+    item.userId || item.user || (existing ? existing.userId : 'default'),
+    item.isRecurring !== undefined ? Boolean(item.isRecurring) : Boolean(existing && existing.isRecurring),
+    item.frequency !== undefined ? String(item.frequency || '') : String(existing && existing.frequency || ''),
+    item.recurringPlanId !== undefined ? String(item.recurringPlanId || '') : String(existing && existing.recurringPlanId || '')
+  ];
+}
+
+function compareIncoming_(item, existing) {
+  if (!existing) return 1;
+
+  const incomingVersion = toVersion_(item.version);
+  const currentVersion = toVersion_(existing.version);
+
+  if (incomingVersion !== currentVersion) {
+    return incomingVersion > currentVersion ? 1 : -1;
+  }
+
+  const incomingTime = new Date(item.updatedAt || 0).getTime() || 0;
+  const currentTime = new Date(existing.updatedAt || 0).getTime() || 0;
+
+  if (incomingTime === currentTime) return 0;
+  return incomingTime > currentTime ? 1 : -1;
+}
+
+
+function validToken_(eOrItem) {
+  const token = eOrItem && eOrItem.parameter ? eOrItem.parameter.token : (eOrItem ? eOrItem.token : '');
+  return !FLOW_API_TOKEN || String(token || '') === FLOW_API_TOKEN;
+}
+
+function ensureSheet_(ss, name, headers) {
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  if (sheet.getMaxColumns() < headers.length) sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  if (sheet.getLastRow() < 1) sheet.insertRows(1);
+  sheet.getRange(1,1,1,headers.length).setValues([headers]);
+  return sheet;
+}
+
+const FLOW_PLAN_ACCURACY_HEADERS_ = ['targetMonth','budgetAmount','forecastAmount','modelVersion','createdAt','updatedAt'];
+
+const PLANNING_HEADERS_ = {
+  recurring: ['id','name','category','categoryId','sub','amount','type','frequency','dayOfMonth','startDate','endDate','active','amountMode','notes','createdAt','updatedAt','version'],
+  event: ['id','date','title','amount','type','category','categoryId','sub','notes','createdAt','updatedAt','version','deleted'],
+  override: ['id','monthKey','category','amount','notes','createdAt','updatedAt','version','deleted'],
+  archive: ['id','targetMonth','category','forecastAmount','budgetAmount','actualAmount','modelVersion','generatedAt','dataMonths','confidence','method','inputsJson','errorAmount','absoluteError','errorPct','evaluatedAt','backtest','dataYears','seasonalYears','actualVariableAmount','recurringBaseline'],
+  model: ['key','value','updatedAt']
+};
+
+function planningSheet_(ss, type) { return ensureSheet_(ss, type === 'recurring' ? 'FlowRecurringPlans' : type === 'event' ? 'FlowPlannedEvents' : 'FlowBudgetOverrides', PLANNING_HEADERS_[type]); }
+
+function objectToRow_(type, obj) {
+  const h = PLANNING_HEADERS_[type];
+  return h.map(k => obj[k] !== undefined ? obj[k] : '');
+}
+
+function rowToObject_(headers, row) {
+  const o = {}; headers.forEach((h,i) => o[h] = row[i]); return o;
+}
+
+function findById_(sheet, id) {
+  if (!id || sheet.getLastRow() < 2) return -1;
+  const ids = sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues();
+  for (let i=0;i<ids.length;i++) if (String(ids[i][0]) === String(id)) return i+2;
+  return -1;
+}
+
+function getPlanningData_(ss, archiveModel) {
+  const out = { recurring: [], events: [], overrides: [], archive: [], accuracy: [], modelState: {} };
+  ['recurring','event','override'].forEach(type => {
+    const sheet = planningSheet_(ss,type);
+    if (sheet.getLastRow() >= 2) {
+      const rows = sheet.getRange(2,1,sheet.getLastRow()-1,PLANNING_HEADERS_[type].length).getValues();
+      const arr = rows.filter(r => r[0]).map(r => rowToObject_(PLANNING_HEADERS_[type],r)).filter(o => o.deleted !== true && String(o.deleted).toUpperCase() !== 'TRUE');
+      if(type==='recurring') out.recurring=arr;
+      if(type==='event') out.events=arr;
+      if(type==='override') out.overrides=arr;
+    }
+  });
+  const archive = ensureSheet_(ss,'FlowForecastArchive',PLANNING_HEADERS_.archive);
+  if (archive.getLastRow() >= 2) {
+    const archiveRows = archive.getRange(2,1,archive.getLastRow()-1,PLANNING_HEADERS_.archive.length).getValues().filter(r=>r[0]);
+    const modelIndex = PLANNING_HEADERS_.archive.indexOf('modelVersion');
+    const filtered = archiveModel
+      ? archiveRows.filter(r => String(r[modelIndex] || '') === String(archiveModel))
+      : archiveRows;
+    out.archive = filtered.map(r=>rowToObject_(PLANNING_HEADERS_.archive,r));
+  }
+  const accuracy = ensureSheet_(ss,'FlowPlanAccuracy',FLOW_PLAN_ACCURACY_HEADERS_);
+  if (accuracy.getLastRow() >= 2) {
+    out.accuracy = accuracy.getRange(2,1,accuracy.getLastRow()-1,FLOW_PLAN_ACCURACY_HEADERS_.length)
+      .getValues().filter(r=>r[0]).map(r=>{
+        const o={};
+        FLOW_PLAN_ACCURACY_HEADERS_.forEach((h,i)=>o[h]=r[i]);
+        return o;
+      });
+  }
+
+  const model = ensureSheet_(ss,'FlowModelState',PLANNING_HEADERS_.model);
+  if (model.getLastRow() >= 2) {
+    model.getRange(2,1,model.getLastRow()-1,3).getValues().filter(r=>r[0]).forEach(r=>out.modelState[String(r[0])] = r[1]);
+  }
+  return out;
+}
+
+function savePlanning_(ss, type, entity) {
+  const sheet = planningSheet_(ss,type);
+  const row = objectToRow_(type, entity);
+  const index = findById_(sheet, entity.id);
+  if (index > -1) sheet.getRange(index,1,1,row.length).setValues([row]);
+  else sheet.appendRow(row);
+  return { status:'success', result:'saved', id:String(entity.id) };
+}
+
+function deletePlanning_(ss, type, entity) {
+  entity.deleted = true;
+  entity.updatedAt = new Date().toISOString();
+  entity.version = Math.max(1, Number(entity.version)||1);
+  return savePlanning_(ss,type,entity);
+}
+
+function savePlanAccuracySnapshot_(ss, item) {
+  const key=String(item && item.targetMonth || '');
+  if(!/^\d{4}-\d{2}$/.test(key)) return {status:'error',message:'Invalid targetMonth'};
+
+  const sheet=ensureSheet_(ss,'FlowPlanAccuracy',FLOW_PLAN_ACCURACY_HEADERS_);
+  const last=sheet.getLastRow();
+  if(last>=2){
+    const keys=sheet.getRange(2,1,last-1,1).getValues();
+    for(let i=0;i<keys.length;i++){
+      if(String(keys[i][0]||'')===key){
+        const values=sheet.getRange(i+2,1,1,FLOW_PLAN_ACCURACY_HEADERS_.length).getValues()[0];
+        const row={};
+        FLOW_PLAN_ACCURACY_HEADERS_.forEach((h,j)=>row[h]=values[j]);
+        // Historical baseline is immutable. Never overwrite it later.
+        return {status:'success',result:'already_saved',row:row};
+      }
+    }
+  }
+
+  const now=nowIso_();
+  const row={
+    targetMonth:key,
+    budgetAmount:Number(item.budgetAmount)||0,
+    forecastAmount:Number(item.forecastAmount)||0,
+    modelVersion:String(item.modelVersion||''),
+    createdAt:now,
+    updatedAt:now
+  };
+  sheet.appendRow(FLOW_PLAN_ACCURACY_HEADERS_.map(h=>row[h]===undefined?'':row[h]));
+  return {status:'success',result:'saved',row:row};
+}
+
+function archiveForecasts_(ss, rows) {
+  const sheet = ensureSheet_(ss,'FlowForecastArchive',PLANNING_HEADERS_.archive);
+  if (!Array.isArray(rows) || !rows.length) return { status:'success', saved:0 };
+  const headers = PLANNING_HEADERS_.archive;
+  const last = sheet.getLastRow();
+  const existingRows = last >= 2 ? sheet.getRange(2,1,last-1,headers.length).getValues() : [];
+  const rowById = new Map();
+  existingRows.forEach((r,i)=>{ if(r[0]) rowById.set(String(r[0]), i+2); });
+
+  const updates=[];
+  const inserts=[];
+  rows.filter(r=>r && r.id).forEach(r=>{
+    const row=objectToRow_('archive',r);
+    const idx=rowById.get(String(r.id));
+    if(idx) updates.push({idx,row}); else inserts.push(row);
+  });
+  updates.forEach(u=>sheet.getRange(u.idx,1,1,headers.length).setValues([u.row]));
+  if(inserts.length) sheet.getRange(sheet.getLastRow()+1,1,inserts.length,headers.length).setValues(inserts);
+  return { status:'success', saved:updates.length+inserts.length };
+}
+
+const FLOW_HIST_TOMBSTONE_HEADERS_ = ['id','deletedAt','reason'];
+
+function ensureHistoricalTombstones_(ss) {
+  return ensureSheet_(ss,'FlowHistoricalTombstones',FLOW_HIST_TOMBSTONE_HEADERS_);
+}
+
+function readHistoricalTombstoneSet_(ss) {
+  const sheet=ss.getSheetByName('FlowHistoricalTombstones');
+  const set=new Set();
+  if(!sheet || sheet.getLastRow()<2) return set;
+
+  sheet.getRange(2,1,sheet.getLastRow()-1,1).getValues().forEach(function(row){
+    const id=String(row[0]||'');
+    if(id) set.add(id);
+  });
+  return set;
+}
+
+function addHistoricalTombstones_(ss,ids,reason) {
+  const clean=[...new Set((Array.isArray(ids)?ids:[])
+    .map(function(id){return String(id||'');})
+    .filter(function(id){return /^HIST-/i.test(id);}))];
+
+  if(!clean.length) return 0;
+
+  const sheet=ensureHistoricalTombstones_(ss);
+  const existing=readHistoricalTombstoneSet_(ss);
+  const now=nowIso_();
+  const rows=clean
+    .filter(function(id){return !existing.has(id);})
+    .map(function(id){return [id,now,String(reason||'historical_dedup')];});
+
+  if(rows.length){
+    sheet.getRange(sheet.getLastRow()+1,1,rows.length,FLOW_HIST_TOMBSTONE_HEADERS_.length).setValues(rows);
+  }
+  return rows.length;
+}
+
+function processTransactionMutation_(ss, item, historicalTombstones) {
+  const sheet = ss.getSheetByName('Sheet1');
+  if (!sheet) return { status:'error', message:'Sheet1 not found', id:String(item.id||'') };
+  ensureTransactionHeaders_(sheet);
+  if (!item.id) return { status:'error', message:'Missing transaction id' };
+
+  const id=String(item.id||'');
+  const tombstones=historicalTombstones instanceof Set ? historicalTombstones : readHistoricalTombstoneSet_(ss);
+  if(item.action!=='delete' && /^HIST-/i.test(id) && tombstones.has(id)){
+    return {status:'historical_tombstoned',id:id,result:'ignored_cleaned_historical_duplicate'};
+  }
+
+  const rowIndex = findTransactionRow_(sheet,item.id);
+  const existing = rowIndex > -1 ? transactionFromRow_(sheet.getRange(rowIndex,1,1,19).getValues()[0]) : null;
+  const incoming = { ...item, deleted:item.action==='delete' ? true : Boolean(item.deleted), version:toVersion_(item.version), updatedAt:toIso_(item.updatedAt,nowIso_()) };
+  const comparison = compareIncoming_(incoming,existing);
+  if(comparison<0) return { status:'conflict', reason:'server_newer', id:String(item.id), server:existing };
+  if(comparison===0 && existing) return { status:'already_current', id:String(item.id), server:existing };
+  const row = transactionRow_(incoming,existing);
+  if(rowIndex>-1) sheet.getRange(rowIndex,1,1,row.length).setValues([row]); else sheet.appendRow(row);
+  return { status:'success', result:item.action==='delete'?'deleted':'saved', id:String(item.id), version:incoming.version, updatedAt:incoming.updatedAt };
+}
+
+
+function normalizeRecurringRepairText_(value) {
+  return String(value == null ? '' : value).trim().toLowerCase().replace(/\s+/g,' ');
+}
+
+function recurringPlanOccurrenceDatesForRepair_(plan, fromDate, toDate) {
+  const out=[];
+  if(!plan || !plan.active) return out;
+  const startRaw=String(plan.startDate||'');
+  const start=new Date(startRaw ? startRaw+'T00:00:00' : fromDate);
+  const from=new Date(fromDate); from.setHours(0,0,0,0);
+  const to=new Date(toDate); to.setHours(23,59,59,999);
+  if(isNaN(start.getTime())) return out;
+
+  const endRaw=String(plan.endDate||'');
+  const end=endRaw ? new Date(endRaw+'T23:59:59') : null;
+  const freq=String(plan.frequency||'monthly');
+  const day=Math.max(1,Math.min(31,Number(plan.dayOfMonth)||start.getDate()||1));
+
+  if(freq==='weekly'){
+    let cursor=new Date(start);
+    while(cursor<from) cursor.setDate(cursor.getDate()+7);
+    while(cursor<=to){
+      if(!end || cursor<=end) out.push(Utilities.formatDate(cursor,Session.getScriptTimeZone()||'Europe/Bratislava','yyyy-MM-dd'));
+      cursor.setDate(cursor.getDate()+7);
+    }
+    return out;
+  }
+
+  const step=freq==='yearly'?12:freq==='quarterly'?3:1;
+  let cursor=new Date(start.getFullYear(),start.getMonth(),1);
+  cursor.setDate(Math.min(day,new Date(cursor.getFullYear(),cursor.getMonth()+1,0).getDate()));
+  while(cursor<from){
+    const y=cursor.getFullYear(),m=cursor.getMonth()+step;
+    cursor=new Date(y,m,1);
+    cursor.setDate(Math.min(day,new Date(cursor.getFullYear(),cursor.getMonth()+1,0).getDate()));
+  }
+  while(cursor<=to){
+    if(!end || cursor<=end) out.push(Utilities.formatDate(cursor,Session.getScriptTimeZone()||'Europe/Bratislava','yyyy-MM-dd'));
+    const y=cursor.getFullYear(),m=cursor.getMonth()+step;
+    cursor=new Date(y,m,1);
+    cursor.setDate(Math.min(day,new Date(cursor.getFullYear(),cursor.getMonth()+1,0).getDate()));
+  }
+  return out;
+}
+
+function getRecurringPlansForRepair_(ss) {
+  const sheet=ss.getSheetByName('FlowRecurringPlans');
+  if(!sheet || sheet.getLastRow()<2) return [];
+  const headers=PLANNING_HEADERS_.recurring;
+  return sheet.getRange(2,1,sheet.getLastRow()-1,headers.length).getValues()
+    .filter(r=>r[0])
+    .map(r=>rowToObject_(headers,r))
+    .filter(p=>p.active===true || String(p.active).toUpperCase()==='TRUE');
+}
+
+function matchLegacyRecurringPlan_(tx, plans) {
+  if(!tx || !/^tx_/i.test(String(tx.id||''))) return null;
+  const date=String(tx.date||'').slice(0,10);
+  if(!date) return null;
+
+  const candidates=(plans||[]).filter(plan=>{
+    if(normalizeRecurringRepairText_(plan.category)!==normalizeRecurringRepairText_(tx.category)) return false;
+    if(normalizeRecurringRepairText_(plan.sub)!==normalizeRecurringRepairText_(tx.sub)) return false;
+    if(normalizeRecurringRepairText_(plan.type||'expense')!==normalizeRecurringRepairText_(tx.type||'expense')) return false;
+    if(normalizeRecurringRepairText_(plan.name)!==normalizeRecurringRepairText_(tx.note)) return false;
+
+    const start=String(plan.startDate||'').slice(0,10);
+    const end=String(plan.endDate||'').slice(0,10);
+    if(start && date<start) return false;
+    if(end && date>end) return false;
+
+    // Validate date against the plan cadence around this exact date.
+    const d=new Date(date+'T00:00:00');
+    const from=new Date(d); from.setDate(from.getDate()-2);
+    const to=new Date(d); to.setDate(to.getDate()+2);
+    return recurringPlanOccurrenceDatesForRepair_(plan,from,to).indexOf(date)>=0;
+  });
+
+  return candidates.length===1 ? candidates[0] : null;
+}
+
+function buildRecurringRepairAudit_(ss, includeRows) {
+  const sheet=ss.getSheetByName('Sheet1');
+  if(!sheet) return {status:'error',message:'Sheet1 not found'};
+  ensureTransactionHeaders_(sheet);
+
+  const plans=getRecurringPlansForRepair_(ss);
+  if(!plans.length) return {status:'success',duplicateRows:0,metadataRows:0,groups:0,repairs:[],deletes:[]};
+
+  const values=sheet.getDataRange().getValues();
+  const grouped=new Map();
+  const metadataRepairs=[];
+
+  values.slice(1).forEach((row,i)=>{
+    if(!row[0]) return;
+    const tx=transactionFromRow_(row);
+    if(tx.deleted) return;
+
+    let plan=null;
+    if(tx.recurringPlanId){
+      plan=plans.find(p=>String(p.id)===String(tx.recurringPlanId))||null;
+    }
+    if(!plan) plan=matchLegacyRecurringPlan_(tx,plans);
+    if(!plan) return;
+
+    const date=String(tx.date||'').slice(0,10);
+    const key=String(plan.id)+'|'+date;
+    const list=grouped.get(key)||[];
+    list.push({rowIndex:i+2,tx:tx,plan:plan});
+    grouped.set(key,list);
+
+    if(!tx.isRecurring || String(tx.recurringPlanId||'')!==String(plan.id) || String(tx.frequency||'')!==String(plan.frequency||'')){
+      metadataRepairs.push({rowIndex:i+2,id:String(tx.id||''),planId:String(plan.id),frequency:String(plan.frequency||'monthly')});
+    }
+  });
+
+  const deletes=[];
+  const repairs=[];
+  let groups=0;
+
+  grouped.forEach(list=>{
+    if(!list.length) return;
+    const rank=x=>{
+      let score=0;
+      if(String(x.tx.recurringPlanId||'')===String(x.plan.id)) score+=1000;
+      if(x.tx.isRecurring) score+=500;
+      if(/^RPOCC_/i.test(String(x.tx.id||''))) score+=300;
+      if(/^tx_/i.test(String(x.tx.id||''))) score+=100;
+      return score;
+    };
+    const ranked=list.slice().sort((a,b)=>rank(b)-rank(a) || a.rowIndex-b.rowIndex);
+    const keep=ranked[0];
+    repairs.push({rowIndex:keep.rowIndex,id:String(keep.tx.id||''),planId:String(keep.plan.id),frequency:String(keep.plan.frequency||'monthly')});
+
+    const dupes=ranked.slice(1).filter(x=>{
+      // Destructive cleanup is intentionally limited to generator-shaped rows.
+      return /^tx_/i.test(String(x.tx.id||'')) || /^RPOCC_/i.test(String(x.tx.id||'')) || String(x.tx.recurringPlanId||'')===String(x.plan.id);
+    });
+    if(dupes.length){
+      groups++;
+      dupes.forEach(x=>deletes.push({rowIndex:x.rowIndex,id:String(x.tx.id||'')}));
+    }
+  });
+
+  const repairMap=new Map();
+  metadataRepairs.concat(repairs).forEach(r=>repairMap.set(String(r.rowIndex),r));
+
+  return {
+    status:'success',
+    duplicateRows:deletes.length,
+    metadataRows:repairMap.size,
+    groups:groups,
+    repairs:includeRows ? [...repairMap.values()] : [],
+    deletes:includeRows ? deletes : []
+  };
+}
+
+function repairExistingRecurringTransactions_(ss,userId,options) {
+  const opts=options||{};
+  if((Number(opts.syncQueueCount)||0)>0){
+    return {status:'error',message:'Oprava zablokovaná: čakajú zmeny na synchronizáciu. Sheet1 zostal nezmenený.'};
+  }
+
+  const audit=buildRecurringRepairAudit_(ss,true);
+  if(audit.status!=='success') return audit;
+
+  const expectedDup=Number(opts.expectedDuplicateRows);
+  const expectedMeta=Number(opts.expectedMetadataRows);
+  if((Number.isFinite(expectedDup)&&expectedDup!==Number(audit.duplicateRows||0)) ||
+     (Number.isFinite(expectedMeta)&&expectedMeta!==Number(audit.metadataRows||0))){
+    return {status:'error',message:'Stav dát sa od kontroly zmenil. Spusti opravu znova; nič som nezmenil.'};
+  }
+
+  if(!audit.duplicateRows && !audit.metadataRows){
+    return {status:'success',cleanedDuplicates:0,repairedMetadata:0,removedIds:[],backup:null};
+  }
+
+  const backup=createFullBackup_(ss,userId||'default','before_recurring_repair');
+  if(!backup || backup.status!=='success'){
+    return {status:'error',message:'Bezpečnostná záloha zlyhala. Sheet1 zostal nezmenený.',backup:backup||null};
+  }
+
+  const audit2=buildRecurringRepairAudit_(ss,true);
+  if(Number(audit2.duplicateRows||0)!==Number(audit.duplicateRows||0) ||
+     Number(audit2.metadataRows||0)!==Number(audit.metadataRows||0)){
+    return {status:'error',message:'Dáta sa počas zálohy zmenili. Oprava bola zastavená; Sheet1 zostal nezmenený.',backup:backup};
+  }
+
+  const sheet=ss.getSheetByName('Sheet1');
+
+  // Repair metadata first.
+  (audit2.repairs||[]).forEach(r=>{
+    const row=sheet.getRange(r.rowIndex,1,1,19).getValues()[0];
+    row[16]=true;
+    row[17]=r.frequency||'monthly';
+    row[18]=r.planId||'';
+    sheet.getRange(r.rowIndex,1,1,19).setValues([row]);
+  });
+
+  // Delete from bottom to top so row indexes remain valid.
+  const deleteRows=(audit2.deletes||[]).slice().sort((a,b)=>b.rowIndex-a.rowIndex);
+  deleteRows.forEach(r=>sheet.deleteRow(r.rowIndex));
+
+  const verify=buildRecurringRepairAudit_(ss,false);
+  return {
+    status:'success',
+    cleanedDuplicates:deleteRows.length,
+    repairedMetadata:Number(audit2.metadataRows||0),
+    removedIds:deleteRows.map(r=>r.id),
+    remainingDuplicates:Number(verify.duplicateRows||0),
+    remainingMetadata:Number(verify.metadataRows||0),
+    backup:backup
+  };
+}
+
+function doGet(e) {
+  if (!validToken_(e)) return json_({ status:'error', message:'Unauthorized' });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const get = e && e.parameter ? e.parameter.get : '';
+
+  try {
+    if (get === 'data_health') return json_(getDataHealth_(ss));
+    if (get === 'historical_duplicate_audit') return json_(auditHistoricalDuplicates_(ss));
+    if (get === 'recurring_repair_audit') return json_(buildRecurringRepairAudit_(ss,false));
+
+    if (get === 'transactions') {
+      const sheet = ss.getSheetByName('Sheet1');
+      if (!sheet) return json_({ status: 'error', message: 'Sheet1 not found' });
+
+      ensureTransactionHeaders_(sheet);
+
+      const data = sheet.getDataRange().getValues();
+      const result = data.slice(1)
+        .filter(row => row[0])
+        .map(transactionFromRow_);
+
+      return json_(result);
+    }
+
+    if (get === 'categories_meta') {
+      const state = readCategoriesState_(ss);
+      return json_({
+        status: 'success',
+        categories: state.categories,
+        version: state.version,
+        updatedAt: state.updatedAt,
+        backendVersion: FLOW_BACKEND_VERSION
+      });
+    }
+
+    if (get === 'categories') {
+      const sheet = ss.getSheetByName('Categories');
+      if (!sheet || sheet.getLastRow() < 2) return json_([]);
+
+      const content = String(sheet.getRange(2, 1).getValue() || '');
+      let categories = [];
+
+      try {
+        categories = content ? JSON.parse(content) : [];
+      } catch (_) {
+        categories = [];
+      }
+
+      return json_(Array.isArray(categories) ? categories : []);
+    }
+
+    if (get === 'planning') {
+      return json_(getPlanningData_(ss, e.parameter.archiveModel || ''));
+    }
+
+    return json_({
+      status: 'success',
+      backend: 'Flowapp',
+      version: FLOW_BACKEND_VERSION
+    });
+  } catch (error) {
+    return json_({
+      status: 'error',
+      message: String(error && error.stack ? error.stack : error)
+    });
+  }
+}
+
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+
+  try {
+    lock.waitLock(10000);
+
+    const item = JSON.parse(e.postData.contents || '{}');
+    if (!validToken_(item)) return json_({ status:'error', message:'Unauthorized' });
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (item.action === 'createBackup') return json_(createFullBackup_(ss,item.userId,'manual'));
+
+    if (item.action === 'setupAutoBackup') return json_(setupAutoBackup_(ss));
+
+    if (item.action === 'cleanHistoricalDuplicates') return json_(cleanHistoricalDuplicates_(ss,item.userId,{syncQueueCount:item.syncQueueCount,expectedDuplicateRows:item.expectedDuplicateRows}));
+
+    if (item.action === 'repairRecurringTransactions') return json_(repairExistingRecurringTransactions_(ss,item.userId,{syncQueueCount:item.syncQueueCount,expectedDuplicateRows:item.expectedDuplicateRows,expectedMetadataRows:item.expectedMetadataRows}));
+
+    if (item.action === 'batchSync') {
+      const items = Array.isArray(item.items) ? item.items : [];
+      const hasHistoricalItems=items.some(function(entry){
+        return /^HIST-/i.test(String(entry && entry.id || ''));
+      });
+      const historicalTombstones=hasHistoricalItems ? readHistoricalTombstoneSet_(ss) : new Set();
+      const results = items.map(function(entry){
+        return processTransactionMutation_(ss, entry, historicalTombstones);
+      });
+      return json_({ status:'success', results:results, backendVersion:FLOW_BACKEND_VERSION });
+    }
+
+    if (item.action === 'save' || item.action === 'delete') {
+      const isHistorical=/^HIST-/i.test(String(item && item.id || ''));
+      return json_(processTransactionMutation_(ss,item,isHistorical ? readHistoricalTombstoneSet_(ss) : new Set()));
+    }
+
+    if (item.action === 'savePlanning' || item.action === 'deletePlanning') {
+      const type = String(item.type || '');
+      if (!['recurring','event','override'].includes(type)) return json_({status:'error',message:'Invalid planning type'});
+      if (!item.entity || !item.entity.id) return json_({status:'error',message:'Missing planning entity'});
+      const result = item.action === 'deletePlanning' ? deletePlanning_(ss,type,item.entity) : savePlanning_(ss,type,item.entity);
+      return json_(result);
+    }
+
+    if (item.action === 'archiveForecasts') {
+      return json_(archiveForecasts_(ss, item.rows || []));
+    }
+
+    if (item.action === 'savePlanAccuracySnapshot') return json_(savePlanAccuracySnapshot_(ss,item));
+
+    if (item.action === 'sync_categories') {
+      const sheet = ss.getSheetByName('Categories');
+      if (!sheet) return json_({ status: 'error', message: 'Categories sheet not found' });
+
+      const incomingCategories = Array.isArray(item.categories) ? item.categories : [];
+      if (!incomingCategories.length) {
+        return json_({ status: 'error', message: 'Refusing to save empty categories' });
+      }
+      if (isLegacyGenericDefaultCategories_(incomingCategories)) {
+        return json_({ status: 'error', message: 'Protected: generic default categories cannot overwrite cloud data' });
+      }
+
+      const incomingVersion = toVersion_(item.version);
+      const incomingUpdatedAt = toIso_(item.updatedAt, nowIso_());
+
+      if (sheet.getMaxColumns() < 3) {
+        sheet.insertColumnsAfter(sheet.getMaxColumns(), 3 - sheet.getMaxColumns());
+      }
+      if (sheet.getLastRow() < 1) sheet.insertRows(1);
+      sheet.getRange(1, 1, 1, 3).setValues([['Data', 'Version', 'UpdatedAt']]);
+
+      const serverState = readCategoriesState_(ss);
+      const serverVersion = serverState.version;
+      const serverUpdatedAt = serverState.updatedAt;
+
+      if (incomingVersion < serverVersion ||
+          (incomingVersion === serverVersion &&
+           new Date(incomingUpdatedAt).getTime() <= new Date(serverUpdatedAt).getTime())) {
+        return json_({
+          status: 'conflict',
+          reason: 'server_newer',
+          version: serverVersion,
+          updatedAt: serverUpdatedAt
+        });
+      }
+
+      if (categorySignature_(serverState.categories) !== categorySignature_(incomingCategories)) {
+        backupCategories_(ss, serverState, item.userId, 'before_category_update');
+      }
+
+      sheet.getRange(2, 1, 1, 3).setValues([[
+        JSON.stringify(incomingCategories),
+        incomingVersion,
+        incomingUpdatedAt
+      ]]);
+
+      return json_({
+        status: 'success',
+        result: 'categories_saved',
+        version: incomingVersion,
+        updatedAt: incomingUpdatedAt,
+        backupCreated: categorySignature_(serverState.categories) !== categorySignature_(incomingCategories)
+      });
+    }
+
+    return json_({ status: 'error', message: 'Unknown action' });
+
+  } catch (error) {
+    return json_({
+      status: 'error',
+      message: String(error && error.stack ? error.stack : error)
+    });
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}

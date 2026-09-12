@@ -673,35 +673,119 @@ function recurringOccurrenceAmount(plan) {
     return Number(plan.amount) || 0;
 }
 
+function recurringOccurrenceStableId(plan,dateStr) {
+    return `RPOCC_${String(plan.id||'plan')}_${String(dateStr||'date')}`;
+}
+
+function recurringTransactionLooksGenerated(tx,plan,dateStr) {
+    if(!tx || tx.deleted) return false;
+    if(getCleanDateStr(tx.date)!==dateStr) return false;
+    if(String(tx.recurringPlanId||'')===String(plan.id)) return true;
+
+    // Legacy generated rows used tx_* IDs. This lets v2.49.12 repair rows that
+    // lost isRecurring/recurringPlanId during an older cloud pull without ever
+    // treating normal user-created ID-* transactions as generated occurrences.
+    if(!/^tx_/i.test(String(tx.id||'')) && String(tx.id||'')!==recurringOccurrenceStableId(plan,dateStr)) return false;
+
+    return String(tx.category||'')===String(plan.category||'')
+        && String(tx.sub||'')===String(plan.sub||'')
+        && String(tx.type||'expense')===String(plan.type||'expense')
+        && String(tx.note||'')===String(plan.name||'');
+}
+
+function reconcileRecurringOccurrence(plan,dateStr) {
+    const stableId=recurringOccurrenceStableId(plan,dateStr);
+    const candidates=db.filter(tx=>recurringTransactionLooksGenerated(tx,plan,dateStr));
+    if(!candidates.length) return null;
+
+    const rank=tx=>{
+        let score=0;
+        if(String(tx.recurringPlanId||'')===String(plan.id)) score+=1000;
+        if(String(tx.id||'')===stableId) score+=500;
+        if(tx.isRecurring) score+=200;
+        if(/^tx_/i.test(String(tx.id||''))) score+=100;
+        return score;
+    };
+
+    candidates.sort((a,b)=>rank(b)-rank(a) || String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+    const keep=candidates[0];
+    let changed=false;
+
+    if(!keep.isRecurring){ keep.isRecurring=true; changed=true; }
+    if(String(keep.recurringPlanId||'')!==String(plan.id)){ keep.recurringPlanId=plan.id; changed=true; }
+    if(String(keep.frequency||'')!==String(plan.frequency||'monthly')){ keep.frequency=plan.frequency||'monthly'; changed=true; }
+
+    if(changed){
+        keep.updatedAt=new Date().toISOString();
+        keep.version=(Number(keep.version)||1)+1;
+        keep.action='save';
+        queueMutation(keep);
+    }
+
+    // Delete only generator-shaped duplicates. Normal ID-* transactions are never
+    // touched by this reconciliation.
+    candidates.slice(1).forEach(extra=>{
+        if(!/^tx_/i.test(String(extra.id||'')) && String(extra.id||'')!==stableId && String(extra.recurringPlanId||'')!==String(plan.id)) return;
+        extra.deleted=true;
+        extra.action='delete';
+        extra.updatedAt=new Date().toISOString();
+        extra.version=(Number(extra.version)||1)+1;
+        queueMutation(extra);
+    });
+
+    return keep;
+}
+
 function processRecurringPayments() {
     // Generate real transaction occurrences only from today through 12 months ahead.
-    // The selected transaction filter must never limit recurring generation.
+    // One plan/date may have exactly one generated transaction.
     if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans) || flowRecurringPlans.length === 0) return;
 
     const today = new Date(); today.setHours(0,0,0,0);
     const horizon = addMonthsSafe(today, 12); horizon.setHours(23,59,59,999);
-    let hasNew = false;
+    let changed = false;
 
     flowRecurringPlans.filter(p => p.active).forEach(plan => {
         const dates = recurringOccurrenceDates(plan, today, horizon);
         dates.forEach(date => {
             const targetDateStr = getCleanDateStr(date.toISOString());
-            const exists = db.some(x => !x.deleted && String(x.recurringPlanId || '') === String(plan.id) && getCleanDateStr(x.date) === targetDateStr);
-            if (exists) return;
+
+            const existing=reconcileRecurringOccurrence(plan,targetDateStr);
+            if(existing){
+                changed=true;
+                return;
+            }
 
             const now = new Date().toISOString();
             const entry = {
-                id:createUid('tx'), date:targetDateStr, full_date:`${targetDateStr} 08:00:00`,
-                category:plan.category, categoryId:plan.categoryId || getCategoryUidByName(plan.category), sub:plan.sub || '',
-                amount:recurringOccurrenceAmount(plan), type:plan.type || 'expense', note:plan.name || '', processed:false,
-                isRecurring:true, frequency:plan.frequency, recurringPlanId:plan.id,
-                createdAt:now, updatedAt:now, version:1, deleted:false, action:'save'
+                id:recurringOccurrenceStableId(plan,targetDateStr),
+                date:targetDateStr,
+                full_date:`${targetDateStr} 08:00:00`,
+                category:plan.category,
+                categoryId:plan.categoryId || getCategoryUidByName(plan.category),
+                sub:plan.sub || '',
+                amount:recurringOccurrenceAmount(plan),
+                type:plan.type || 'expense',
+                note:plan.name || '',
+                processed:false,
+                isRecurring:true,
+                frequency:plan.frequency || 'monthly',
+                recurringPlanId:plan.id,
+                createdAt:now,
+                updatedAt:now,
+                version:1,
+                deleted:false,
+                action:'save'
             };
-            db.push(entry); queueMutation(entry); hasNew = true;
+            db.push(entry);
+            queueMutation(entry);
+            changed = true;
         });
     });
 
-    if (hasNew) {
+    if (changed) {
+        // Remove locally deleted duplicates from visible data only after their
+        // delete mutations are safely queued.
         saveData(false);
         processSyncQueue();
         renderList();
@@ -710,4 +794,3 @@ function processRecurringPayments() {
         if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
     }
 }
-
