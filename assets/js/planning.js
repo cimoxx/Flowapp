@@ -2506,7 +2506,7 @@ function openRecurringPlanModal(id=null) {
         <div><label class="planning-form-label">Kategória</label><select id="rp-category" class="planning-form-input" onchange="refreshRecurringSubField()">${recurringCategoryOptions(type,defaultCategory)}</select></div>
         <div><label class="planning-form-label">Podkategória / zdroj</label><select id="rp-sub" class="planning-form-input">${recurringSubOptions(defaultCategory,p?.sub || '',type)}</select></div>
         <div><label class="planning-form-label">Začiatok</label><input id="rp-start" required type="date" class="planning-form-input" value="${p?.startDate || getTodayStr()}"></div>
-        <div class="planning-helper">${type==='income'?'Pravidelný príjem má pri predikcii prednosť pred historickým odhadom rovnakého zdroja.':'Pravidelná platba je plán. Po uložení ti Flow ponúkne označenie starších platieb za posledných 12 mesiacov, aby sa v predikcii nezapočítali druhýkrát.'} Automatické transakcie sa generujú maximálne 12 mesiacov dopredu.</div>
+        <div class="planning-helper">${type==='income'?'Pravidelný príjem má pri predikcii prednosť pred historickým odhadom rovnakého zdroja.':'Pravidelná platba je plán. Po uložení ti Flow ponúkne označenie starších platieb za posledných 12 mesiacov, aby sa v predikcii nezapočítali druhýkrát.'} Do Transakcií sa vytvárajú iba platby pre aktuálne začatý mesiac. Ďalší mesiac sa vytvorí až po jeho začatí.</div>
         <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">Uložiť</button>
       </form>`);
 }

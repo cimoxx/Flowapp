@@ -1,5 +1,17 @@
 # Flow changelog
 
+## v2.49.15 – Pravidelné platby iba pre aktuálny mesiac
+
+- Automatické recurring transakcie sa už negenerujú 12 mesiacov dopredu.
+- Flow materializuje iba výskyty, ktoré patria do aktuálneho kalendárneho mesiaca.
+- Na začiatku nového mesiaca sa nové výskyty vytvoria pri prvom otvorení/synchronizácii aplikácie v danom mesiaci.
+- V aktuálnom mesiaci sa vytvoria aj platby s dátumom neskôr v tom istom mesiaci.
+- Pri prechode na v2.49.15 sa automaticky označia na zmazanie iba budúce generator-shaped transakcie (`RPOCC_*` / `tx_*`) s `recurringPlanId`.
+- Ručné `ID-*` transakcie, aktuálny mesiac a história zostávajú nedotknuté.
+- Recurring plán zostáva zdrojom pre budúce mesiace a forecast; mení sa iba materializácia do zoznamu Transakcií.
+- Google Apps Script sa nemení; zostáva v2.49.9.
+- Annual Plan, Income Engine a forecast algoritmus sa nemenia.
+
 ## v2.49.14 – Prepojenie historických pravidelných platieb
 
 - Pri vytvorení novej pravidelnej výdavkovej položky Flow prehľadá posledných 12 mesiacov.

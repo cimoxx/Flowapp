@@ -70,7 +70,7 @@ Príjmy sa naďalej:
 
 ## Pravidelné platby
 
-Automatické generovanie transakcií zostáva striktne limitované na **maximálne 12 mesiacov dopredu**.
+Automatické recurring transakcie sa vytvárajú iba pre **aktuálne začatý kalendárny mesiac**. Ďalší mesiac sa materializuje až po jeho začatí.
 
 ## Nasadenie
 

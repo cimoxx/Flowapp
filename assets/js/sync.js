@@ -737,45 +737,71 @@ function reconcileRecurringOccurrence(plan,dateStr) {
 }
 
 function processRecurringPayments() {
-    // Generate real transaction occurrences only from today through 12 months ahead.
-    // One plan/date may have exactly one generated transaction.
+    // Generate real recurring transactions only for the calendar month that
+    // has already started. Future months remain represented by the recurring
+    // plan and are materialized only when that month becomes current.
+    //
+    // Example: during September only September occurrences exist in db.
+    // October occurrences are created on the first app sync/open in October.
     if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans) || flowRecurringPlans.length === 0) return;
 
     const today = new Date(); today.setHours(0,0,0,0);
-    const horizon = addMonthsSafe(today, 12); horizon.setHours(23,59,59,999);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+    const monthEndStr = getCleanDateStr(monthEnd.toISOString());
     let changed = false;
 
+    // Migration from older releases: remove only automatically generated
+    // recurring occurrences that belong to a future month. Manual ID-* rows
+    // and historical rows are never touched.
+    (Array.isArray(db) ? db : []).forEach(tx => {
+        if (!tx || tx.deleted) return;
+        const id = String(tx.id || '');
+        const generated = /^RPOCC_/i.test(id) || /^tx_/i.test(id);
+        if (!generated || !tx.recurringPlanId) return;
+
+        const dateStr = getCleanDateStr(tx.date);
+        if (!dateStr || dateStr <= monthEndStr) return;
+
+        tx.deleted = true;
+        tx.updatedAt = new Date().toISOString();
+        tx.version = (Number(tx.version) || 1) + 1;
+        tx.action = 'delete';
+        queueMutation(tx);
+        changed = true;
+    });
+
     flowRecurringPlans.filter(p => p.active).forEach(plan => {
-        const dates = recurringOccurrenceDates(plan, today, horizon);
+        // Always evaluate the whole current month. That means a payment due
+        // later this month is already visible as soon as the month starts,
+        // while no transaction for the next month is created in advance.
+        const dates = recurringOccurrenceDates(plan, monthStart, monthEnd);
         dates.forEach(date => {
             const targetDateStr = getCleanDateStr(date.toISOString());
 
-            const existing=reconcileRecurringOccurrence(plan,targetDateStr);
-            if(existing){
-                changed=true;
-                return;
-            }
+            const existing = reconcileRecurringOccurrence(plan, targetDateStr);
+            if (existing) return;
 
             const now = new Date().toISOString();
             const entry = {
-                id:recurringOccurrenceStableId(plan,targetDateStr),
-                date:targetDateStr,
-                full_date:`${targetDateStr} 08:00:00`,
-                category:plan.category,
-                categoryId:plan.categoryId || getCategoryUidByName(plan.category),
-                sub:plan.sub || '',
-                amount:recurringOccurrenceAmount(plan),
-                type:plan.type || 'expense',
-                note:plan.name || '',
-                processed:false,
-                isRecurring:true,
-                frequency:plan.frequency || 'monthly',
-                recurringPlanId:plan.id,
-                createdAt:now,
-                updatedAt:now,
-                version:1,
-                deleted:false,
-                action:'save'
+                id: recurringOccurrenceStableId(plan, targetDateStr),
+                date: targetDateStr,
+                full_date: `${targetDateStr} 08:00:00`,
+                category: plan.category,
+                categoryId: plan.categoryId || getCategoryUidByName(plan.category),
+                sub: plan.sub || '',
+                amount: recurringOccurrenceAmount(plan),
+                type: plan.type || 'expense',
+                note: plan.name || '',
+                processed: false,
+                isRecurring: true,
+                frequency: plan.frequency || 'monthly',
+                recurringPlanId: plan.id,
+                createdAt: now,
+                updatedAt: now,
+                version: 1,
+                deleted: false,
+                action: 'save'
             };
             db.push(entry);
             queueMutation(entry);
@@ -784,8 +810,6 @@ function processRecurringPayments() {
     });
 
     if (changed) {
-        // Remove locally deleted duplicates from visible data only after their
-        // delete mutations are safely queued.
         saveData(false);
         processSyncQueue();
         renderList();
