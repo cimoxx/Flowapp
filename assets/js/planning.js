@@ -2217,7 +2217,7 @@ function renderRecurringCard(p) {
     const cat = p.category || 'Nezaradené';
     const freq = {monthly:'mesačne',quarterly:'štvrťročne',yearly:'ročne',weekly:'týždenne'}[p.frequency] || p.frequency;
     const isIncome = p.type === 'income';
-    return `<div class="recurring-card"><div class="recurring-card-top"><div class="recurring-icon"><i data-lucide="${isIncome?'wallet':'repeat'}"></i></div><div class="min-w-0 flex-1"><div class="recurring-name">${escPlanning(p.name || cat)}</div><div class="planning-muted">${isIncome?'Príjem':'Výdavok'} · ${escPlanning(cat)}${p.sub ? ' / '+escPlanning(p.sub):''} · ${freq}</div></div><div class="recurring-amount ${isIncome?'text-emerald-600':''}">${isIncome?'+':''}${formatCurrency(p.amount)}</div></div><div class="recurring-meta"><span>Ďalšia podľa plánu: deň ${p.dayOfMonth || 1}.</span><span>${p.amountMode==='variable'?'Premenlivá':'Fixná'} suma</span></div><div class="annual-month-actions"><button type="button" onclick="openRecurringPlanModal('${p.id}')">Upraviť</button><button type="button" onclick="pauseRecurringPlan('${p.id}')">Pozastaviť</button><button type="button" class="text-rose-600" onclick="openRecurringDeleteChoice('${p.id}')">Odstrániť</button></div></div>`;
+    return `<div class="recurring-card"><div class="recurring-card-top"><div class="recurring-icon"><i data-lucide="${isIncome?'wallet':'repeat'}"></i></div><div class="min-w-0 flex-1"><div class="recurring-name">${escPlanning(p.name || cat)}</div><div class="planning-muted">${isIncome?'Príjem':'Výdavok'} · ${escPlanning(cat)}${p.sub ? ' / '+escPlanning(p.sub):''} · ${freq}</div></div><div class="recurring-amount ${isIncome?'text-emerald-600':''}">${isIncome?'+':''}${formatCurrency(p.amount)}</div></div><div class="recurring-meta"><span>Ďalšia podľa plánu: deň ${p.dayOfMonth || 1}.</span><span>${p.amountMode==='variable'?'Premenlivá':'Fixná'} suma</span></div><div class="annual-month-actions"><button type="button" onclick="openRecurringPlanModal('${p.id}')">Upraviť</button><button type="button" onclick="openRecurringHistoryMatcher('${p.id}')">História 12 mes.</button><button type="button" onclick="pauseRecurringPlan('${p.id}')">Pozastaviť</button><button type="button" class="text-rose-600" onclick="openRecurringDeleteChoice('${p.id}')">Odstrániť</button></div></div>`;
 }
 
 function closePlanningModal() {
@@ -2270,6 +2270,229 @@ function refreshRecurringSubField() {
     subEl.innerHTML=recurringSubOptions(cat,previous,type);
 }
 
+
+function normalizeRecurringHistoryText(value) {
+    return String(value == null ? '' : value)
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g,'')
+        .replace(/\s+/g,' ');
+}
+
+function recurringHistoryCutoffDate() {
+    const d=new Date();
+    d.setHours(0,0,0,0);
+    d.setFullYear(d.getFullYear()-1);
+    return d;
+}
+
+function recurringHistoryCandidateScore(tx, plan) {
+    const amount=Math.abs(Number(tx?.amount)||0);
+    const planAmount=Math.abs(Number(plan?.amount)||0);
+    const amountDiff=Math.abs(amount-planAmount);
+    const amountTolerance=Math.max(5,planAmount*0.30);
+    const amountClose=planAmount>0 && amountDiff<=amountTolerance;
+
+    const txNote=normalizeRecurringHistoryText(tx?.note);
+    const planName=normalizeRecurringHistoryText(plan?.name);
+    const nameClose=Boolean(txNote && planName && (txNote.includes(planName) || planName.includes(txNote)));
+
+    const clean=getCleanDateStr(tx?.date);
+    const day=Number(String(clean||'').slice(8,10))||0;
+    const planDay=Number(plan?.dayOfMonth)||0;
+    const dayClose=Boolean(day && planDay && Math.abs(day-planDay)<=8);
+
+    return {
+        amountClose,
+        nameClose,
+        dayClose,
+        likely: nameClose || (amountClose && dayClose)
+    };
+}
+
+function getRecurringHistoryCandidates(plan) {
+    if(!plan) return [];
+    const cutoff=recurringHistoryCutoffDate().getTime();
+    const today=new Date();
+    today.setHours(23,59,59,999);
+    const targetCategoryId=String(plan.categoryId || getCategoryUidByName(plan.category) || '');
+    const targetCategory=String(plan.category || '');
+    const targetSub=normalizeRecurringHistoryText(plan.sub || '');
+    const targetType=String(plan.type || 'expense');
+
+    return (Array.isArray(db)?db:[])
+        .filter(tx=>{
+            if(!tx || tx.deleted) return false;
+            const id=String(tx.id||'');
+            // Generated occurrences are managed by the recurring engine, not by
+            // this history matcher.
+            if(/^tx_/i.test(id) || /^RPOCC_/i.test(id)) return false;
+
+            const dateStr=getCleanDateStr(tx.date);
+            if(!dateStr) return false;
+            const time=new Date(dateStr+'T12:00:00').getTime();
+            if(!Number.isFinite(time) || time<cutoff || time>today.getTime()) return false;
+
+            if(String(tx.type||'expense')!==targetType) return false;
+
+            const txCategoryId=String(tx.categoryId || getCategoryUidByName(tx.category) || '');
+            const categoryMatches=(targetCategoryId && txCategoryId===targetCategoryId)
+                || String(tx.category||'')===targetCategory;
+            if(!categoryMatches) return false;
+
+            if(normalizeRecurringHistoryText(tx.sub||'')!==targetSub) return false;
+
+            const linked=String(tx.recurringPlanId||'');
+            if(linked && linked!==String(plan.id)) return false;
+            return true;
+        })
+        .map(tx=>{
+            const score=recurringHistoryCandidateScore(tx,plan);
+            const already=Boolean(tx.isRecurring && String(tx.recurringPlanId||'')===String(plan.id));
+            return {tx,score,already,checked:already || score.likely};
+        })
+        .sort((a,b)=>String(getCleanDateStr(b.tx.date)).localeCompare(String(getCleanDateStr(a.tx.date))));
+}
+
+function openRecurringHistoryMatcher(planId, options={}) {
+    const plan=flowRecurringPlans.find(x=>String(x.id)===String(planId));
+    if(!plan) return;
+
+    const candidates=getRecurringHistoryCandidates(plan);
+    if(!candidates.length){
+        if(!options?.silent) showToast?.({
+            type:'info',
+            title:'Nenašiel som historické platby',
+            text:'Za posledných 12 mesiacov nie sú v rovnakej kategórii a podkategórii žiadne vhodné ručné transakcie.'
+        });
+        return;
+    }
+
+    const likely=candidates.filter(x=>x.score.likely && !x.already).length;
+    const already=candidates.filter(x=>x.already).length;
+
+    const rows=candidates.map((item,index)=>{
+        const tx=item.tx;
+        const flags=[];
+        if(item.already) flags.push('už označená');
+        else {
+            if(item.score.amountClose) flags.push('podobná suma');
+            if(item.score.nameClose) flags.push('podobný názov');
+            if(item.score.dayClose) flags.push('podobný deň');
+        }
+        const flagHtml=flags.length
+            ? `<div class="text-[9px] font-bold text-slate-400 mt-1">${flags.map(escPlanning).join(' · ')}</div>`
+            : '';
+        return `
+          <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40">
+            <input type="checkbox" class="mt-1 w-4 h-4 accent-emerald-600 recurring-history-check"
+              data-tx-id="${escPlanning(String(tx.id||''))}" ${item.checked?'checked':''}>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-3">
+                <div class="font-black text-[12px] text-slate-700 dark:text-slate-200">${escPlanning(getCleanDateStr(tx.date) || '')}</div>
+                <div class="font-black text-[12px] ${String(tx.type)==='income'?'text-emerald-600':'text-slate-800 dark:text-slate-100'}">${String(tx.type)==='income'?'+':''}${formatCurrency(tx.amount)}</div>
+              </div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escPlanning(tx.note || 'Bez poznámky')}</div>
+              ${flagHtml}
+            </div>
+          </label>`;
+    }).join('');
+
+    showPlanningModal('Historické pravidelné platby','Posledných 12 mesiacov',`
+      <div class="space-y-4">
+        <div class="planning-helper">
+          Flow našiel ručné transakcie v rovnakej kategórii a podkategórii ako <b>${escPlanning(plan.name)}</b>.
+          Označ iba tie, ktoré naozaj patria k tejto pravidelnej platbe. Tým sa v predikcii prestanú počítať ako variabilné výdavky.
+        </div>
+        <div class="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-400">
+          <span>${candidates.length} kandidátov · ${likely} odporúčaných${already?` · ${already} už označených`:''}</span>
+          <button type="button" class="text-emerald-600 font-black" onclick="document.querySelectorAll('.recurring-history-check').forEach(x=>x.checked=true)">Označiť všetky</button>
+        </div>
+        <div class="space-y-2 max-h-[52vh] overflow-y-auto pr-1">${rows}</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="planning-choice-btn justify-center" onclick="closePlanningModal()">Zrušiť</button>
+          <button type="button" class="planning-primary-btn justify-center" onclick="saveRecurringHistoryMatches('${escPlanning(plan.id)}', this)">Uložiť označenie</button>
+        </div>
+        <div class="planning-muted">Dátum, suma, poznámka ani ID transakcie sa nemenia. Flow iba doplní príznak pravidelnej platby a prepojenie na plán.</div>
+      </div>`);
+}
+
+async function saveRecurringHistoryMatches(planId, btn) {
+    const plan=flowRecurringPlans.find(x=>String(x.id)===String(planId));
+    if(!plan) return;
+    if(btn){btn.disabled=true;btn.textContent='UKLADÁM…';btn.classList.add('opacity-70');}
+
+    try{
+        const candidates=getRecurringHistoryCandidates(plan);
+        const boxes=[...document.querySelectorAll('.recurring-history-check')];
+        const selected=new Set(boxes.filter(x=>x.checked).map(x=>String(x.dataset.txId||'')));
+        let marked=0, unmarked=0;
+
+        candidates.forEach(({tx,already})=>{
+            const id=String(tx.id||'');
+            const shouldBeRecurring=selected.has(id);
+            if(shouldBeRecurring){
+                const needsChange=!tx.isRecurring
+                    || String(tx.recurringPlanId||'')!==String(plan.id)
+                    || String(tx.frequency||'')!==String(plan.frequency||'');
+                if(!needsChange) return;
+                tx.isRecurring=true;
+                tx.frequency=plan.frequency||'monthly';
+                tx.recurringPlanId=plan.id;
+                tx.updatedAt=new Date().toISOString();
+                tx.version=(Number(tx.version)||1)+1;
+                queueMutation(tx);
+                marked++;
+            } else if(already) {
+                // Allow undo only for manual historical rows shown in this modal.
+                tx.isRecurring=false;
+                tx.frequency='';
+                tx.recurringPlanId='';
+                tx.updatedAt=new Date().toISOString();
+                tx.version=(Number(tx.version)||1)+1;
+                queueMutation(tx);
+                unmarked++;
+            }
+        });
+
+        if(!marked && !unmarked){
+            closePlanningModal();
+            showToast?.({type:'info',title:'Bez zmien',text:'Označenie zostalo rovnaké.'});
+            return;
+        }
+
+        saveData(false);
+        markForecastIndexDirty();
+        renderPlanningScreens();
+        updateBudgetScreen?.();
+        renderList?.();
+        closePlanningModal();
+
+        showToast?.({
+            type:'info',
+            title:'Označenie uložené',
+            text:`Označené: ${marked}${unmarked?` · odznačené: ${unmarked}`:''}. Synchronizujem so Sheet1.`
+        });
+
+        if(typeof processSyncQueue==='function') await processSyncQueue();
+
+        showToast?.({
+            type:'success',
+            title:'História pravidelnej platby je upravená',
+            text:'Vybrané transakcie sú prepojené s plánom a forecast ich už neberie ako variabilnú časť.'
+        });
+    }catch(error){
+        showToast?.({
+            type:'error',
+            title:'Označenie sa nepodarilo uložiť',
+            text:error?.message || 'Skús to znova po synchronizácii.'
+        });
+    }finally{
+        if(btn){btn.disabled=false;btn.textContent='Uložiť označenie';btn.classList.remove('opacity-70');}
+    }
+}
+
 function openRecurringPlanModal(id=null) {
     const p = id ? flowRecurringPlans.find(x=>String(x.id)===String(id)) : null;
     const type = p?.type || 'expense';
@@ -2283,7 +2506,7 @@ function openRecurringPlanModal(id=null) {
         <div><label class="planning-form-label">Kategória</label><select id="rp-category" class="planning-form-input" onchange="refreshRecurringSubField()">${recurringCategoryOptions(type,defaultCategory)}</select></div>
         <div><label class="planning-form-label">Podkategória / zdroj</label><select id="rp-sub" class="planning-form-input">${recurringSubOptions(defaultCategory,p?.sub || '',type)}</select></div>
         <div><label class="planning-form-label">Začiatok</label><input id="rp-start" required type="date" class="planning-form-input" value="${p?.startDate || getTodayStr()}"></div>
-        <div class="planning-helper">${type==='income'?'Pravidelný príjem má pri predikcii prednosť pred historickým odhadom rovnakého zdroja, takže sa výplata nezapočíta dvakrát.':'Pravidelná platba je plán. Jednotlivé transakcie sa z neho vytvárajú samostatne.'} Automatické transakcie sa generujú maximálne 12 mesiacov dopredu.</div>
+        <div class="planning-helper">${type==='income'?'Pravidelný príjem má pri predikcii prednosť pred historickým odhadom rovnakého zdroja.':'Pravidelná platba je plán. Po uložení ti Flow ponúkne označenie starších platieb za posledných 12 mesiacov, aby sa v predikcii nezapočítali druhýkrát.'} Automatické transakcie sa generujú maximálne 12 mesiacov dopredu.</div>
         <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">Uložiť</button>
       </form>`);
 }
@@ -2341,6 +2564,13 @@ async function submitRecurringPlanForm(event, id) {
         title:result?.cloudSaved===false?'Uložené lokálne':(old?'Pravidelná platba upravená':'Pravidelná platba pridaná'),
         text:result?.cloudSaved===false?'Cloud sa skúsi zosynchronizovať neskôr.':'Hotovo.'
     });
+
+    if(!old && updated.type==='expense'){
+        const historicalCandidates=getRecurringHistoryCandidates(updated);
+        if(historicalCandidates.length){
+            setTimeout(()=>openRecurringHistoryMatcher(updated.id,{auto:true}),250);
+        }
+    }
 }
 function showRecurringChangeChoice(oldPlan, newPlan) {
     const body=document.getElementById('planning-modal-body');

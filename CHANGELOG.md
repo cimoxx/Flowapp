@@ -1,5 +1,18 @@
 # Flow changelog
 
+## v2.49.14 – Prepojenie historických pravidelných platieb
+
+- Pri vytvorení novej pravidelnej výdavkovej položky Flow prehľadá posledných 12 mesiacov.
+- Hľadanie používa rovnaký typ, kategóriu a podkategóriu; pravdepodobné zhody označí podľa podobnej sumy, názvu a dňa.
+- Používateľ vždy rozhoduje checkboxmi, ktoré transakcie naozaj patria k plánu.
+- Na každej pravidelnej položke pribudlo tlačidlo `História 12 mes.` pre neskoršie úpravy.
+- Vybrané ručné transakcie dostanú `isRecurring=true`, `frequency` a `recurringPlanId`.
+- Dátum, suma, poznámka a ID historickej transakcie zostávajú bez zmeny.
+- Označenie sa synchronizuje do Sheet1 cez existujúci transaction sync.
+- Takto označené výdavky už forecast nepovažuje za variabilné; budúci pravidelný plán sa teda nepripočíta k rovnakému historickému základu druhýkrát.
+- V tomto release sa nemení samotný forecast algoritmus, Income Engine ani Annual Plan výpočty.
+- Google Apps Script sa oproti v2.49.13 nemení; zostáva v2.49.9.
+
 ## v2.49.13 – Oprava už existujúcich pravidelných transakcií
 
 - V Nastaveniach pribudlo `Opraviť existujúce pravidelné platby`.
