@@ -155,6 +155,65 @@ function planningGetUrl() {
     return `${GOOGLE_URL}?get=planning&token=${token}&archiveModel=${encodeURIComponent(FLOW_MODEL_VERSION)}`;
 }
 
+
+function budgetOverrideKey(item) {
+    return `${String(item?.monthKey || '')}|${String(item?.category || '')}`;
+}
+
+function planningEntityFreshness(item) {
+    const version=Number(item?.version)||0;
+    const updated=Date.parse(item?.updatedAt || item?.createdAt || '') || 0;
+    return {version,updated};
+}
+
+function isPlanningEntityNewer(a,b) {
+    if(!b) return true;
+    const aa=planningEntityFreshness(a);
+    const bb=planningEntityFreshness(b);
+    if(aa.version!==bb.version) return aa.version>bb.version;
+    return aa.updated>bb.updated;
+}
+
+function mergeBudgetOverrides(localItems, cloudItems) {
+    // Manual budgets are user decisions. A refresh must never discard a newer
+    // local decision merely because the previous cloud write was slow/failed.
+    // Deduplicate by month + category because that is the actual business key.
+    const merged=new Map();
+    const put=item=>{
+        if(!item || item.deleted) return;
+        const key=budgetOverrideKey(item);
+        if(key==='|') return;
+        const current=merged.get(key);
+        if(!current || isPlanningEntityNewer(item,current)) merged.set(key,{...item});
+    };
+    (Array.isArray(cloudItems)?cloudItems:[]).forEach(put);
+    (Array.isArray(localItems)?localItems:[]).forEach(put);
+    return [...merged.values()];
+}
+
+function syncLocalBudgetOverridesToCloud(localBefore, cloudItems, mergedItems) {
+    // Best-effort background repair for a manual budget that survived locally
+    // but is absent/stale in FlowBudgetOverrides in Google Sheets.
+    const cloudByKey=new Map(
+        (Array.isArray(cloudItems)?cloudItems:[])
+            .filter(x=>x && !x.deleted)
+            .map(x=>[budgetOverrideKey(x),x])
+    );
+    const localKeys=new Set((Array.isArray(localBefore)?localBefore:[]).filter(x=>x&&!x.deleted).map(budgetOverrideKey));
+
+    (Array.isArray(mergedItems)?mergedItems:[]).forEach(item=>{
+        const key=budgetOverrideKey(item);
+        if(!localKeys.has(key)) return;
+        const cloud=cloudByKey.get(key);
+        if(cloud && !isPlanningEntityNewer(item,cloud)) return;
+
+        // Fire-and-forget: refresh stays fast and the manual budget remains
+        // visible even if the network is temporarily unavailable.
+        planningPost({action:'savePlanning',type:'override',entity:item})
+            .catch(err=>console.warn('Budget override cloud repair failed:',err));
+    });
+}
+
 async function loadPlanningData() {
     try {
         const res = await fetch(planningGetUrl());
@@ -164,7 +223,17 @@ async function loadPlanningData() {
 
         if (Array.isArray(payload.recurring)) flowRecurringPlans = payload.recurring;
         if (Array.isArray(payload.events)) flowPlannedEvents = payload.events;
-        if (Array.isArray(payload.overrides)) flowBudgetOverrides = payload.overrides;
+
+        // Preserve newer manual budget decisions across refresh/sync.
+        // Previously, a successful GET could overwrite an optimistic local
+        // override with an older/missing cloud copy, making the model value
+        // reappear after refresh.
+        const localOverridesBeforeLoad = Array.isArray(flowBudgetOverrides) ? flowBudgetOverrides.slice() : [];
+        if (Array.isArray(payload.overrides)) {
+            flowBudgetOverrides = mergeBudgetOverrides(localOverridesBeforeLoad, payload.overrides);
+            syncLocalBudgetOverridesToCloud(localOverridesBeforeLoad, payload.overrides, flowBudgetOverrides);
+        }
+
         if (Array.isArray(payload.archive)) flowForecastArchive = payload.archive;
         if (payload.modelState && typeof payload.modelState === 'object') flowModelState = payload.modelState;
 
@@ -2758,9 +2827,41 @@ function openBudgetOverrideModal(key, category, current) {
 
 async function submitBudgetOverride(event,key,category){
     event.preventDefault();
+    const btn=event.submitter || event.target.querySelector('button[type="submit"],button');
+    if(btn){btn.disabled=true;btn.textContent='UKLADÁM…';btn.classList.add('opacity-70');}
+
     const old=flowBudgetOverrides.find(o=>!o.deleted&&o.monthKey===key&&o.category===category);
-    const entity={...(old||{}),id:old?.id||createUid('bo'),monthKey:key,category,amount:Number(document.getElementById('override-amount').value)||0,notes:document.getElementById('override-note').value.trim(),version:(Number(old?.version)||0)+1,createdAt:old?.createdAt||new Date().toISOString()};
-    await savePlanningEntity('override',entity); closePlanningModal();
+    const entity={
+        ...(old||{}),
+        id:old?.id||createUid('bo'),
+        monthKey:key,
+        category,
+        amount:Number(document.getElementById('override-amount').value)||0,
+        notes:document.getElementById('override-note').value.trim(),
+        version:(Number(old?.version)||0)+1,
+        createdAt:old?.createdAt||new Date().toISOString()
+    };
+
+    try{
+        const result=await savePlanningEntity('override',entity);
+        closePlanningModal();
+
+        if(result?.cloudSaved===false){
+            showToast?.({
+                type:'warning',
+                title:'Budget uložený v aplikácii',
+                text:'Ručná hodnota zostane zachovaná aj po obnovení. Cloud sa skúsi opraviť pri ďalšom načítaní.'
+            });
+        }else{
+            showToast?.({
+                type:'success',
+                title:'Ručný budget uložený',
+                text:'Táto hodnota má prednosť pred modelom a po obnovení sa neprepíše.'
+            });
+        }
+    }finally{
+        if(btn){btn.disabled=false;btn.textContent='Uložiť úpravu';btn.classList.remove('opacity-70');}
+    }
 }
 
 function renderPlanningScreens() {

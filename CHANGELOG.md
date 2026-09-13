@@ -1,5 +1,16 @@
 # Flow changelog
 
+## v2.49.16 – Ručný budget zostáva po refreshi
+
+- Opravené načítanie `FlowBudgetOverrides`: cloud už slepo neprepíše novšiu lokálnu ručnú hodnotu.
+- Override sa deduplikuje podľa skutočného kľúča `mesiac + kategória`.
+- Pri konflikte vyhrá vyššia `version`, následne novší `updatedAt`.
+- Ak bol ručný budget uložený lokálne, ale cloudový zápis zlyhal alebo zaostal, Flow ho po ďalšom načítaní automaticky skúsi dopísať do Google Sheets.
+- Ručná hodnota má naďalej prednosť pred modelovým budgetom vo výpočte Ročného plánu.
+- Pridaná jasná spätná väzba pri ukladaní manuálneho budgetu.
+- Forecast algoritmus, Income Engine, recurring logika a Annual Plan výpočtový model sa nemenia.
+- Google Apps Script zostáva v2.49.9.
+
 ## v2.49.15 – Pravidelné platby iba pre aktuálny mesiac
 
 - Automatické recurring transakcie sa už negenerujú 12 mesiacov dopredu.
