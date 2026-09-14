@@ -2988,3 +2988,18 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
         grid-template-columns:1fr;
     }
 }
+
+/* v2.49.17 — planned event status feedback */
+.annual-event-chip{cursor:pointer;text-align:left}
+.annual-event-chip span{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+.annual-event-chip small{font-size:9px;font-weight:900;letter-spacing:.01em;opacity:.72}
+.annual-event-chip.has-match{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.07)}
+.annual-event-chip.has-match small{color:rgb(5,150,105);opacity:1}
+.annual-event-chip.is-completed{border-color:rgba(16,185,129,.24);background:rgba(16,185,129,.05);opacity:.78}
+.annual-event-chip.is-completed small{color:rgb(5,150,105);opacity:1}
+.dark .annual-event-chip.has-match,.dark .annual-event-chip.is-completed{background:rgba(16,185,129,.09)}
+
+/* v2.49.18 — planned event edit/delete */
+.planning-danger-btn{display:flex;align-items:center;gap:.4rem;padding:.75rem 1rem;border-radius:.75rem;border:1px solid rgba(244,63,94,.26);background:rgba(244,63,94,.08);color:rgb(225,29,72);font-size:10px;font-weight:900;text-transform:uppercase}
+.planning-danger-btn:disabled{opacity:.6}
+.dark .planning-danger-btn{background:rgba(244,63,94,.10);border-color:rgba(244,63,94,.35);color:rgb(251,113,133)}

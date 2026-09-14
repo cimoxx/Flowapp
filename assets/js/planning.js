@@ -156,6 +156,38 @@ function planningGetUrl() {
 }
 
 
+
+function mergePlanningEntitiesById(localItems, cloudItems) {
+    const merged=new Map();
+    const put=item=>{
+        if(!item || !item.id) return;
+        const key=String(item.id);
+        const current=merged.get(key);
+        if(!current || isPlanningEntityNewer(item,current)) merged.set(key,{...item});
+    };
+    (Array.isArray(cloudItems)?cloudItems:[]).forEach(put);
+    (Array.isArray(localItems)?localItems:[]).forEach(put);
+    return [...merged.values()];
+}
+
+function syncLocalEventChangesToCloud(localBefore, cloudItems, mergedItems) {
+    const cloudById=new Map((Array.isArray(cloudItems)?cloudItems:[]).filter(x=>x&&x.id).map(x=>[String(x.id),x]));
+    const localIds=new Set((Array.isArray(localBefore)?localBefore:[]).filter(x=>x&&x.id).map(x=>String(x.id)));
+
+    (Array.isArray(mergedItems)?mergedItems:[]).forEach(item=>{
+        const id=String(item.id||'');
+        if(!localIds.has(id)) return;
+        const cloud=cloudById.get(id);
+        if(cloud && !isPlanningEntityNewer(item,cloud)) return;
+
+        const payload=item.deleted
+            ? {action:'deletePlanning',type:'event',entity:item}
+            : {action:'savePlanning',type:'event',entity:item};
+
+        planningPost(payload).catch(err=>console.warn('Planned event cloud repair failed:',err));
+    });
+}
+
 function budgetOverrideKey(item) {
     return `${String(item?.monthKey || '')}|${String(item?.category || '')}`;
 }
@@ -222,7 +254,13 @@ async function loadPlanningData() {
         if (payload && payload.status === 'error') throw new Error(payload.message || 'Planning error');
 
         if (Array.isArray(payload.recurring)) flowRecurringPlans = payload.recurring;
-        if (Array.isArray(payload.events)) flowPlannedEvents = payload.events;
+
+        // Keep newer local edits/deletions if a cloud write was delayed.
+        const localEventsBeforeLoad = Array.isArray(flowPlannedEvents) ? flowPlannedEvents.slice() : [];
+        if (Array.isArray(payload.events)) {
+            flowPlannedEvents = mergePlanningEntitiesById(localEventsBeforeLoad, payload.events);
+            syncLocalEventChangesToCloud(localEventsBeforeLoad, payload.events, flowPlannedEvents);
+        }
 
         // Preserve newer manual budget decisions across refresh/sync.
         // Previously, a successful GET could overwrite an optimistic local
@@ -1590,7 +1628,7 @@ function renderCurrentMonthProgress(month) {
                 </div>
             </div>
 
-            <div class="planning-comparison-foot">Prijaté sú reálne príjmy z transakcií. Očakávaný príjem je odhad Flow pre celý aktuálny mesiac.</div>
+            <div class="planning-comparison-foot">Prijaté sú reálne príjmy z transakcií. Čakajúce plánované udalosti sú v očakávaní; po potvrdení zhody s reálnou transakciou ich Flow už druhýkrát neočakáva.</div>
         </div>
     </div>`;
 }
@@ -1633,8 +1671,12 @@ function getAnnualPlan(year) {
             return { category: cat.id, icon: cat.icon || 'circle', actual, recurring: closed?recurringActual:recurringAmount, variable: variable.value, expected: variable.expected ?? variable.value, budget, forecast, confidence: variable.confidence, method: variable.method, dataMonths: variable.dataMonths, overridden: Boolean(override) };
         });
 
-        const eventExpense = events.filter(e => e.type === 'expense').reduce((s,e) => s + Math.abs(Number(e.amount) || 0), 0);
-        const eventIncome = events.filter(e => e.type === 'income').reduce((s,e) => s + Math.abs(Number(e.amount) || 0), 0);
+        // Completed events are already represented by real transactions.
+        // Only pending events belong to the remaining plan, preventing the
+        // same win/refund/expense from being counted twice.
+        const pendingEvents = events.filter(e => !isPlannedEventCompleted(e));
+        const eventExpense = pendingEvents.filter(e => e.type === 'expense').reduce((s,e) => s + Math.abs(Number(e.amount) || 0), 0);
+        const eventIncome = pendingEvents.filter(e => e.type === 'income').reduce((s,e) => s + Math.abs(Number(e.amount) || 0), 0);
         const recurringExpense = recurring.filter(p => p.type === 'expense').reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
         const incomePlans = recurring.filter(p => p.type === 'income');
         const recurringIncome = incomePlans.reduce((s,p) => s + getPlanMonthlyAmount(p,year,month), 0);
@@ -2247,7 +2289,7 @@ function renderAnnualPlanScreen() {
 
           ${m.closed ? renderClosedMonthComparison(m) : m.isCurrent ? renderCurrentMonthProgress(m) : ''}
 
-          ${m.events.length ? `<div class="annual-event-list">${m.events.map(e=>`<div class="annual-event-chip"><span>${escPlanning(e.title)}</span><b>${e.type==='income'?'+':'−'}${formatCurrency(Math.abs(e.amount))}</b></div>`).join('')}</div>`:''}
+          ${m.events.length ? `<div class="annual-event-list">${m.events.map(e=>{const done=isPlannedEventCompleted(e);const candidate=!done?getPlannedEventCandidates(e)[0]:null;const suggested=Boolean(candidate&&candidate.score>=70);return `<button type="button" class="annual-event-chip ${done?'is-completed':suggested?'has-match':''}" onclick="openPlannedEventStatus('${escPlanning(e.id)}')" aria-label="Skontrolovať stav udalosti ${escPlanning(e.title)}"><span>${escPlanning(e.title)} <small>${done?'✓ Splnená':suggested?'● Skontrolovať zhodu':'○ Čaká'}</small></span><b>${e.type==='income'?'+':'−'}${formatCurrency(Math.abs(e.amount))}</b></button>`}).join('')}</div>`:''}
           <div class="annual-month-actions annual-month-actions-pro">
             <button type="button" onclick="openPlanningEventModal('${m.key}')">＋ Udalosť</button>
             <button type="button" onclick="openMonthPlanDetail('${m.key}')">Detail mesiaca</button>
@@ -2780,25 +2822,272 @@ function markRecurringTransactionDeleted(tx) {
     queueMutation(tx);
 }
 
-function openPlanningEventModal(monthKey='') {
-    const defaultDate = monthKey ? `${monthKey}-15` : getTodayStr();
-    showPlanningModal('Naplánovať udalosť','Ročný plán',`<form id="event-plan-form" class="space-y-4" onsubmit="submitPlanningEvent(event)">
-      <div><label class="planning-form-label">Názov</label><input id="evt-title" required class="planning-form-input" value="" placeholder="Dovolenka, bonus, servis..."></div>
-      <div class="grid grid-cols-2 gap-2"><div><label class="planning-form-label">Suma</label><input id="evt-amount" required type="number" min="0" step="0.01" class="planning-form-input"></div><div><label class="planning-form-label">Typ</label><select id="evt-type" class="planning-form-input"><option value="expense">Výdavok</option><option value="income">Príjem</option></select></div></div>
-      <div><label class="planning-form-label">Dátum</label><input id="evt-date" required type="date" class="planning-form-input" value="${defaultDate}"></div>
-      <div><label class="planning-form-label">Kategória</label><select id="evt-category" class="planning-form-input">${categories.map(c=>`<option value="${escPlanning(c.id)}">${escPlanning(c.id)}</option>`).join('')}</select></div>
-      <div><label class="planning-form-label">Poznámka</label><textarea id="evt-notes" class="planning-form-input min-h-[80px]" placeholder="Prečo túto udalosť plánuješ?"></textarea></div>
-      <div class="planning-helper">Udalosť je iba plán. Nevytvorí automaticky transakciu a neovplyvní historické dáta.</div>
-      <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">Pridať do plánu</button>
-    </form>`);
+
+function isPlannedEventCompleted(event){
+    return String(event?.status||'pending')==='completed';
 }
 
-async function submitPlanningEvent(event){
-    event.preventDefault();
-    const category=document.getElementById('evt-category').value;
-    const entity={id:createUid('evt'),date:document.getElementById('evt-date').value,title:document.getElementById('evt-title').value.trim(),type:document.getElementById('evt-type').value,amount:Math.abs(Number(document.getElementById('evt-amount').value)||0),category,categoryId:getCategoryUidByName(category),sub:'',notes:document.getElementById('evt-notes').value.trim(),version:1,createdAt:new Date().toISOString()};
-    await savePlanningEntity('event',entity); closePlanningModal();
+function plannedEventCandidateScore(event, tx){
+    if(!event || !tx || tx.deleted) return -1;
+    if(String(tx.type||'expense')!==String(event.type||'expense')) return -1;
+    const eventAmount=Math.abs(Number(event.amount)||0);
+    const txAmount=Math.abs(Number(tx.amount)||0);
+    const tolerance=Math.max(1,eventAmount*0.03);
+    if(Math.abs(eventAmount-txAmount)>tolerance) return -1;
+
+    const eventDate=new Date(`${getCleanDateStr(event.date)}T12:00:00`);
+    const txDate=new Date(`${getCleanDateStr(tx.date)}T12:00:00`);
+    if(!Number.isFinite(eventDate.getTime()) || !Number.isFinite(txDate.getTime())) return -1;
+    const days=Math.abs(Math.round((txDate-eventDate)/86400000));
+    if(days>31) return -1;
+
+    const normalize=v=>String(v||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+    const title=normalize(event.title);
+    const note=normalize(tx.note);
+    const nameMatch=Boolean(title && note && (title.includes(note)||note.includes(title)));
+    const categoryMatch=String(event.categoryId||'') && String(event.categoryId||'')===String(tx.categoryId||'');
+    const exactAmount=Math.abs(eventAmount-txAmount)<0.01;
+
+    let score=0;
+    if(exactAmount) score+=55; else score+=35;
+    if(days<=3) score+=25; else if(days<=7) score+=18; else if(days<=14) score+=10;
+    if(nameMatch) score+=20;
+    if(categoryMatch) score+=10;
+    return score;
 }
+
+function getPlannedEventCandidates(event){
+    return (Array.isArray(db)?db:[])
+      .filter(tx=>{
+          if(!tx || tx.deleted || tx.isRecurring) return false;
+          if(String(tx.type||'expense')!==String(event.type||'expense')) return false;
+          return plannedEventCandidateScore(event,tx)>=0;
+      })
+      .map(tx=>({tx,score:plannedEventCandidateScore(event,tx)}))
+      .sort((a,b)=>b.score-a.score || String(getCleanDateStr(b.tx.date)).localeCompare(String(getCleanDateStr(a.tx.date))))
+      .slice(0,8);
+}
+
+function openPlannedEventStatus(eventId){
+    const item=flowPlannedEvents.find(e=>String(e.id)===String(eventId));
+    if(!item) return;
+    const candidates=getPlannedEventCandidates(item);
+    const completed=isPlannedEventCompleted(item);
+    const linked=completed && item.matchedTransactionId
+      ? db.find(tx=>String(tx.id)===String(item.matchedTransactionId))
+      : null;
+
+    const rows=candidates.map(({tx,score},index)=>{
+        const recommended=index===0 && score>=70;
+        return `<button type="button" class="w-full text-left p-3 rounded-xl border ${recommended?'border-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/20':'border-slate-200 dark:border-slate-700'}" onclick="confirmPlannedEventMatch('${escPlanning(item.id)}','${escPlanning(String(tx.id||''))}',this)">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0"><div class="font-black text-[12px] text-slate-800 dark:text-slate-100">${escPlanning(getCleanDateStr(tx.date))} · ${escPlanning(tx.note||'Bez poznámky')}</div>
+            <div class="text-[10px] font-bold text-slate-400">${recommended?'Najpravdepodobnejšia zhoda':'Možná zhoda'}${String(tx.category||'')?` · ${escPlanning(tx.category)}`:''}</div></div>
+            <strong class="${String(tx.type)==='income'?'text-emerald-600':'text-slate-800 dark:text-slate-100'}">${String(tx.type)==='income'?'+':'−'}${formatCurrency(Math.abs(Number(tx.amount)||0))}</strong>
+          </div>
+        </button>`;
+    }).join('');
+
+    showPlanningModal(
+      completed?'Udalosť je splnená':'Skontrolovať udalosť',
+      `${escPlanning(item.title)} · ${formatCurrency(Math.abs(Number(item.amount)||0))}`,
+      `<div class="space-y-4">
+        <div class="planning-helper">${completed
+          ? `Flow túto udalosť už nepočíta medzi to, čo ešte očakávaš.${linked?` Je prepojená s transakciou <b>${escPlanning(getCleanDateStr(linked.date))} · ${escPlanning(linked.note||'Bez poznámky')}</b>.`:''}`
+          : `Flow ju zatiaľ považuje za <b>čakajúcu</b>. Nižšie sú reálne transakcie s podobnou sumou a dátumom. Vyber iba tú, ktorá túto udalosť naozaj splnila.`}</div>
+        ${!completed && candidates.length ? `<div class="space-y-2">${rows}</div>` : !completed ? `<div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 text-[11px] font-bold text-slate-500">Nenašiel som dostatočne podobnú transakciu. Udalosť zostáva čakajúca.</div>`:''}
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="planning-choice-btn justify-center" onclick="openPlanningEventModal('', '${escPlanning(item.id)}')"><i data-lucide="pencil" class="w-4 h-4"></i> Upraviť</button>
+          <button type="button" class="planning-choice-btn justify-center text-rose-600" onclick="openPlannedEventDeleteConfirm('${escPlanning(item.id)}')"><i data-lucide="trash-2" class="w-4 h-4"></i> Odstrániť</button>
+          ${completed?`<button type="button" class="planning-choice-btn justify-center col-span-2" onclick="reopenPlannedEvent('${escPlanning(item.id)}',this)">Vrátiť na čaká</button>`:''}
+          <button type="button" class="planning-choice-btn justify-center col-span-2" onclick="closePlanningModal()">Zavrieť</button>
+        </div>
+        <div class="planning-muted">Flow nikdy neoznačí udalosť ako splnenú iba podľa odhadu. Zhodu vždy potvrdíš ty.</div>
+      </div>`
+    );
+}
+
+async function confirmPlannedEventMatch(eventId,txId,btn){
+    const item=flowPlannedEvents.find(e=>String(e.id)===String(eventId));
+    const tx=db.find(x=>String(x.id)===String(txId));
+    if(!item || !tx) return;
+    if(btn){btn.disabled=true;btn.classList.add('opacity-60');}
+
+    const updated={...item,status:'completed',matchedTransactionId:String(tx.id),completedAt:new Date().toISOString(),version:(Number(item.version)||1)+1};
+    const result=await savePlanningEntity('event',updated);
+    closePlanningModal();
+    renderPlanningScreens();
+
+    showToast?.({
+      type:result?.cloudSaved===false?'warning':'success',
+      title:'Udalosť označená ako splnená',
+      text:`${item.title}: ${formatCurrency(Math.abs(Number(item.amount)||0))} už Flow nebude počítať medzi očakávané ${item.type==='income'?'príjmy':'výdavky'}.${result?.cloudSaved===false?' Zmena je zatiaľ uložená lokálne.':''}`
+    });
+}
+
+async function reopenPlannedEvent(eventId,btn){
+    const item=flowPlannedEvents.find(e=>String(e.id)===String(eventId));
+    if(!item) return;
+    if(btn){btn.disabled=true;btn.textContent='UKLADÁM…';}
+    const updated={...item,status:'pending',matchedTransactionId:'',completedAt:'',version:(Number(item.version)||1)+1};
+    const result=await savePlanningEntity('event',updated);
+    closePlanningModal();
+    renderPlanningScreens();
+    showToast?.({
+      type:result?.cloudSaved===false?'warning':'success',
+      title:'Udalosť opäť čaká',
+      text:`${item.title} sa znovu započítava do plánu mesiaca.${result?.cloudSaved===false?' Zmena je zatiaľ uložená lokálne.':''}`
+    });
+}
+
+function openPlanningEventModal(monthKey='', eventId='') {
+    const existing=eventId ? flowPlannedEvents.find(e=>String(e.id)===String(eventId) && !e.deleted) : null;
+    const editing=Boolean(existing);
+    const defaultDate=existing?.date || (monthKey ? `${monthKey}-15` : getTodayStr());
+    const selectedCategory=existing?.category || categories?.[0]?.id || '';
+
+    showPlanningModal(editing?'Upraviť udalosť':'Naplánovať udalosť',editing?'Zmena plánu':'Ročný plán',`<form id="event-plan-form" class="space-y-4" onsubmit="submitPlanningEvent(event,'${editing?escPlanning(existing.id):''}')">
+      ${editing?`<div class="planning-change-summary"><b>${escPlanning(existing.title)}</b><span>${isPlannedEventCompleted(existing)?'✓ Splnená':'○ Čaká'}</span></div>`:''}
+      <div><label class="planning-form-label">Názov</label><input id="evt-title" required class="planning-form-input" value="${escPlanning(existing?.title||'')}" placeholder="Dovolenka, bonus, servis..."></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="planning-form-label">Suma</label><input id="evt-amount" required type="number" min="0" step="0.01" class="planning-form-input" value="${editing?Math.abs(Number(existing.amount)||0):''}"></div>
+        <div><label class="planning-form-label">Typ</label><select id="evt-type" class="planning-form-input">
+          <option value="expense" ${existing?.type==='expense'?'selected':''}>Výdavok</option>
+          <option value="income" ${existing?.type==='income'?'selected':''}>Príjem</option>
+        </select></div>
+      </div>
+      <div><label class="planning-form-label">Dátum</label><input id="evt-date" required type="date" class="planning-form-input" value="${escPlanning(defaultDate)}"></div>
+      <div><label class="planning-form-label">Kategória</label><select id="evt-category" class="planning-form-input">${categories.map(c=>`<option value="${escPlanning(c.id)}" ${String(c.id)===String(selectedCategory)?'selected':''}>${escPlanning(c.id)}</option>`).join('')}</select></div>
+      <div><label class="planning-form-label">Poznámka</label><textarea id="evt-notes" class="planning-form-input min-h-[80px]" placeholder="Prečo túto udalosť plánuješ?">${escPlanning(existing?.notes||'')}</textarea></div>
+      <div class="planning-helper">${editing
+        ? `Po uložení Flow okamžite prepočíta mesiac. Ak zmeníš údaje, podľa ktorých bola splnená udalosť spárovaná s transakciou, prepojenie sa bezpečne zruší a udalosť sa vráti na <b>Čaká</b>.`
+        : `Udalosť je iba plán. Nevytvorí automaticky transakciu. Keď Flow nájde podobnú reálnu transakciu, ponúkne ti kontrolu zhody.`}</div>
+      <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">${editing?'Uložiť zmeny':'Pridať do plánu'}</button>
+    </form>`);
+    if(typeof lucide!=='undefined') lucide.createIcons();
+}
+
+async function submitPlanningEvent(event,eventId=''){
+    event.preventDefault();
+    const btn=event.submitter || event.currentTarget?.querySelector('button[type="submit"],button');
+    if(btn){btn.disabled=true;btn.textContent='UKLADÁM…';btn.classList.add('opacity-70');}
+
+    const existing=eventId ? flowPlannedEvents.find(e=>String(e.id)===String(eventId)) : null;
+    const category=document.getElementById('evt-category').value;
+    const next={
+        ...(existing||{}),
+        id:existing?.id||createUid('evt'),
+        date:document.getElementById('evt-date').value,
+        title:document.getElementById('evt-title').value.trim(),
+        type:document.getElementById('evt-type').value,
+        amount:Math.abs(Number(document.getElementById('evt-amount').value)||0),
+        category,
+        categoryId:getCategoryUidByName(category),
+        sub:existing?.sub||'',
+        notes:document.getElementById('evt-notes').value.trim(),
+        status:existing?.status||'pending',
+        matchedTransactionId:existing?.matchedTransactionId||'',
+        completedAt:existing?.completedAt||'',
+        version:(Number(existing?.version)||0)+1,
+        createdAt:existing?.createdAt||new Date().toISOString(),
+        deleted:false
+    };
+
+    let matchReset=false;
+    if(existing && isPlannedEventCompleted(existing)){
+        const matchRelevantChanged=
+            String(existing.date||'')!==String(next.date||'') ||
+            String(existing.title||'')!==String(next.title||'') ||
+            String(existing.type||'')!==String(next.type||'') ||
+            Math.abs(Number(existing.amount)||0)!==Math.abs(Number(next.amount)||0) ||
+            String(existing.categoryId||'')!==String(next.categoryId||'');
+
+        if(matchRelevantChanged){
+            next.status='pending';
+            next.matchedTransactionId='';
+            next.completedAt='';
+            matchReset=true;
+        }
+    }
+
+    try{
+        const result=await savePlanningEntity('event',next);
+        closePlanningModal();
+        renderPlanningScreens();
+
+        showToast?.({
+          type:result?.cloudSaved===false?'warning':'success',
+          title:existing?'Udalosť upravená':'Udalosť pridaná',
+          text:existing
+            ? `${next.title} je uložená.${matchReset?' Pôvodná zhoda s transakciou bola zrušená a udalosť je opäť Čaká.':''}${result?.cloudSaved===false?' Zmena je zatiaľ uložená lokálne a Flow ju skúsi dopísať do cloudu.':''}`
+            : `${next.title} je zatiaľ označená ako Čaká. Keď nájdem podobnú reálnu transakciu, ponúknem ti jej potvrdenie.${result?.cloudSaved===false?' Zatiaľ je uložená lokálne.':''}`
+        });
+    }catch(error){
+        showToast?.({type:'error',title:'Udalosť sa nepodarilo uložiť',text:error?.message||'Skús to znova.'});
+        if(btn){btn.disabled=false;btn.textContent=existing?'Uložiť zmeny':'Pridať do plánu';btn.classList.remove('opacity-70');}
+    }
+}
+
+function openPlannedEventDeleteConfirm(eventId){
+    const item=flowPlannedEvents.find(e=>String(e.id)===String(eventId) && !e.deleted);
+    if(!item) return;
+    showPlanningModal('Odstrániť udalosť','Potvrdenie',`
+      <div class="space-y-4">
+        <div class="p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/20">
+          <div class="font-black text-slate-800 dark:text-slate-100">${escPlanning(item.title)}</div>
+          <div class="mt-1 text-[12px] font-bold text-slate-500">${escPlanning(getCleanDateStr(item.date))} · ${item.type==='income'?'+':'−'}${formatCurrency(Math.abs(Number(item.amount)||0))}</div>
+        </div>
+        <div class="planning-helper">Udalosť odstránim iba z plánu. Reálna transakcia, s ktorou bola prípadne prepojená, zostane nedotknutá.</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" class="planning-choice-btn justify-center" onclick="openPlannedEventStatus('${escPlanning(item.id)}')">Ponechať</button>
+          <button type="button" class="planning-danger-btn justify-center" onclick="deletePlannedEvent('${escPlanning(item.id)}',this)">Odstrániť</button>
+        </div>
+      </div>`);
+}
+
+async function deletePlannedEvent(eventId,btn){
+    const idx=flowPlannedEvents.findIndex(e=>String(e.id)===String(eventId));
+    if(idx<0) return;
+    const original=flowPlannedEvents[idx];
+    if(btn){btn.disabled=true;btn.textContent='ODSTRAŇUJEM…';btn.classList.add('opacity-70');}
+
+    const tombstone={
+        ...original,
+        deleted:true,
+        updatedAt:new Date().toISOString(),
+        version:(Number(original.version)||1)+1
+    };
+
+    // Optimistic delete with a local tombstone. The tombstone is deliberately
+    // retained so an older cloud copy cannot reappear after refresh.
+    flowPlannedEvents[idx]=tombstone;
+    planningPersist();
+    renderPlanningScreens();
+    closePlanningModal();
+
+    showToast?.({
+      type:'info',
+      title:'Udalosť odstránená z plánu',
+      text:'Aktualizujem cloud. Prepojená reálna transakcia zostáva bez zmeny.'
+    });
+
+    let cloudSaved=true;
+    try{
+        await planningPost({action:'deletePlanning',type:'event',entity:tombstone});
+    }catch(error){
+        cloudSaved=false;
+        console.warn('Planned event delete queued locally:',error);
+    }
+
+    showToast?.({
+      type:cloudSaved?'success':'warning',
+      title:cloudSaved?'Udalosť odstránená':'Odstránené lokálne',
+      text:cloudSaved
+        ? `${original.title} už nie je súčasťou plánu mesiaca.`
+        : `${original.title} už v aplikácii nevidíš. Flow skúsi odstránenie z cloudu znovu pri ďalšom načítaní.`
+    });
+}
+
 
 function openMonthPlanDetail(key) {
     const [year,month1]=key.split('-').map(Number); const month=month1-1; const plan=getAnnualPlan(year)[month]; if(!plan)return;

@@ -1,5 +1,31 @@
 # Flow changelog
 
+## v2.49.18 – Editácia a mazanie udalostí
+
+- V detaile udalosti pribudli akcie `Upraviť` a `Odstrániť`.
+- Editovať možno názov, sumu, typ, dátum, kategóriu a poznámku.
+- Ak bola udalosť `Splnená` a zmení sa údaj dôležitý pre párovanie (dátum, názov, typ, suma alebo kategória), Flow zruší staré prepojenie a vráti udalosť na `Čaká`.
+- Zmena iba poznámky existujúce platné prepojenie neruší.
+- Mazanie má samostatné potvrdenie a jasne vysvetľuje, že reálna transakcia sa nemaže.
+- Pri mazaní sa lokálne ponechá tombstone, aby staršia cloudová verzia nemohla udalosť po refreshi vrátiť.
+- Pri dočasnom zlyhaní cloudu Flow editáciu/mazanie zachová lokálne a pri ďalšom načítaní skúsi cloud opraviť.
+- Každá akcia dá používateľovi okamžitý feedback.
+- GAS zostáva v2.49.10 z v2.49.17.
+- Recurring, Budget a Income Engine sa nemenia.
+
+## v2.49.17 – Stav plánovaných udalostí a spätná väzba
+
+- Udalosti majú stav `Čaká` / `Splnená`.
+- Flow hľadá kandidátov medzi reálnymi transakciami podľa typu, sumy, dátumu, názvu/poznámky a kategórie.
+- Silná zhoda sa v mesiaci zvýrazní ako `Skontrolovať zhodu`.
+- Používateľ musí zhodu potvrdiť; automatické uzavretie sa nerobí.
+- Po potvrdení sa uloží `status=completed`, `matchedTransactionId` a `completedAt`.
+- Splnená udalosť sa vyradí z `eventIncome` / `eventExpense`, preto sa už druhýkrát nepočíta medzi očakávané peniaze.
+- Stav sa dá vrátiť späť na `Čaká`.
+- Ukladanie udalosti aj zmeny stavu dáva okamžitý feedback.
+- GAS v2.49.10 rozširuje `FlowPlannedEvents` o tri nové polia.
+- Recurring logika, Budget override a Income Engine ostávajú bez iných zmien.
+
 ## v2.49.16 – Ručný budget zostáva po refreshi
 
 - Opravené načítanie `FlowBudgetOverrides`: cloud už slepo neprepíše novšiu lokálnu ručnú hodnotu.
