@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.49.19 – Ručné prepočítanie odhadu
+
+- V Ročnom pláne pribudlo tlačidlo `↻ Aktualizovať odhad`.
+- Ručný prepočet zneplatní aktuálny forecast index a cache výberu modelov a znovu vypočíta aktuálny odhad výdavkov aj príjmov z dostupných dát.
+- Počas výpočtu je tlačidlo zablokované a Flow zobrazí okamžitý feedback; po dokončení ukáže úspešné prepočítanie alebo chybu.
+- Ročný plán zobrazuje čas posledného prepočtu odhadu.
+- Samotný forecast algoritmus, Income Engine, Budget výpočty, recurring logika, synchronizácia a GAS sa nemenia.
+
 ## v2.49.18 – Editácia a mazanie udalostí
 
 - V detaile udalosti pribudli akcie `Upraviť` a `Odstrániť`.

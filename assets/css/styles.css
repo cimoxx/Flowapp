@@ -3003,3 +3003,20 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
 .planning-danger-btn{display:flex;align-items:center;gap:.4rem;padding:.75rem 1rem;border-radius:.75rem;border:1px solid rgba(244,63,94,.26);background:rgba(244,63,94,.08);color:rgb(225,29,72);font-size:10px;font-weight:900;text-transform:uppercase}
 .planning-danger-btn:disabled{opacity:.6}
 .dark .planning-danger-btn{background:rgba(244,63,94,.10);border-color:rgba(244,63,94,.35);color:rgb(251,113,133)}
+
+
+/* v2.49.19 — manual forecast refresh */
+.forecast-refresh-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:16px;background:rgba(248,250,252,.9)}
+.forecast-refresh-copy{display:flex;align-items:center;gap:9px;min-width:0;color:#64748b}
+.forecast-refresh-copy>i{width:16px;height:16px;color:#10b981;flex:0 0 auto}
+.forecast-refresh-copy>div{display:flex;flex-direction:column;min-width:0}
+.forecast-refresh-copy strong{font-size:10px;font-weight:900;color:#334155}
+.forecast-refresh-copy small{font-size:9px;font-weight:700;color:#94a3b8;margin-top:2px}
+.forecast-refresh-btn{flex:0 0 auto;text-transform:none;font-size:9px;padding:9px 11px}
+.dark .forecast-refresh-bar{border-color:#334155;background:rgba(15,23,42,.72)}
+.dark .forecast-refresh-copy strong{color:#e2e8f0}
+.dark .forecast-refresh-copy{color:#94a3b8}
+@media (max-width:520px){
+  .forecast-refresh-bar{align-items:flex-start;flex-direction:column}
+  .forecast-refresh-btn{width:100%}
+}

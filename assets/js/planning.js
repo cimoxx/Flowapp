@@ -22,6 +22,61 @@ let flowForecastIndexDirty = true;
 let flowChampionCache = new Map();
 let flowChampionStateCache = new Map();
 
+const FLOW_FORECAST_REFRESH_META_KEY = 'flow_forecast_refresh_v24919';
+
+function getForecastRefreshLabel() {
+    try {
+        const raw = localStorage.getItem(FLOW_FORECAST_REFRESH_META_KEY);
+        if (!raw) return 'Odhad sa prepočítava podľa aktuálnych dát';
+        const date = new Date(raw);
+        if (Number.isNaN(date.getTime())) return 'Odhad sa prepočítava podľa aktuálnych dát';
+        const now = new Date();
+        const sameDay = date.toDateString() === now.toDateString();
+        const time = new Intl.DateTimeFormat('sk-SK', {hour:'2-digit', minute:'2-digit'}).format(date);
+        if (sameDay) return `Naposledy prepočítané dnes o ${time}`;
+        const day = new Intl.DateTimeFormat('sk-SK', {day:'2-digit', month:'2-digit', year:'numeric'}).format(date);
+        return `Naposledy prepočítané ${day} o ${time}`;
+    } catch (_) {
+        return 'Odhad sa prepočítava podľa aktuálnych dát';
+    }
+}
+
+function noteForecastCalculated() {
+    try { localStorage.setItem(FLOW_FORECAST_REFRESH_META_KEY, new Date().toISOString()); } catch (_) {}
+}
+
+async function refreshForecastNow() {
+    const button = document.querySelector('[data-forecast-refresh-btn]');
+    const originalText = button?.textContent || '↻ Aktualizovať odhad';
+    try {
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Prepočítavam…';
+            button.classList.add('opacity-70','cursor-wait');
+        }
+        showToast?.({type:'info', title:'Prepočítavam odhad', text:'Flow znovu prejde aktuálne údaje pre výdavky aj príjmy.'});
+        await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
+        // Manual refresh only invalidates forecast caches. It does not change
+        // the forecast algorithm, Budget values, recurring plans or transactions.
+        markForecastIndexDirty();
+        renderAnnualPlanScreen();
+        if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+        if (window.lucide) lucide.createIcons();
+
+        showToast?.({type:'success', title:'Odhad je aktualizovaný', text:'Výdavky aj príjmy boli prepočítané z aktuálnych dát.'});
+    } catch (error) {
+        console.error('Manual forecast refresh failed:', error);
+        showToast?.({type:'error', title:'Odhad sa nepodarilo prepočítať', text:error?.message || 'Skús to znova.'});
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+            button.classList.remove('opacity-70','cursor-wait');
+        }
+    }
+}
+
 function markForecastIndexDirty() {
     flowForecastIndexDirty = true;
     flowChampionCache.clear();
@@ -2220,6 +2275,7 @@ function renderAnnualPlanScreen() {
     if (!el) return;
     const year = parseInt(document.getElementById('annual-plan-year')?.value || new Date().getFullYear(),10);
     const months = getAnnualPlan(year);
+    noteForecastCalculated();
     const totalBudget = months.reduce((s,m)=>s+m.budget,0);
     const totalForecast = months.reduce((s,m)=>s+m.forecast,0);
     const totalIncome = months.reduce((s,m)=>s+m.plannedIncome,0);
@@ -2242,6 +2298,14 @@ function renderAnnualPlanScreen() {
           <div><span>Forecast výdavkov</span><strong>${formatCurrency(totalForecast)}</strong></div>
           <div><span>Plánovaný príjem</span><strong>${formatCurrency(totalIncome)}</strong></div>
         </div>
+      </section>
+
+      <section class="forecast-refresh-bar" aria-label="Aktualizácia odhadu">
+        <div class="forecast-refresh-copy">
+          <i data-lucide="refresh-cw"></i>
+          <div><strong>Odhad výdavkov a príjmov</strong><small>${getForecastRefreshLabel()}</small></div>
+        </div>
+        <button type="button" class="planning-small-btn forecast-refresh-btn" data-forecast-refresh-btn onclick="refreshForecastNow()">↻ Aktualizovať odhad</button>
       </section>
 
       <details class="planning-method-details">
