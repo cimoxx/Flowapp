@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
+    --surface: #ffffff;
+    --surface-soft: #f8fafc;
     --bg-main: #f8fafc;
     --bg-card: #ffffff;
     --bg-soft: #f8fafc;
@@ -19,6 +21,8 @@
 
 @media (prefers-color-scheme: dark) {
     :root {
+        --surface: #161d2f;
+        --surface-soft: #101827;
         --bg-main: #0b0f1a;
         --bg-card: #161d2f;
         --bg-soft: #101827;
@@ -3019,4 +3023,153 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
 @media (max-width:520px){
   .forecast-refresh-bar{align-items:flex-start;flex-direction:column}
   .forecast-refresh-btn{width:100%}
+}
+
+
+/* =========================================================
+   FLOW v2.49.20 — Complete dark-mode parity
+   Some modules historically used explicit `.dark` selectors
+   while the app itself relies on OS `prefers-color-scheme`.
+   Mirror those rules for OS dark mode so no dynamically
+   rendered module can fall back to a light surface.
+   ========================================================= */
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+    }
+    select,
+    input,
+    textarea,
+    button {
+        color-scheme: dark;
+    }
+    .annual-hero-card{background:rgba(30,41,59,.65);border-color:rgba(51,65,85,.8)}
+    .planning-small-btn{background:#e2e8f0;color:#0f172a}
+    .planning-metrics-row b{color:#e2e8f0}
+    .planning-metrics-button:hover b{color:#34d399}
+    .annual-month-card,.recurring-card{background:rgba(15,23,42,.55);border-color:#1e293b}
+    .annual-month-grid>div{background:rgba(30,41,59,.55)}
+    .annual-event-chip{background:#1e293b}
+    .annual-month-actions button{border-color:#334155;background:#0f172a;color:#cbd5e1}
+    .recurring-meta{border-color:#1e293b}
+    .planning-form-input{background:#0f172a;border-color:#334155;color:#e2e8f0}
+    .planning-helper{background:#1e293b}
+    .planning-change-summary{background:#1e293b}
+    .planning-choice-btn{background:#0f172a;border-color:#334155}
+    .planning-detail-grid>div{background:#1e293b}
+    .planning-category-row{background:#1e293b}
+    .planning-edit-icon{background:#0f172a;border-color:#334155;color:#cbd5e1}
+    #screen-budget .budget-period-card,
+    #screen-budget .budget-hero-card,
+    #screen-budget .budget-risk-summary,
+    #screen-budget .budget-section-card,
+    #screen-budget .budget-cat-card,
+    #screen-budget .budget-insight-card{background:#161d2f; border-color:#2b3854;}
+    #screen-budget .budget-period-title,
+    #screen-budget .budget-hero-value,
+    #screen-budget .budget-risk-text,
+    #screen-budget .budget-section-title,
+    #screen-budget .budget-cat-name,
+    #screen-budget .budget-mini-value,
+    #screen-budget .forecast-row-name,
+    #screen-budget .forecast-row-value,
+    #screen-budget .budget-insight-title,
+    #screen-budget .budget-method-summary,
+    #screen-budget .budget-method-body b{color:#f1f5f9;}
+    #screen-budget .budget-mini-stat,
+    #screen-budget .forecast-row{background:#101827; border-color:#293650;}
+    #screen-budget .budget-insight-text{color:#cbd5e1;}
+    #screen-plan #annual-plan-year{color:#e2e8f0; background:#161d2f; border:1px solid #2b3854; border-radius:14px;}
+    #screen-plan .annual-hero-card{background:#161d2f; border-color:#2b3854;}
+    #screen-plan .annual-value,
+    #screen-plan .annual-month-name,
+    #screen-plan .annual-month-total,
+    #screen-plan .annual-month-grid b,
+    #screen-plan .planning-info-card strong{color:#f1f5f9;}
+    #screen-plan .planning-info-card{background:rgba(6,78,59,.26); border-color:rgba(52,211,153,.28);}
+    .result-positive{color:#6ee7b7 !important;}
+    .result-negative{color:#fda4af !important;}
+    .result-surface-positive{background:rgba(6,78,59,.28) !important;
+        border-color:rgba(52,211,153,.30) !important;}
+    .result-surface-negative{background:rgba(127,29,29,.24) !important;
+        border-color:rgba(251,113,133,.30) !important;}
+    #screen-plan .planning-category-card{background:rgba(15,23,42,.72);
+        border-color:#334155;
+        box-shadow:none;}
+    .planning-health-badge.tone-good{color:#6ee7b7; background:rgba(6,78,59,.34);}
+    .planning-health-badge.tone-warning{color:#fcd34d; background:rgba(120,53,15,.30);}
+    .planning-health-badge.tone-danger{color:#fda4af; background:rgba(127,29,29,.28);}
+    .annual-year-chip{background:rgba(15,23,42,.72);border-color:#334155}
+    .annual-year-overview{background:rgba(15,23,42,.72);border-color:#334155}
+    .annual-month-status.closed{color:#cbd5e1;background:rgba(100,116,139,.18)}
+    .annual-month-status.current{color:#93c5fd;background:rgba(30,58,138,.30)}
+    .annual-month-status.future{color:#c4b5fd;background:rgba(76,29,149,.28)}
+    .planning-comparison-card{background:rgba(15,23,42,.52);
+        border-color:#334155;}
+    .planning-comparison-card.is-live{background:linear-gradient(180deg,rgba(30,58,138,.18),rgba(15,23,42,.52));}
+    .planning-source-pill{background:rgba(30,41,59,.72);
+        border-color:#475569;}
+    .planning-source-pill.current{color:#93c5fd;
+        background:rgba(30,58,138,.30);
+        border-color:rgba(96,165,250,.22);}
+    .planning-compare-track{background:rgba(100,116,139,.22);}
+    .planning-closed-summary-item{background:rgba(30,41,59,.58);
+        border-color:#475569;}
+    .planning-closed-summary-item.actual{background:rgba(30,58,138,.22);
+        border-color:rgba(96,165,250,.20);}
+    .cockpit-shell{background:var(--bg-card);border-color:#334155;box-shadow:none}
+    .cockpit-primary-card,.cockpit-signal,.cockpit-budget-link{background:rgba(30,41,59,.58);border-color:#475569}
+    .cockpit-primary-card.is-positive{background:rgba(6,78,59,.22);border-color:rgba(52,211,153,.22)}
+    .cockpit-primary-card.is-negative{background:rgba(127,29,29,.20);border-color:rgba(248,113,113,.22)}
+    .cockpit-primary-card.is-positive>strong{color:#6ee7b7}
+    .cockpit-primary-card.is-negative>strong{color:#fca5a5}
+    .cockpit-safe{background:linear-gradient(135deg,rgba(6,78,59,.26),rgba(15,23,42,.15));border-color:rgba(52,211,153,.20)}
+    .cockpit-safe-rates>div{background:rgba(30,41,59,.58);border-color:rgba(52,211,153,.16)}
+    .cockpit-safe-kicker,.cockpit-safe-value{color:#6ee7b7}
+    .cockpit-safe.is-negative{background:linear-gradient(135deg,rgba(127,29,29,.24),rgba(15,23,42,.15));border-color:rgba(248,113,113,.22)}
+    .cockpit-safe.is-negative .cockpit-safe-kicker,.cockpit-safe.is-negative .cockpit-safe-value{color:#fca5a5}
+    .cockpit-safe.is-negative .cockpit-safe-rates>div{border-color:rgba(248,113,113,.18)}
+    .cockpit-glance>div,.cockpit-more-grid>div{background:rgba(30,41,59,.52);border-color:#475569}
+    .home-toolbar{background:var(--bg-card);border-color:#334155;box-shadow:none}
+    .cockpit-hero.is-positive>strong,.cockpit-glance-safe.is-positive strong,.cockpit-more-grid strong.is-positive{color:#6ee7b7}
+    .cockpit-hero.is-negative>strong,.cockpit-glance-safe.is-negative strong,.cockpit-more-grid strong.is-negative{color:#fca5a5}
+    .budget-overview-card,.burn-advanced-panel{background:rgba(15,23,42,.72);border-color:#334155}
+    .annual-overview-metrics > div,
+    .planning-method-details,
+    .analytics-primary-card,
+    .analytics-secondary-card,
+    .analytics-more-stats,
+    #screen-analytics .analytics-toolbar{background:rgba(15,23,42,.62);
+        border-color:#334155;}
+    .analytics-primary-card{background:linear-gradient(180deg,rgba(30,58,138,.18),rgba(15,23,42,.62));}
+    .smart-insights{background:rgba(15,23,42,.72);border-color:#334155}
+    .smart-insight{background:rgba(30,41,59,.52)}
+    .smart-insight.is-primary{border-color:#475569}
+    .smart-insight.tone-good .smart-insight-icon{color:#6ee7b7}
+    .smart-insight.tone-warn .smart-insight-icon{color:#fbbf24}
+    .smart-insight.tone-danger .smart-insight-icon{color:#fca5a5}
+    .smart-insight.tone-info .smart-insight-icon{color:#93c5fd}
+    .financial-calendar{background:rgba(15,23,42,.72);border-color:#334155}
+    .financial-calendar-summary>div{background:rgba(30,41,59,.52)}
+    .financial-calendar-row{border-color:#334155}
+    .planning-positive{color:#6ee7b7}
+    .planning-negative{color:#fca5a5}
+    .safe-spend-card{background:rgba(15,23,42,.72);border-color:#334155}
+    .safe-spend-breakdown>div{background:rgba(30,41,59,.52)}
+    .safe-spend-status.tone-good{color:#6ee7b7}
+    .safe-spend-status.tone-warn{color:#fbbf24}
+    .safe-spend-status.tone-danger{color:#fca5a5}
+    .budget-secondary-body{border-color:#334155}
+    .data-health-card{background:rgba(15,23,42,.72);border-color:#334155}
+    .data-health-summary>div,.data-protection-note{background:rgba(30,41,59,.55)}
+    .data-health-badge.tone-good{color:#6ee7b7}
+    .data-health-badge.tone-warn{color:#fbbf24}
+    .planning-income-progress{border-color:rgba(52,211,153,.20);}
+    .planning-source-pill.income{background:rgba(16,185,129,.13);
+        color:#6ee7b7;}
+    .annual-event-chip.has-match,.annual-event-chip.is-completed{background:rgba(16,185,129,.09)}
+    .planning-danger-btn{background:rgba(244,63,94,.10);border-color:rgba(244,63,94,.35);color:rgb(251,113,133)}
+    .forecast-refresh-bar{border-color:#334155;background:rgba(15,23,42,.72)}
+    .forecast-refresh-copy strong{color:#e2e8f0}
+    .forecast-refresh-copy{color:#94a3b8}
 }
