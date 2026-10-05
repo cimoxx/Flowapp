@@ -2300,14 +2300,6 @@ function renderAnnualPlanScreen() {
         </div>
       </section>
 
-      <section class="forecast-refresh-bar" aria-label="Aktualizácia odhadu">
-        <div class="forecast-refresh-copy">
-          <i data-lucide="refresh-cw"></i>
-          <div><strong>Odhad výdavkov a príjmov</strong><small>${getForecastRefreshLabel()}</small></div>
-        </div>
-        <button type="button" class="planning-small-btn forecast-refresh-btn" data-forecast-refresh-btn onclick="refreshForecastNow()">↻ Aktualizovať odhad</button>
-      </section>
-
       <details class="planning-method-details">
         <summary><span><i data-lucide="info"></i> Ako vzniká ročný plán</span><small>Model · presnosť · história</small></summary>
         <div class="planning-method-body">

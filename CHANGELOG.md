@@ -1,5 +1,10 @@
 # Flow changelog
 
+## v2.49.22 – Odstránené tlačidlo Aktualizovať odhad
+
+- Z Ročného plánu zmizla karta „Odhad výdavkov a príjmov“ s tlačidlom `↻ Aktualizovať odhad`.
+- Prepočet odhadov beží automaticky na pozadí podľa pôvodných pravidiel (cache sa zneplatní pri každej zmene dát); forecast algoritmus, Budget a Income Engine sa nemenia.
+
 ## v2.49.21 – Oprava chýbajúcich pravidelných platieb v novom mesiaci
 
 - **Hlavná príčina:** Google Sheets premieňa dátum začiatku/konca pravidelnej platby na dátumovú bunku a späť ho vracia ako ISO časovú značku (napr. `2026-09-15T22:00:00.000Z`). Pole „Začiatok“ v editore potom ostalo prázdne a generátor transakcií takýto dátum nevedel spracovať, preto sa pravidelné platby nevytvárali.
