@@ -3,6 +3,21 @@ function toggleRecurringOptions() {
     document.getElementById('recurring-options').classList.toggle('hidden', !isChecked);
 }
 
+function getLocalDateKey(dateInput) {
+    // Recurring occurrences are calculated with local calendar dates.
+    // Do not convert a local Date at 00:00 through toISOString(), because
+    // in timezones east of UTC that can move the occurrence to the previous day.
+    if (dateInput instanceof Date) {
+        const d = new Date(dateInput.getTime());
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    return getCleanDateStr(dateInput);
+}
+
 function getCleanDateStr(dStr) {
     if (!dStr) return getTodayStr();
     let s = String(dStr).trim();

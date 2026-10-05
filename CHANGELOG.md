@@ -1,5 +1,14 @@
 # Flow changelog
 
+## v2.49.21 – Oprava recurring transakcií pri novom mesiaci
+
+- Opravené vytváranie pravidelných transakcií pri prechode do nového kalendárneho mesiaca.
+- Pri štarte Flow sa použijú aj lokálne uložené recurring plány, ak cloudové plánovanie ešte nie je načítané. Po načítaní cloudu sa recurring výskyty vyhodnotia znova.
+- Dátumy nových recurring výskytov sa počítajú ako lokálne kalendárne dátumy; nepoužíva sa `toISOString()` na prevod polnoci, ktorý môže na Slovensku posunúť dátum o deň dozadu.
+- Po vytvorení recurring výskytov sa synchronizačná fronta spracuje pred prekreslením transakcií.
+- Aktualizovaná Service Worker cache na v2.49.21.
+- Budget, Forecast, Annual Plan a Income Engine výpočty sa nemenia.
+
 ## v2.49.19 – Ručné prepočítanie odhadu
 
 - V Ročnom pláne pribudlo tlačidlo `↻ Aktualizovať odhad`.

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flow-v20-cache-v2.49.19';
+const CACHE_NAME = 'flow-v20-cache-v2.49.21';
 const ASSETS = [
   './',
   './index.html',
