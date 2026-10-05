@@ -2,6 +2,11 @@
 
 ## v2.49.21 – Oprava chýbajúcich pravidelných platieb v novom mesiaci
 
+- **Hlavná príčina:** Google Sheets premieňa dátum začiatku/konca pravidelnej platby na dátumovú bunku a späť ho vracia ako ISO časovú značku (napr. `2026-09-15T22:00:00.000Z`). Pole „Začiatok“ v editore potom ostalo prázdne a generátor transakcií takýto dátum nevedel spracovať, preto sa pravidelné platby nevytvárali.
+- Flow teraz dátumy plánov pri načítaní, v editore, v generátore transakcií aj v mesačnom prepočte normalizuje na `YYYY-MM-DD`.
+- Pri uložení sa pri prázdnom poli Začiatok zachová pôvodný dátum plánu.
+- GAS v2.49.21: dátumy plánov sa čítajú ako text `YYYY-MM-DD` a stĺpce Začiatok/Koniec sa zapisujú ako text. Aplikácia funguje aj bez aktualizácie GAS, no po jej nasadení sa problém neobjaví ani na iných zariadeniach.
+
 - Opravené: pravidelné platby sa v novom mesiaci negenerovali, ak pre rovnaký dátum existoval cloudový tombstone z v2.49.15 (rovnaké `RPOCC_*` ID, vyššia verzia). Server nový záznam odmietol ako konflikt a Flow ho potom lokálne zmazal.
 - Pri takomto konflikte sa výskyt pravidelnej platby v aktuálnom mesiaci obnoví s vyššou verziou (iba `RPOCC_*`, aktívny plán, aktuálny mesiac).
 - Ručné transakcie a ostatné konflikty sa správajú ako doteraz.

@@ -1,6 +1,6 @@
 /* FLOW v2.37 - Multi-year data-aware annual planning and forecasting. */
 
-let flowRecurringPlans = JSON.parse(localStorage.getItem('flow_recurring_plans_v235') || '[]');
+let flowRecurringPlans = JSON.parse(localStorage.getItem('flow_recurring_plans_v235') || '[]').map(normalizeRecurringPlanDates);
 let flowPlannedEvents = JSON.parse(localStorage.getItem('flow_planned_events_v235') || '[]');
 let flowBudgetOverrides = JSON.parse(localStorage.getItem('flow_budget_overrides_v235') || '[]');
 // Forecast archive is cloud-first. Do not keep the full archive in localStorage;
@@ -308,7 +308,7 @@ async function loadPlanningData() {
         const payload = await res.json();
         if (payload && payload.status === 'error') throw new Error(payload.message || 'Planning error');
 
-        if (Array.isArray(payload.recurring)) flowRecurringPlans = payload.recurring;
+        if (Array.isArray(payload.recurring)) flowRecurringPlans = payload.recurring.map(normalizeRecurringPlanDates);
 
         // Keep newer local edits/deletions if a cloud write was delayed.
         const localEventsBeforeLoad = Array.isArray(flowPlannedEvents) ? flowPlannedEvents.slice() : [];
@@ -442,17 +442,17 @@ function migrateLegacyRecurringPlans() {
 function getPlanMonthlyAmount(plan, year, month) {
     if (!plan || !plan.active) return 0;
     const key = getMonthKey(year, month);
-    const start = String(plan.startDate || '').slice(0, 7);
-    const end = String(plan.endDate || '').slice(0, 7);
+    const start = normalizePlanDateValue(plan.startDate).slice(0, 7);
+    const end = normalizePlanDateValue(plan.endDate).slice(0, 7);
     if (start && key < start) return 0;
     if (end && key > end) return 0;
 
     if (plan.frequency === 'yearly') {
-        const startMonth = Number(String(plan.startDate || '').slice(5, 7)) - 1;
+        const startMonth = Number(normalizePlanDateValue(plan.startDate).slice(5, 7)) - 1;
         return month === startMonth ? Number(plan.amount) || 0 : 0;
     }
     if (plan.frequency === 'quarterly') {
-        const startDate = new Date(plan.startDate || `${year}-${String(month + 1).padStart(2, '0')}-01T00:00:00`);
+        const startDate = new Date((normalizePlanDateValue(plan.startDate) || `${year}-${String(month + 1).padStart(2, '0')}-01`) + 'T00:00:00');
         const diff = (year - startDate.getFullYear()) * 12 + month - startDate.getMonth();
         return diff >= 0 && diff % 3 === 0 ? Number(plan.amount) || 0 : 0;
     }
@@ -2680,7 +2680,7 @@ function openRecurringPlanModal(id=null) {
         <div><label class="planning-form-label">Typ sumy</label><select id="rp-mode" class="planning-form-input"><option value="fixed" ${p?.amountMode!=='variable'?'selected':''}>Fixná</option><option value="variable" ${p?.amountMode==='variable'?'selected':''}>Premenlivá</option></select></div>
         <div><label class="planning-form-label">Kategória</label><select id="rp-category" class="planning-form-input" onchange="refreshRecurringSubField()">${recurringCategoryOptions(type,defaultCategory)}</select></div>
         <div><label class="planning-form-label">Podkategória / zdroj</label><select id="rp-sub" class="planning-form-input">${recurringSubOptions(defaultCategory,p?.sub || '',type)}</select></div>
-        <div><label class="planning-form-label">Začiatok</label><input id="rp-start" required type="date" class="planning-form-input" value="${p?.startDate || getTodayStr()}"></div>
+        <div><label class="planning-form-label">Začiatok</label><input id="rp-start" required type="date" class="planning-form-input" value="${normalizePlanDateValue(p?.startDate) || getTodayStr()}"></div>
         <div class="planning-helper">${type==='income'?'Pravidelný príjem má pri predikcii prednosť pred historickým odhadom rovnakého zdroja.':'Pravidelná platba je plán. Po uložení ti Flow ponúkne označenie starších platieb za posledných 12 mesiacov, aby sa v predikcii nezapočítali druhýkrát.'} Do Transakcií sa vytvárajú iba platby pre aktuálne začatý mesiac. Ďalší mesiac sa vytvorí až po jeho začatí.</div>
         <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">Uložiť</button>
       </form>`);
@@ -2709,7 +2709,7 @@ async function submitRecurringPlanForm(event, id) {
         category,
         categoryId:getCategoryUidByName(category),
         sub:document.getElementById('rp-sub').value || '',
-        startDate:document.getElementById('rp-start').value,
+        startDate:document.getElementById('rp-start').value || normalizePlanDateValue(old?.startDate) || getTodayStr(),
         active:true,
         type:document.getElementById('rp-type').value,
         version:(Number(old?.version)||0)+1

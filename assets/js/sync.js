@@ -660,12 +660,13 @@ function addMonthsSafe(date, months) {
 function recurringOccurrenceDates(plan, fromDate, toDate) {
     const out = [];
     if (!plan || !plan.active) return out;
-    const start = new Date((plan.startDate || getTodayStr()) + 'T00:00:00');
+    const start = new Date((normalizePlanDateValue(plan.startDate) || getTodayStr()) + 'T00:00:00');
     if (isNaN(start.getTime())) return out;
     const from = new Date(fromDate); from.setHours(0,0,0,0);
     const to = new Date(toDate); to.setHours(0,0,0,0);
     let cursor = new Date(Math.max(start.getTime(), from.getTime()));
-    const endPlan = plan.endDate ? new Date(plan.endDate + 'T23:59:59') : null;
+    const endPlanStr = normalizePlanDateValue(plan.endDate);
+    const endPlan = endPlanStr ? new Date(endPlanStr + 'T23:59:59') : null;
     if (endPlan && cursor > endPlan) return out;
 
     const frequency = plan.frequency || 'monthly';

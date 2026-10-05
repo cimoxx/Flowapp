@@ -3,6 +3,24 @@ function toggleRecurringOptions() {
     document.getElementById('recurring-options').classList.toggle('hidden', !isChecked);
 }
 
+// Plan dates (startDate/endDate) must always be plain YYYY-MM-DD strings.
+// Google Sheets turns such strings into Date cells, and they come back as ISO
+// timestamps (e.g. 2026-09-15T22:00:00.000Z), which <input type="date"> cannot
+// show and `new Date(value + 'T00:00:00')` cannot parse.
+function normalizePlanDateValue(value) {
+    if (value === null || value === undefined || value === '') return '';
+    const s = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const parsed = new Date(s);
+    if (isNaN(parsed.getTime())) return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : '';
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+}
+
+function normalizeRecurringPlanDates(plan) {
+    if (!plan || typeof plan !== 'object') return plan;
+    return { ...plan, startDate: normalizePlanDateValue(plan.startDate), endDate: normalizePlanDateValue(plan.endDate) };
+}
+
 function getCleanDateStr(dStr) {
     if (!dStr) return getTodayStr();
     let s = String(dStr).trim();
