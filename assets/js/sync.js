@@ -146,6 +146,17 @@ function removeAcceptedQueueItems(items) {
     }
 }
 
+function isRevivableRecurringOccurrence(tx) {
+    if (!tx || tx.deleted || !tx.recurringPlanId) return false;
+    if (!/^RPOCC_/i.test(String(tx.id || ''))) return false;
+    if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans)) return false;
+    const plan = flowRecurringPlans.find(p => String(p.id) === String(tx.recurringPlanId));
+    if (!plan || !plan.active) return false;
+    const now = new Date();
+    const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return getCleanDateStr(tx.date).startsWith(monthPrefix);
+}
+
 function applyServerConflict(result) {
     const server = result && result.server;
     if (!server || !server.id) return;
@@ -155,6 +166,20 @@ function applyServerConflict(result) {
 
     if (!local) {
         if (!server.deleted) db.push(server);
+        return;
+    }
+
+    // v2.49.21: a current-month recurring occurrence can collide with a cloud
+    // tombstone that v2.49.15 created when it removed pre-generated future
+    // months (same stable RPOCC_* id, higher version). The plan is the source of
+    // truth for the current month, so revive the occurrence instead of letting
+    // the old tombstone silently delete it again.
+    if (server.deleted && isRevivableRecurringOccurrence(local)) {
+        local.version = Math.max(Number(local.version) || 1, Number(server.version) || 1) + 1;
+        local.updatedAt = new Date().toISOString();
+        local.deleted = false;
+        local.action = 'save';
+        queueMutation(local);
         return;
     }
 
@@ -382,7 +407,7 @@ async function syncTransactions(action = 'pull') {
         saveData(false);
         if (typeof refreshYearSelectors === 'function') refreshYearSelectors();
 
-        await processRecurringPayments();
+        processRecurringPayments();
         renderList();
         updateAnalytics();
         updateBurnRateTab();
@@ -736,33 +761,19 @@ function reconcileRecurringOccurrence(plan,dateStr) {
     return keep;
 }
 
-async function processRecurringPayments() {
+function processRecurringPayments() {
     // Generate real recurring transactions only for the calendar month that
     // has already started. Future months remain represented by the recurring
     // plan and are materialized only when that month becomes current.
     //
     // Example: during September only September occurrences exist in db.
     // October occurrences are created on the first app sync/open in October.
-    // The planning endpoint loads asynchronously during startup. On a fresh
-    // month the first recurring pass can therefore happen before the cloud
-    // planning response arrives. Use the last locally persisted plans as a
-    // safe fallback; loadPlanningData() will replace them with the cloud
-    // state and run this function again when the response arrives.
-    if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans)) {
-        flowRecurringPlans = [];
-    }
-    if (flowRecurringPlans.length === 0) {
-        try {
-            const cachedPlans = JSON.parse(localStorage.getItem('flow_recurring_plans_v235') || '[]');
-            if (Array.isArray(cachedPlans)) flowRecurringPlans = cachedPlans;
-        } catch (_) {}
-    }
-    if (flowRecurringPlans.length === 0) return;
+    if (typeof flowRecurringPlans === 'undefined' || !Array.isArray(flowRecurringPlans) || flowRecurringPlans.length === 0) return;
 
     const today = new Date(); today.setHours(0,0,0,0);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
-    const monthEndStr = getLocalDateKey(monthEnd);
+    const monthEndStr = getCleanDateStr(monthEnd.toISOString());
     let changed = false;
 
     // Migration from older releases: remove only automatically generated
@@ -791,7 +802,7 @@ async function processRecurringPayments() {
         // while no transaction for the next month is created in advance.
         const dates = recurringOccurrenceDates(plan, monthStart, monthEnd);
         dates.forEach(date => {
-            const targetDateStr = getLocalDateKey(date);
+            const targetDateStr = getCleanDateStr(date.toISOString());
 
             const existing = reconcileRecurringOccurrence(plan, targetDateStr);
             if (existing) return;
@@ -825,7 +836,7 @@ async function processRecurringPayments() {
 
     if (changed) {
         saveData(false);
-        await processSyncQueue();
+        processSyncQueue();
         renderList();
         updateAnalytics();
         updateBurnRateTab();

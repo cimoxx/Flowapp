@@ -334,14 +334,14 @@ async function loadPlanningData() {
         planningPersist();
         migrateLegacyRecurringPlans();
         renderPlanningScreens();
-        if (typeof processRecurringPayments === 'function') await processRecurringPayments();
+        if (typeof processRecurringPayments === 'function') processRecurringPayments();
         return true;
     } catch (error) {
         console.warn('Planning data load failed; local data retained.', error);
         planningLoaded = true;
         migrateLegacyRecurringPlans();
         renderPlanningScreens();
-        if (typeof processRecurringPayments === 'function') await processRecurringPayments();
+        if (typeof processRecurringPayments === 'function') processRecurringPayments();
         return false;
     }
 }

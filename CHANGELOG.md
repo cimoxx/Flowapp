@@ -1,13 +1,11 @@
 # Flow changelog
 
-## v2.49.21 – Oprava recurring transakcií pri novom mesiaci
+## v2.49.21 – Oprava chýbajúcich pravidelných platieb v novom mesiaci
 
-- Opravené vytváranie pravidelných transakcií pri prechode do nového kalendárneho mesiaca.
-- Pri štarte Flow sa použijú aj lokálne uložené recurring plány, ak cloudové plánovanie ešte nie je načítané. Po načítaní cloudu sa recurring výskyty vyhodnotia znova.
-- Dátumy nových recurring výskytov sa počítajú ako lokálne kalendárne dátumy; nepoužíva sa `toISOString()` na prevod polnoci, ktorý môže na Slovensku posunúť dátum o deň dozadu.
-- Po vytvorení recurring výskytov sa synchronizačná fronta spracuje pred prekreslením transakcií.
-- Aktualizovaná Service Worker cache na v2.49.21.
-- Budget, Forecast, Annual Plan a Income Engine výpočty sa nemenia.
+- Opravené: pravidelné platby sa v novom mesiaci negenerovali, ak pre rovnaký dátum existoval cloudový tombstone z v2.49.15 (rovnaké `RPOCC_*` ID, vyššia verzia). Server nový záznam odmietol ako konflikt a Flow ho potom lokálne zmazal.
+- Pri takomto konflikte sa výskyt pravidelnej platby v aktuálnom mesiaci obnoví s vyššou verziou (iba `RPOCC_*`, aktívny plán, aktuálny mesiac).
+- Ručné transakcie a ostatné konflikty sa správajú ako doteraz.
+- Zosúladené verzie v `config.js`, `sw.js` a `index.html`.
 
 ## v2.49.19 – Ručné prepočítanie odhadu
 
