@@ -471,6 +471,14 @@ function getPlannedEventsForMonth(year, month) {
     return flowPlannedEvents.filter(e => !e.deleted && String(e.date || '').slice(0, 7) === key);
 }
 
+const INCOME_OVERRIDE_CATEGORY = '__INCOME__';
+
+// Ručne upravený plánovaný príjem mesiaca. Používa rovnakú entitu "override" ako ručný budget
+// kategórie (už sa synchronizuje do cloudu), len s vyhradenou kategóriou __INCOME__.
+function getIncomeOverride(year, month) {
+    return getBudgetOverride(INCOME_OVERRIDE_CATEGORY, year, month);
+}
+
 function getBudgetOverride(category, year, month) {
     const key = getMonthKey(year, month);
     return flowBudgetOverrides.find(o => !o.deleted && o.monthKey === key && String(o.category || '') === String(category));
@@ -1758,10 +1766,17 @@ function getAnnualPlan(year) {
                 plannedIncome = round2(recurringIncome + incomeForecast.value + eventIncome);
             }
         }
+        // Ručná úprava príjmu nahrádza modelový odhad. V aktuálnom mesiaci nikdy nejde pod už prijatú sumu.
+        const modelIncome = plannedIncome;
+        const incomeOverride = closed ? null : getIncomeOverride(year, month);
+        if (incomeOverride) {
+            const manual = Math.max(0, Number(incomeOverride.amount) || 0);
+            plannedIncome = round2(isCurrent ? Math.max(manual, actualIncome) : manual);
+        }
         const plannedBalance = round2(plannedIncome - forecast);
 
         const archiveComparison = closed ? getMonthArchiveComparison(key, actualExpenses) : null;
-        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, plannedBalance, incomeForecast, categoryRows, events, recurring, archiveComparison });
+        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, modelIncome, incomeOverridden: Boolean(incomeOverride), incomeOverrideNote: incomeOverride?.notes || '', plannedBalance, incomeForecast, categoryRows, events, recurring, archiveComparison });
     }
     return result;
 }
@@ -2061,7 +2076,7 @@ async function archiveCurrentForecastSnapshot() {
         evaluatedAt:''
     }));
     rows.push({
-        id:createUid('fa'),targetMonth:key,category:'__INCOME__',forecastAmount:plan.plannedIncome,budgetAmount:plan.plannedIncome,actualAmount:plan.actualIncome,
+        id:createUid('fa'),targetMonth:key,category:'__INCOME__',forecastAmount:plan.modelIncome ?? plan.plannedIncome,budgetAmount:plan.plannedIncome,actualAmount:plan.actualIncome,
         modelVersion:FLOW_MODEL_VERSION,generatedAt:new Date().toISOString(),dataMonths:0,confidence:'live',method:'income-live-plan',
         inputsJson:JSON.stringify({type:'income',plannedIncome:plan.plannedIncome,eventIncome:plan.eventIncome}),evaluatedAt:''
     });
@@ -2334,12 +2349,12 @@ function renderAnnualPlanScreen() {
           <div class="annual-month-grid annual-month-grid-live">
             <div><span>Minuté doteraz</span><b>${formatCurrency(m.actualExpenses)}</b><small>skutočnosť</small></div>
             <div><span>Forecast výdavkov</span><b>${formatCurrency(m.forecast)}</b><small>odhad konca mesiaca</small></div>
-            <div><span>Očak. príjem</span><b>${formatCurrency(m.plannedIncome)}</b><small>skutočnosť + plán</small></div>
+            <div>${renderIncomeEditCell(m,'Očak. príjem',m.incomeOverridden?'ručne upravené':'skutočnosť + plán')}</div>
             <div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>${balanceLabel}</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b><small>príjem − forecast</small></div>
           </div>` : `
           <div class="annual-month-grid annual-month-grid-future">
             <div><span>Forecast výdavkov</span><b>${formatCurrency(m.forecast)}</b><small>odhad</small></div>
-            <div><span>Plánovaný príjem</span><b>${formatCurrency(m.plannedIncome)}</b><small>odhad</small></div>
+            <div>${renderIncomeEditCell(m,'Plánovaný príjem',m.incomeOverridden?'ručne upravené':'odhad')}</div>
             <div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>${balanceLabel}</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b><small>príjem − forecast</small></div>
           </div>`}
 
@@ -3147,7 +3162,7 @@ async function deletePlannedEvent(eventId,btn){
 
 function openMonthPlanDetail(key) {
     const [year,month1]=key.split('-').map(Number); const month=month1-1; const plan=getAnnualPlan(year)[month]; if(!plan)return;
-    showPlanningModal(`${plan.monthName} ${year}`,'Detail mesiaca',`<div class="space-y-4"><div class="planning-detail-grid"><div><span>Budget</span><b>${formatCurrency(plan.budget)}</b></div><div><span>Forecast</span><b>${formatCurrency(plan.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(plan.plannedIncome)}</b></div></div><div class="planning-helper"><b>Príjem:</b> známe pravidelné ${formatCurrency(plan.recurringIncome||0)} · historický model ${formatCurrency(plan.incomeForecast?.value||0)} · plánované udalosti ${formatCurrency(plan.eventIncome||0)}. Pri aktuálnom mesiaci Flow odpočíta príjmy, ktoré už eviduje.</div><div class="space-y-2">${plan.categoryRows.filter(r=>r.budget>0).sort((a,b)=>b.budget-a.budget).map(r=>{const remaining=round2(r.budget-r.forecast);const health=getPlanningCategoryHealth(r.budget,r.forecast);const progress=getPlanningProgressWidth(r.budget,r.forecast);return `<div class="planning-category-card tone-${health.tone}">
+    showPlanningModal(`${plan.monthName} ${year}`,'Detail mesiaca',`<div class="space-y-4"><div class="planning-detail-grid"><div><span>Budget</span><b>${formatCurrency(plan.budget)}</b></div><div><span>Forecast</span><b>${formatCurrency(plan.forecast)}</b></div><div><span>Príjem${plan.incomeOverridden?' · ručne':''}</span><b>${formatCurrency(plan.plannedIncome)}</b></div></div>${plan.closed?'':`<button type="button" onclick="openIncomeOverrideModal('${key}')" class="income-edit-btn"><i data-lucide="pencil"></i> ${plan.incomeOverridden?'Upraviť ručný príjem':'Upraviť plánovaný príjem'}</button>`}<div class="planning-helper"><b>Príjem:</b> známe pravidelné ${formatCurrency(plan.recurringIncome||0)} · historický model ${formatCurrency(plan.incomeForecast?.value||0)} · plánované udalosti ${formatCurrency(plan.eventIncome||0)}. Pri aktuálnom mesiaci Flow odpočíta príjmy, ktoré už eviduje.</div><div class="space-y-2">${plan.categoryRows.filter(r=>r.budget>0).sort((a,b)=>b.budget-a.budget).map(r=>{const remaining=round2(r.budget-r.forecast);const health=getPlanningCategoryHealth(r.budget,r.forecast);const progress=getPlanningProgressWidth(r.budget,r.forecast);return `<div class="planning-category-card tone-${health.tone}">
     <div class="planning-category-card-head">
         <div class="planning-category-main">
             <div class="planning-category-title-row"><b>${escPlanning(r.category)}</b><span class="planning-health-badge tone-${health.tone}">${health.label}</span></div>
@@ -3164,6 +3179,87 @@ function openMonthPlanDetail(key) {
         <div class="planning-category-progress-fill tone-${health.tone}" style="width:${progress}%"></div>
     </div>
 </div>`}).join('')}</div></div>`);
+}
+
+function renderIncomeEditCell(m, label, hint) {
+    return `<button type="button" class="income-edit-cell${m.incomeOverridden ? ' is-manual' : ''}" onclick="openIncomeOverrideModal('${m.key}')" aria-label="Upraviť plánovaný príjem: ${m.monthName}">
+      <span>${label} <i data-lucide="pencil"></i></span><b>${formatCurrency(m.plannedIncome)}</b><small>${hint}</small>
+    </button>`;
+}
+
+function openIncomeOverrideModal(key) {
+    const [year, month1] = key.split('-').map(Number);
+    const month = month1 - 1;
+    const months = getAnnualPlan(year);
+    const plan = months[month];
+    if (!plan || plan.closed) return;
+    const later = months.filter(m => !m.closed && m.month > month);
+    const parts = [];
+    if (plan.recurringIncome) parts.push(`pravidelné ${formatCurrency(plan.recurringIncome)}`);
+    if (plan.incomeForecast?.value) parts.push(`historický model ${formatCurrency(plan.incomeForecast.value)}`);
+    if (plan.eventIncome) parts.push(`plánované udalosti ${formatCurrency(plan.eventIncome)}`);
+    const modelText = `Model: ${formatCurrency(plan.modelIncome)}${parts.length ? ' (' + parts.join(' + ') + ')' : ''}`;
+    const currentNote = plan.isCurrent
+        ? `<div class="planning-helper">Aktuálny mesiac: už prijatých je ${formatCurrency(plan.actualIncome)}. Plán nemôže byť nižší ako táto suma.</div>` : '';
+    const laterLabel = later.length === 1 ? 'ďalší mesiac' : later.length < 5 ? 'ďalšie mesiace' : 'ďalších mesiacov';
+    showPlanningModal('Plánovaný príjem', `${plan.monthName} ${year}`, `<form class="space-y-4" onsubmit="submitIncomeOverride(event,'${key}')">
+      <div class="planning-change-summary"><b>${plan.incomeOverridden ? 'Ručne upravené' : 'Odhad modelu'}</b><span>${formatCurrency(plan.plannedIncome)}</span></div>
+      <div class="planning-muted">${modelText}</div>
+      <div><label class="planning-form-label" for="income-override-amount">Plánovaný príjem za mesiac (€)</label>
+        <input id="income-override-amount" required type="number" inputmode="decimal" min="0" step="0.01" class="planning-form-input" value="${plan.plannedIncome}"></div>
+      ${currentNote}
+      <div><label class="planning-form-label" for="income-override-note">Poznámka</label>
+        <textarea id="income-override-note" class="planning-form-input min-h-[70px]" placeholder="Napr. zvýšená mzda, prémia, neplatené voľno…">${escPlanning(plan.incomeOverrideNote || '')}</textarea></div>
+      ${later.length ? `<label class="income-apply-later"><input id="income-override-later" type="checkbox"> <span>Použiť rovnakú sumu aj pre ${later.length} ${laterLabel} do konca roka</span></label>` : ''}
+      <button type="submit" class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[11px] uppercase">Uložiť príjem</button>
+      ${plan.incomeOverridden ? `<button type="button" onclick="resetIncomeOverride('${key}')" class="w-full py-3 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-[11px] uppercase">Vrátiť na odhad modelu</button>` : ''}
+    </form>`);
+}
+
+async function submitIncomeOverride(event, key) {
+    event.preventDefault();
+    const btn = event.submitter || event.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'UKLADÁM…'; btn.classList.add('opacity-70'); }
+    const [year, month1] = key.split('-').map(Number);
+    const amount = Math.max(0, Number(document.getElementById('income-override-amount').value) || 0);
+    const notes = document.getElementById('income-override-note').value.trim();
+    const applyLater = Boolean(document.getElementById('income-override-later')?.checked);
+    const targets = getAnnualPlan(year).filter(m => !m.closed && (m.month === month1 - 1 || (applyLater && m.month > month1 - 1)));
+    let allCloud = true;
+    try {
+        for (const m of targets) {
+            const old = getIncomeOverride(year, m.month);
+            const result = await savePlanningEntity('override', {
+                ...(old || {}),
+                id: old?.id || createUid('bo'),
+                monthKey: m.key,
+                category: INCOME_OVERRIDE_CATEGORY,
+                amount,
+                notes,
+                version: (Number(old?.version) || 0) + 1,
+                createdAt: old?.createdAt || new Date().toISOString()
+            });
+            if (result?.cloudSaved === false) allCloud = false;
+        }
+        closePlanningModal();
+        showToast?.({
+            type: allCloud ? 'success' : 'warning',
+            title: allCloud ? 'Plánovaný príjem uložený' : 'Príjem uložený v aplikácii',
+            text: targets.length > 1 ? `Platí pre ${targets.length} mesiacov.` : 'Ročný plán aj budget sa prepočítali.'
+        });
+    } catch (error) {
+        console.warn('Income override save failed:', error);
+        if (btn) { btn.disabled = false; btn.textContent = 'Uložiť príjem'; btn.classList.remove('opacity-70'); }
+    }
+}
+
+async function resetIncomeOverride(key) {
+    const [year, month1] = key.split('-').map(Number);
+    const old = getIncomeOverride(year, month1 - 1);
+    closePlanningModal();
+    if (!old) return;
+    await deletePlanningEntity('override', old.id);
+    showToast?.({ type: 'info', title: 'Príjem vrátený na model', text: 'Mesiac opäť používa odhad modelu.' });
 }
 
 function openBudgetOverrideModal(key, category, current) {

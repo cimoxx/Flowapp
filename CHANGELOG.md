@@ -1,5 +1,12 @@
 # Flow changelog
 
+## v2.49.23 – Ručná úprava plánovaného príjmu
+
+- Ročný plán: plánovaný príjem mesiaca sa dá upraviť klepnutím na políčko príjmu v karte mesiaca alebo cez „Upraviť plánovaný príjem“ v detaile mesiaca.
+- Voliteľne sa rovnaká suma použije aj pre všetky nasledujúce neuzavreté mesiace roka. „Vrátiť na odhad modelu“ úpravu zruší.
+- Úprava sa prejaví v ročnom výsledku aj v budgete. V aktuálnom mesiaci plán nejde pod už prijatú sumu. Uzavreté mesiace sa neupravujú.
+- Ukladá sa ako ručný override s kategóriou `__INCOME__` (už sa synchronizuje do cloudu), preto netreba meniť Google Apps Script. Archív presnosti uchováva pôvodný odhad modelu.
+
 ## v2.49.22 – Odstránené tlačidlo Aktualizovať odhad
 
 - Z Ročného plánu zmizla karta „Odhad výdavkov a príjmov“ s tlačidlom `↻ Aktualizovať odhad`.

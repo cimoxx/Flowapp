@@ -3173,3 +3173,24 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
     .forecast-refresh-copy strong{color:#e2e8f0}
     .forecast-refresh-copy{color:#94a3b8}
 }
+
+
+/* v2.49.23 - ručná úprava plánovaného príjmu */
+.income-edit-cell {
+    display: block; width: 100%; text-align: left; color: inherit; cursor: pointer;
+    border: 0; background: transparent; padding: 0; font: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+.income-edit-cell > span i { width: 11px; height: 11px; margin-left: 3px; opacity: .55; vertical-align: -1px; display: inline-block; }
+.income-edit-cell.is-manual small { color: #10b981; font-weight: 800; }
+.income-edit-cell:active { opacity: .7; }
+.income-edit-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    min-height: 44px; border-radius: 14px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-main); font-size: 13px; font-weight: 800; cursor: pointer;
+}
+.income-edit-btn i { width: 16px; height: 16px; color: #10b981; }
+.income-apply-later {
+    display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; line-height: 1.35; cursor: pointer;
+}
+.income-apply-later input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: #10b981; }
