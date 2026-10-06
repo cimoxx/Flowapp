@@ -506,7 +506,7 @@ function updateAnalytics() {
                     legend: {
                         display: chartType === 'doughnut',
                         position: 'bottom',
-                        labels: { font: { size: 12 } }
+                        labels: { font: { size: 10 } }
                     }
                 }
             }
@@ -525,7 +525,7 @@ function updateAnalytics() {
                     </div>
                     <div class="text-right">
                         <div class="text-xs font-extrabold">${val.toFixed(2)} €</div>
-                        <div class="text-[12px] font-bold text-slate-400">${pct}%</div>
+                        <div class="text-[9px] font-bold text-slate-400">${pct}%</div>
                     </div>
                 </div>
             `;
@@ -644,15 +644,15 @@ function updateBurnRateTab() {
 
         cardsContainer.innerHTML = `
             <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-center">
-                <span class="text-[11px] font-black text-amber-500 uppercase tracking-wider block mb-1">Celkom</span>
+                <span class="text-[8px] font-black text-amber-500 uppercase tracking-wider block mb-1">Celkom</span>
                 <span class="text-sm font-extrabold text-amber-500">${total.toFixed(2)} €</span>
             </div>
             <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-center">
-                <span class="text-[11px] font-black text-emerald-500 uppercase tracking-wider block mb-1">Denný Priemer</span>
+                <span class="text-[8px] font-black text-emerald-500 uppercase tracking-wider block mb-1">Denný Priemer</span>
                 <span class="text-sm font-extrabold text-emerald-500">${dailyAvgTotal.toFixed(2)} €</span>
             </div>
             <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-center">
-                <span class="text-[11px] font-black text-blue-500 uppercase tracking-wider block mb-1">Mesačný Odhad</span>
+                <span class="text-[8px] font-black text-blue-500 uppercase tracking-wider block mb-1">Mesačný Odhad</span>
                 <span class="text-sm font-extrabold text-blue-500">${monthlyForecastTotal.toFixed(2)} €</span>
             </div>
         `;
@@ -693,7 +693,7 @@ function updateBurnRateTab() {
                         <span class="text-xs font-extrabold">${label}</span>
                         <span class="text-xs font-black text-amber-500">${val.toFixed(2)} €</span>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div class="grid grid-cols-2 gap-2 text-[9px] pt-1 border-t border-slate-100 dark:border-slate-800">
                         <div>
                             <span class="text-slate-400 block font-bold">Denný priemer</span>
                             <span class="font-extrabold text-slate-700 dark:text-slate-300">${dailyAvg.toFixed(2)} €/deň</span>

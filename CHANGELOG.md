@@ -1,15 +1,5 @@
 # Flow changelog
 
-## v2.50.0 – Kompaktná hlavička, nové karty pravidelných platieb, čitateľnejšie písmo, ručný príjem
-
-- Ročný plán: plánovaný príjem mesiaca sa dá ručne upraviť (klepnutie na políčko príjmu v karte mesiaca alebo v detaile mesiaca). Voliteľne sa suma použije aj na zvyšné mesiace roka a kedykoľvek sa dá vrátiť na odhad modelu. Úprava sa prejaví v ročnom výsledku, v budgete aj v cloude. V aktuálnom mesiaci plán nejde pod už prijatú sumu.
-- Hlavička je o polovicu nižšia a pri scrollovaní sa ešte zmenší; názov nad sumou ukazuje, čo číslo znamená (Nové/Spolu, obdobie, kategória). Suma používa jednotný formát meny.
-- Pravidelné platby: klepnutím na kartu sa otvorí úprava, ostatné akcie sú v menu ⋯. Karta ukazuje skutočný dátum ďalšej platby (napr. 16. okt, o 11 dní) a zoznam je zoradený podľa najbližšej platby.
-- Pozastavené pravidelné platby sa už nestratia: ostávajú v sekcii Pozastavené a dajú sa obnoviť.
-- Presnosť odhadu je v ľudskej reči (napr. Odhad sa v priemere líši o 57 %, typicky o 132 € na kategóriu za mesiac); odborné metriky WAPE, MAE a bias sú v Detaile s ľahšie zrozumiteľnými názvami.
-- Minimálna veľkosť písma je 11 px pre štítky a 12 px pre bežný text (predtým 7–10 px).
-- Jeden zdroj verzie: assets/js/version.js. Číta ho aplikácia, nastavenia, changelog aj service worker (názov cache). Nové verzie sa zapisujú cez tools/bump_version.py.
-
 ## v2.49.22 – Odstránené tlačidlo Aktualizovať odhad
 
 - Z Ročného plánu zmizla karta „Odhad výdavkov a príjmov“ s tlačidlom `↻ Aktualizovať odhad`.

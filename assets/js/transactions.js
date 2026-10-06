@@ -69,27 +69,7 @@ function updateTotals(currentListData) {
             : acc - parseFloat(curr.amount);
     }, 0);
 
-    document.getElementById('display-balance').innerText = formatCurrency(total);
-    updateBalanceLabel();
-}
-
-const BALANCE_MONTH_SHORT_SK = ['Jan', 'Feb', 'Mar', 'Apr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
-
-// Názov hore musí hovoriť, čo číslo znamená: stav filtra (Nové/Spolu), obdobie a prípadná kategória.
-function updateBalanceLabel() {
-    const label = document.getElementById('balance-label');
-    if (!label) return;
-
-    const year = document.getElementById('filter-year')?.value || new Date().getFullYear();
-    const months = [...selectedMonths].sort((x, y) => x - y);
-    let period;
-    if (months.length === 0 || months.length === 12) period = `Rok ${year}`;
-    else if (months.length <= 3) period = `${months.map(m => BALANCE_MONTH_SHORT_SK[m]).join(', ')} ${year}`;
-    else period = `${months.length} mes. ${year}`;
-
-    const parts = [currentStatusFilter === 'unprocessed' ? 'Nové' : 'Spolu', period];
-    if (typeof activeCategoryFilter !== 'undefined' && activeCategoryFilter) parts.push(activeCategoryFilter);
-    label.textContent = parts.join(' · ');
+    document.getElementById('display-balance').innerText = total.toFixed(2) + ' €';
 }
 
 function setModalMeta(isEdit = false) {
@@ -470,7 +450,7 @@ function renderSummary(sums, currentFiltered) {
                 const safe = String(category).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 html += `
                     <button type="button" onclick="toggleFilter('${safe}')" class="summary-card p-2.5 cursor-pointer flex flex-col justify-between shrink-0 text-left">
-                        <span class="text-[11px] font-black uppercase text-slate-400 truncate">${category}</span>
+                        <span class="text-[9px] font-black uppercase text-slate-400 truncate">${category}</span>
                         <span class="text-[13px] font-extrabold mt-1">${sums[category].toFixed(2)} €</span>
                     </button>
                 `;
@@ -495,7 +475,7 @@ function renderSummary(sums, currentFiltered) {
                 const isActive = window.activeSubFilter === sub;
                 html += `
                     <button type="button" onclick="toggleSubFilter('${safe}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0 text-left">
-                        <span class="text-[11px] font-black uppercase text-amber-500/80 truncate">${sub}</span>
+                        <span class="text-[9px] font-black uppercase text-amber-500/80 truncate">${sub}</span>
                         <span class="text-[13px] font-extrabold mt-1">${subSums[sub].toFixed(2)} €</span>
                     </button>
                 `;
@@ -654,7 +634,7 @@ function renderList() {
 
         html += `
             <div class="day-group mb-4">
-                <div class="flex justify-between items-center px-2 py-1.5 mb-2 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
+                <div class="flex justify-between items-center px-2 py-1.5 mb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
                     <span>${formatDayLabel(dayKey)}</span>
                     <span class="${daySum >= 0 ? 'text-emerald-500' : 'text-slate-400'}">${daySum >= 0 ? '+' : ''}${daySum.toFixed(2)} €</span>
                 </div>

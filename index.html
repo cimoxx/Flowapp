@@ -13,31 +13,35 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <link rel="stylesheet" href="assets/css/styles.css">
+    <link rel="stylesheet" href="assets/css/styles.css?v=2.49.22">
 </head>
 <body class="desktop-safe-body">
 
 <div class="app-shell">
     <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col pb-24 app-container shadow-2xl app-frame">
-        <header id="app-header" class="sticky top-0 z-20 app-container app-header">
-            <div class="app-header-row">
-                <div class="app-brand-icon-wrap" aria-hidden="true">
-                    <img src="https://img.icons8.com/fluency/48/safe.png" class="app-brand-icon" alt="">
-                </div>
-                <div class="app-header-balance" aria-live="polite">
-                    <span id="balance-label" class="app-header-label">SPOLU</span>
-                    <div id="display-balance" class="app-header-amount">0,00 €</div>
-                </div>
-                <div class="app-header-actions">
-                    <div id="sync-status" role="button" tabindex="0" aria-label="Synchronizácia" onclick="manualSync()" class="sync-pill flex items-center gap-1.5 px-3 rounded-full cursor-pointer">
-                        <div id="sync-dot" class="w-2 h-2 bg-emerald-500 rounded-full transition-colors duration-300"></div>
-                        <span id="sync-text" class="sync-pill-text">OK</span>
+        <header class="p-5 border-b sticky top-0 z-20 app-container app-header">
+            <div class="flex justify-between items-start mb-4 gap-4">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="app-brand-icon-wrap">
+                        <img src="https://img.icons8.com/fluency/48/safe.png" class="w-9 h-9" alt="Flow Icon">
                     </div>
-                    <button type="button" aria-label="História zmien a informácie o aplikácii" onclick="openChangelogModal()" class="utility-icon-btn flex items-center justify-center rounded-full active:scale-95 transition-all">
+                    <div class="min-w-0">
+                        <span id="balance-label" class="text-[10px] font-extrabold uppercase text-emerald-500 tracking-[0.18em]">SPOLU</span>
+                        <div id="display-balance" class="text-[2.15rem] leading-none font-extrabold">0,00 €</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <div id="sync-status" onclick="manualSync()" class="sync-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full cursor-pointer">
+                        <div id="sync-dot" class="w-2 h-2 bg-emerald-500 rounded-full transition-colors duration-300"></div>
+                        <span id="sync-text" class="text-[10px] font-black uppercase tracking-tight">OK</span>
+                    </div>
+                    <button type="button" onclick="openChangelogModal()" class="utility-icon-btn w-8 h-8 flex items-center justify-center rounded-full active:scale-95 transition-all">
                         <i data-lucide="info" class="w-4 h-4"></i>
                     </button>
                 </div>
             </div>
+
+            <div class="header-divider mb-3"></div>
         </header>
 
         <main id="screen-home" class="p-4 flex-1 screen-content">
@@ -140,7 +144,7 @@
             <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500"><i data-lucide="calendar-range" class="w-4 h-4"></i></div>
-                    <div><h2 class="text-xl font-extrabold">Ročný plán</h2><div class="text-[12px] font-bold text-slate-400">Rozpočet, odhad a naplánované udalosti</div></div>
+                    <div><h2 class="text-xl font-extrabold">Ročný plán</h2><div class="text-[10px] font-bold text-slate-400">Rozpočet, odhad a naplánované udalosti</div></div>
                 </div>
                 <select id="annual-plan-year" onchange="renderAnnualPlanScreen()" class="text-xs p-2 outline-none"></select>
             </div>
@@ -151,7 +155,7 @@
             <div class="flex justify-between items-center mb-1">
                 <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500"><i data-lucide="repeat" class="w-4 h-4"></i></div>
-                    <div><h2 class="text-xl font-extrabold">Pravidelné</h2><div class="text-[12px] font-bold text-slate-400">Platby a príjmy, ktoré sa pravidelne opakujú</div></div>
+                    <div><h2 class="text-xl font-extrabold">Pravidelné</h2><div class="text-[10px] font-bold text-slate-400">Platby a príjmy, ktoré sa pravidelne opakujú</div></div>
                 </div>
             </div>
             <div id="recurring-plan-content"></div>
@@ -159,16 +163,16 @@
 
         <main id="screen-analytics" class="p-4 flex-1 hidden space-y-4 screen-content">
             <div class="flex justify-between items-center mb-1">
-                <div><h2 class="text-xl font-extrabold">Analytika</h2><div class="text-[12px] font-bold text-slate-400">Rýchla odpoveď na to, čo sa deje s peniazmi</div></div>
+                <div><h2 class="text-xl font-extrabold">Analytika</h2><div class="text-[10px] font-bold text-slate-400">Rýchla odpoveď na to, čo sa deje s peniazmi</div></div>
             </div>
 
             <div class="analytics-toolbar space-y-1.5">
                 <div class="flex items-center gap-2">
-                    <label for="chart-year-filter" class="block text-[11px] font-black text-slate-400 uppercase tracking-wider px-1">Rok</label>
-                    <select id="chart-year-filter" onchange="setAnalyticsYear(this.value)" class="w-auto min-w-[88px] text-[12px] font-bold p-1.5 outline-none rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <label for="chart-year-filter" class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Rok</label>
+                    <select id="chart-year-filter" onchange="setAnalyticsYear(this.value)" class="w-auto min-w-[88px] text-[11px] font-bold p-1.5 outline-none rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     </select>
                 </div>
-                <label class="block text-[11px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie</label>
+                <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie</label>
                 <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
                     <button type="button" onclick="setChartPeriod('current_month')" id="p-chip-current_month" class="period-chip active">Tento mesiac</button>
                     <button type="button" onclick="setChartPeriod('3m')" id="p-chip-3m" class="period-chip">3 Mesiace</button>
@@ -183,9 +187,9 @@
 
             <details class="burn-advanced-panel">
                 <summary><span><i data-lucide="sliders-horizontal"></i> Detail analýzy</span><small>Graf · úroveň · dáta</small></summary>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[12px] burn-advanced-content">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[10px] burn-advanced-content">
                 <div>
-                    <label class="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ grafu</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ grafu</label>
                     <select id="chart-type" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
                         <option value="doughnut">Koláčový</option>
                         <option value="bar">Stĺpcový</option>
@@ -193,7 +197,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Zobraziť podľa</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Zobraziť podľa</label>
                     <select id="chart-level-mode" onchange="updateAnalytics()" class="w-full p-2 outline-none text-xs">
                         <option value="category">Kategórie</option>
                         <option value="sub">Podkategórie</option>
@@ -201,7 +205,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Dáta</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Dáta</label>
                     <div class="segmented-chips">
                         <button type="button" id="chart-data-expense" onclick="setAnalyticsDataMode('chart','expense')" class="seg-chip active">Výdavky</button>
                         <button type="button" id="chart-data-income" onclick="setAnalyticsDataMode('chart','income')" class="seg-chip">Príjmy</button>
@@ -230,17 +234,17 @@
                     <div class="w-7 h-7 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
                         <i data-lucide="flame" class="w-4 h-4"></i>
                     </div>
-                    <div><h2 class="text-xl font-extrabold">Tempo míňania</h2><p class="text-[12px] font-semibold text-slate-400 mt-0.5">Ako rýchlo peniaze odchádzajú a kam smerujú</p></div>
+                    <div><h2 class="text-xl font-extrabold">Tempo míňania</h2><p class="text-[10px] font-semibold text-slate-400 mt-0.5">Ako rýchlo peniaze odchádzajú a kam smerujú</p></div>
                 </div>
             </div>
 
             <div class="analytics-toolbar space-y-1.5">
                 <div class="flex items-center gap-2">
-                    <label for="burn-year-filter" class="block text-[11px] font-black text-slate-400 uppercase tracking-wider px-1">Rok</label>
-                    <select id="burn-year-filter" onchange="setAnalyticsYear(this.value)" class="w-auto min-w-[88px] text-[12px] font-bold p-1.5 outline-none rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <label for="burn-year-filter" class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Rok</label>
+                    <select id="burn-year-filter" onchange="setAnalyticsYear(this.value)" class="w-auto min-w-[88px] text-[11px] font-bold p-1.5 outline-none rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                     </select>
                 </div>
-                <label class="block text-[11px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie</label>
+                <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Obdobie</label>
                 <div class="flex gap-1 overflow-x-auto no-scrollbar py-0.5">
                     <button type="button" onclick="setChartPeriod('current_month')" id="bp-chip-current_month" class="period-chip active">Tento mesiac</button>
                     <button type="button" onclick="setChartPeriod('3m')" id="bp-chip-3m" class="period-chip">3 Mesiace</button>
@@ -253,9 +257,9 @@
 
             <div id="burn-insight-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-2"></div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-[12px]">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-[10px]">
                 <div>
-                    <label class="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ grafu</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Typ grafu</label>
                     <select id="burn-chart-type" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
                         <option value="bar">Stĺpcový</option>
                         <option value="doughnut">Koláčový</option>
@@ -263,7 +267,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Zobraziť podľa</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Zobraziť podľa</label>
                     <select id="burn-level-mode" onchange="updateBurnRateTab()" class="w-full p-2 outline-none text-xs">
                         <option value="category">Kategórie</option>
                         <option value="sub">Podkategórie</option>
@@ -271,7 +275,7 @@
                 </div>
 
                 <div>
-                    <label class="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Dáta</label>
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 px-1">Dáta</label>
                     <div class="segmented-chips">
                         <button type="button" id="burn-data-expense" onclick="setAnalyticsDataMode('burn','expense')" class="seg-chip active">Výdavky</button>
                         <button type="button" id="burn-data-income" onclick="setAnalyticsDataMode('burn','income')" class="seg-chip">Príjmy</button>
@@ -316,11 +320,11 @@
         <div class="flex justify-between items-center mb-4 sticky top-0 bg-white dark:bg-slate-900 pb-2 z-10">
             <div>
                 <div id="modal-title" class="text-sm font-black uppercase tracking-[0.12em] text-emerald-500">Nová transakcia</div>
-                <div id="modal-subtitle" class="text-[12px] font-bold text-slate-400 mt-0.5">Rýchle pridanie novej položky do prehľadu.</div>
+                <div id="modal-subtitle" class="text-[11px] font-bold text-slate-400 mt-0.5">Rýchle pridanie novej položky do prehľadu.</div>
             </div>
             <div class="flex items-center gap-2">
-                <button type="button" onclick="closeModal()" class="text-slate-400 font-extrabold text-[11px] uppercase tracking-widest">Zavrieť</button>
-                <button type="button" onclick="document.getElementById('save-trigger').click()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-extrabold text-[11px] uppercase shadow-md">Uložiť</button>
+                <button type="button" onclick="closeModal()" class="text-slate-400 font-extrabold text-[10px] uppercase tracking-widest">Zavrieť</button>
+                <button type="button" onclick="document.getElementById('save-trigger').click()" class="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-extrabold text-[10px] uppercase shadow-md">Uložiť</button>
             </div>
         </div>
 
@@ -331,17 +335,17 @@
             <input type="number" id="f-amount" inputmode="decimal" step="0.01" placeholder="0.00" class="w-full text-center text-5xl font-extrabold py-2 outline-none border-none bg-transparent !p-0" required>
 
             <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                <button type="button" id="t-ex" onclick="setType('expense')" class="flex-1 py-2 rounded-lg text-[12px] font-black">VÝDAVOK</button>
-                <button type="button" id="t-in" onclick="setType('income')" class="flex-1 py-2 rounded-lg text-[12px] font-black">PRÍJEM</button>
+                <button type="button" id="t-ex" onclick="setType('expense')" class="flex-1 py-2 rounded-lg text-[10px] font-black">VÝDAVOK</button>
+                <button type="button" id="t-in" onclick="setType('income')" class="flex-1 py-2 rounded-lg text-[10px] font-black">PRÍJEM</button>
             </div>
 
             <div>
-                <label class="text-[11px] font-black text-slate-400 uppercase block mb-2 px-1 tracking-widest">Kategória</label>
+                <label class="text-[10px] font-black text-slate-400 uppercase block mb-2 px-1 tracking-widest">Kategória</label>
                 <div id="cat-grid" class="grid grid-cols-4 gap-1.5"></div>
             </div>
 
             <div id="sub-section" class="hidden">
-                <label class="text-[11px] font-black text-slate-400 uppercase block mb-2 px-1 tracking-widest">Podkategória</label>
+                <label class="text-[10px] font-black text-slate-400 uppercase block mb-2 px-1 tracking-widest">Podkategória</label>
                 <div id="sub-grid" class="flex flex-wrap gap-1.5"></div>
             </div>
 
@@ -359,7 +363,7 @@
                 <div class="flex justify-between items-center">
                     <div class="flex items-center gap-2">
                         <i data-lucide="repeat" class="w-4 h-4 text-emerald-500"></i>
-                        <span class="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">Pravidelná platba</span>
+                        <span class="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">Pravidelná platba</span>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" id="f-recurring" onchange="toggleRecurringOptions()" class="sr-only peer">
@@ -367,12 +371,12 @@
                     </label>
                 </div>
 
-                <div class="text-[12px] font-semibold text-slate-400 leading-relaxed">
+                <div class="text-[11px] font-semibold text-slate-400 leading-relaxed">
                     Ak je táto platba pravidelná, aplikácia ju vie automaticky preniesť aj do ďalších období.
                 </div>
 
                 <div id="recurring-options" class="hidden space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                    <label class="text-[11px] font-black text-slate-400 uppercase block px-1 tracking-wider">Frekvencia opakovania</label>
+                    <label class="text-[9px] font-black text-slate-400 uppercase block px-1 tracking-wider">Frekvencia opakovania</label>
                     <select id="f-frequency" class="w-full p-2.5 text-sm outline-none">
                         <option value="weekly">Týždenne</option>
                         <option value="monthly" selected>Mesačne</option>
@@ -390,8 +394,8 @@
 <div id="planning-modal" class="fixed inset-0 bg-slate-900/90 z-[55] hidden backdrop-blur-sm flex items-end desktop-modal-overlay">
     <div class="bg-white dark:bg-slate-900 w-full max-w-md mx-auto rounded-t-[2.5rem] p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-5">
-            <div><div id="planning-modal-kicker" class="text-[11px] font-black uppercase tracking-widest text-emerald-500">Plánovanie</div><h3 id="planning-modal-title" class="text-xl font-extrabold">Nová položka</h3></div>
-            <button type="button" onclick="closePlanningModal()" class="text-slate-400 font-extrabold text-[11px] uppercase">Zavrieť</button>
+            <div><div id="planning-modal-kicker" class="text-[9px] font-black uppercase tracking-widest text-emerald-500">Plánovanie</div><h3 id="planning-modal-title" class="text-xl font-extrabold">Nová položka</h3></div>
+            <button type="button" onclick="closePlanningModal()" class="text-slate-400 font-extrabold text-[10px] uppercase">Zavrieť</button>
         </div>
         <div id="planning-modal-body"></div>
     </div>
@@ -401,7 +405,7 @@
     <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 max-h-[85vh] overflow-y-auto desktop-centered-panel">
         <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
             <div>
-                <span class="text-[11px] font-black uppercase text-emerald-500 tracking-widest">História Zmien</span>
+                <span class="text-[10px] font-black uppercase text-emerald-500 tracking-widest">História Zmien</span>
                 <h3 class="text-xl font-extrabold">Changelog</h3>
             </div>
             <button type="button" onclick="closeChangelogModal()" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
@@ -409,7 +413,356 @@
             </button>
         </div>
 
-        <div id="changelog-list" class="space-y-4 text-sm"></div>
+        <div class="space-y-4 text-sm">
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.22</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Z Ročného plánu je odstránená karta s tlačidlom „Aktualizovať odhad“; odhady sa prepočítavajú na pozadí ako doteraz.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.21</span><span class="text-[11px] font-bold text-slate-400">Predchádzajúca</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Opravené chýbajúce pravidelné platby v novom mesiaci (kolízia so starými zmazanými záznamami z v2.49.15).</li><li>Verzie v aplikácii, cache a changelogu sú zosúladené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.19</span><span class="text-[11px] font-bold text-slate-400">Predchádzajúca</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Ročný plán má tlačidlo „Aktualizovať odhad“ pre okamžitý nový výpočet výdavkov aj príjmov.</li><li>Flow pri ručnom prepočte zneplatní forecast cache a znovu prejde aktuálne dáta.</li><li>Odhad ukazuje čas posledného prepočtu a každá akcia má okamžitý feedback.</li><li>Forecast algoritmus, Income Engine, Budget, recurring logika a GAS sa nemenia.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.18</span><span class="text-[11px] font-bold text-slate-400">Predchádzajúca</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Plánované udalosti sa dajú plnohodnotne upravovať.</li><li>Pri zmene údajov splnenej udalosti sa neplatná zhoda bezpečne zruší a udalosť sa vráti na Čaká.</li><li>Udalosti sa dajú odstrániť cez potvrdenie; reálna transakcia zostáva nedotknutá.</li><li>Editácia aj mazanie majú okamžitý feedback a lokálnu ochranu pri výpadku cloudu.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.17</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Plánované udalosti majú stav Čaká / Splnená.</li><li>Flow hľadá podobnú reálnu transakciu podľa typu, sumy, dátumu, názvu a kategórie a ponúkne ju na kontrolu.</li><li>Zhodu vždy potvrdí používateľ; Flow ju neuzavrie iba podľa odhadu.</li><li>Splnená udalosť sa už druhýkrát nezapočíta do očakávaných príjmov alebo výdavkov.</li><li>Každá zmena má okamžitý stav a toast feedback.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.16</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Ručne nastavený budget má trvalo prednosť pred modelom.</li><li>Refresh už neprepíše novšiu lokálnu ručnú hodnotu staršou alebo chýbajúcou cloudovou hodnotou.</li><li>Ak cloudové uloženie zlyhalo, Flow zachová ručný budget lokálne a pri ďalšom načítaní ho skúsi automaticky dopísať do FlowBudgetOverrides.</li><li>Pri ukladaní je jasná spätná väzba o úspešnom alebo iba lokálnom uložení.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.15</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Pravidelné transakcie sa už nevytvárajú dopredu na ďalšie mesiace.</li><li>Flow vytvorí iba výskyty patriace do aktuálne začatého mesiaca.</li><li>Platby ďalšieho mesiaca vzniknú až po začatí nového mesiaca pri prvom otvorení alebo synchronizácii Flow.</li><li>Staré automaticky vytvorené budúce RPOCC_ / tx_ transakcie sa bezpečne odstránia; ručné ID-* transakcie zostanú nedotknuté.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.14</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Pravidelná platba vie nájsť ručné historické transakcie za posledných 12 mesiacov.</li><li>Používateľ sám potvrdí, ktoré transakcie patria k pravidelnému plánu.</li><li>Označené transakcie dostanú isRecurring, frequency a recurringPlanId a synchronizujú sa do Sheet1.</li><li>Forecast ich následne nepočíta ako variabilnú časť, takže sa pravidelná platba nezapočíta dvakrát.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.13</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Pridaná jednorazová oprava už existujúcich chybných pravidelných transakcií.</li><li>Najprv urobí audit, potom povinnú cloudovú zálohu a až následne opraví metadata a odstráni potvrdené automatické duplicity.</li><li>Bežné ID-* transakcie sa automaticky nemažú.</li><li>Po oprave sa lokálna databáza zosúladí s cloudom, aby sa odstránené kópie nevrátili.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.12</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Opravené duplicity pravidelných transakcií po synchronizácii a úprave plánu.</li><li>Sheet1 už uchováva isRecurring, frequency a recurringPlanId, takže príznak opakovanej platby po pull synchronizácii nezmizne.</li><li>Každý plán a dátum má iba jednu generovanú transakciu; staré tx_* duplicity sa bezpečne zreconcilujú.</li><li>Úprava sumy mení existujúce budúce transakcie namiesto vytvárania druhej kópie.</li><li>Pridanie a editácia pravidelnej platby majú okamžitý feedback a optimistické UI.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.11</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Do aktuálneho mesiaca v Ročnom pláne sa vrátila karta Príjmy mesiaca.</li><li>Zobrazuje prijaté príjmy, očakávaný príjem, ešte očakávanú sumu a progress bar.</li><li>Samotný výpočet Ročného plánu zostáva presne zo stabilnej v2.49.2.</li><li>Sync, HIST ochrana a GAS zostávajú bez zmeny.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.10</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Ročný plán bol kompletne vrátený na presný kód zo stabilnej v2.49.2, kde fungoval správne aj pre aktuálny rok.</li><li>Odstránené všetky neskoršie zásahy do planning.js z v2.49.3 až v2.49.9.</li><li>Synchronizácia a ochrana proti návratu HIST duplicít zostávajú z funkčnej v2.49.7.</li><li>Budget, transakcie, kategórie a ostatné moduly sa nemenia.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.7</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Opravená synchronizácia nových transakcií po v2.49.6.</li><li>Doplnené chýbajúce serverové funkcie pre ochranu HIST-* záznamov.</li><li>Bežné ID-* transakcie už vôbec nečítajú tombstone hárok, takže ochrana historických duplicít nezasahuje do normálneho syncu.</li><li>Ochrana proti návratu vyčistených HIST-* duplicít zostáva zachovaná.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.6</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Opravené opätovné vytváranie vyčistených HIST-* duplicít po synchronizácii.</li><li>Po čistení sa odstránené historické ID vymažú aj z lokálnej databázy a sync fronty.</li><li>Cloud si odstránené HIST-* ID pamätá v hárku FlowHistoricalTombstones a staré zariadenie ich už nemôže znovu nahrať.</li><li>Budget, Forecast, Income Engine a Ročný plán zostávajú bez zmeny.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.5</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Kontrola dát už nezávisí od oprávnenia ScriptApp.</li><li>Čistenie historických duplicít sa zablokuje pri čakajúcej synchronizácii alebo neoverenom cloude.</li><li>Pred mazaním zostáva povinná kompletná cloudová záloha.</li><li>Backend overuje počet čakajúcich zmien a nezmenený audit duplicít ešte pred čistením.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.4</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Bezpečné čistenie duplicitných historických riadkov v Sheet1.</li><li>Pred čistením sa povinne vytvorí kompletná cloudová záloha; pri zlyhaní zálohy sa nič nemaže.</li><li>Čistenie sa týka iba HIST-* riadkov s rovnakými finančnými údajmi.</li><li>Budget, Forecast, Income Engine a Ročný plán sa nemenia.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.3</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Presnosť plánu v Ročnom pláne sa uchováva v samostatnom cloudovom hárku FlowPlanAccuracy.</li><li>Pre každý mesiac sa uloží iba prvý plán/odhad a neskôr sa už neprepisuje.</li><li>Existujúce historické porovnania sa bezpečne doplnia z ForecastArchive.</li><li>Výpočet Ročného plánu, Income Engine, Budget a Forecast sa nemení.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.2</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Automatická záloha sa spustí v posledný deň každého mesiaca.</li><li>Flow drží najviac 5 cloudových záloh; šiestou prepíše najstaršiu.</li><li>V Nastaveniach vidíš, či je automatické zálohovanie zapnuté.</li><li>Finančné výpočty ani synchronizácia sa nemenia.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.1</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Cloudová záloha už nepoužíva DriveApp; kópia sa vytvára priamo cez Google Sheets.</li><li>Kontrola cloudu je ľahšia a nemení žiadne planning sheety.</li><li>Pri chybe Flow zobrazí skutočnú odpoveď servera namiesto všeobecnej hlášky.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.49.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Opravený prázdny Rozpočet po v2.48.0.</li><li>Centrum ochrany dát kontroluje základnú integritu dát.</li><li>Cloudová záloha vytvorí kompletnú kópiu Google tabuľky a drží posledných 30 kópií.</li><li>Pred importom JSON sa uloží lokálna bezpečnostná kópia.</li><li>Finančný model, plánovanie a synchronizačná logika zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.48.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Prehľad mesiaca je jednoduchší: každé hlavné číslo sa zobrazuje iba raz.</li><li>Rozpočet má jasnejšiu hierarchiu; podrobné odhady a ďalšie upozornenia sú zbalené do detailu.</li><li>Technické názvy Budget/Forecast sú v používateľskom rozhraní nahradené výrazmi Rozpočet/Odhad.</li><li>Analytika a Tempo míňania používajú jednotnejšie názvy filtrov.</li><li>Finančné výpočty, transakcie, synchronizácia a kategórie zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.47.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nová karta „Koľko ešte môžem minúť?“ dá jednoduchú odpoveď pre zvyšok mesiaca.</li><li>Ukáže aj približnú dennú sumu a stav V pohode / Pozor na tempo / Treba ubrať.</li><li>Detail vysvetlí výpočet bez technických výrazov.</li><li>Pravidelné a naplánované výdavky zostávajú súčasťou existujúceho odhadu.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.46.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nový prehľad „Najbližšie platby“ ukáže, čo príde a odíde v najbližších 31 dňoch.</li><li>Zobrazuje pravidelné položky aj naplánované udalosti, ktoré už Flow pozná.</li><li>Na prvý pohľad vidíš príjmy, výdavky a ich rozdiel.</li><li>Existujúce finančné výpočty a synchronizácia zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.45.0</span><span class="text-[11px] font-bold text-slate-400">Aktuálna</span></div><ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Nová sekcia „Čo je dobré vedieť“ ukazuje najviac 3 dôležité informácie o mesiaci.</li><li>Flow upozorní na riziko prekročenia rozpočtu, rýchle míňanie a očakávaný výsledok mesiaca.</li><li>Texty sú krátke a zrozumiteľné.</li><li>Finančné výpočty a synchronizácia zostali nezmenené.</li></ul></div><div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.6</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Presnosť sa vie spätne doplniť aj pri starších uzavretých mesiacoch.</li>
+                    <li>Pri spätnom výpočte Flow používa iba údaje, ktoré boli dostupné pred daným mesiacom.</li>
+                    <li>Je jasne označené, či bol plán uložený počas mesiaca alebo spätne dopočítaný.</li>
+                    <li>Texty sú jednoduchšie: Rozpočet, Odhad a Skutočné výdavky.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.5</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Opravená presnosť plánu priamo v kartách uzavretých mesiacov.</li>
+                    <li>Aktuálny mesiac automaticky archivuje Budget/Forecast snapshot pre neskoršie porovnanie so skutočnosťou.</li>
+                    <li>Ak práve uzavretému mesiacu porovnanie chýba, Flow ho doplní walk-forward výpočtom na pozadí.</li>
+                    <li>Skutočné výdavky sa naďalej berú zo zapísaných transakcií.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-extrabold text-[10px]">v2.44.4</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Ročný plán teraz začína jedným hlavným výsledkom – očakávaným ročným zostatkom – a tri sekundárne sumy sú kompaktnejšie.</li>
+                    <li>Technické informácie o modeli a presnosti sú schované pod „Ako vzniká ročný plán“.</li>
+                    <li>Analytika používa jednu dominantnú sumu, najväčšiu kategóriu a ostatné štatistiky sú dostupné až po rozbalení.</li>
+                    <li>Nad grafom sa podľa dát zobrazuje otázka „Kam idú peniaze?“, „Odkiaľ prichádzajú príjmy?“ alebo „Ako vyzerá bilancia?“.</li>
+                    <li>Filtre, grafy, ročný plán, forecast, Budget, sync a backendová logika zostávajú funkčne nezmenené.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.44.3</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium"><li>Budget má kompaktnejší mesačný overview a kategórie ukazujú najprv čerpanie a zostávajúcu sumu.</li><li>Forecast a ďalšie sekundárne údaje sú dostupné pod Detail mesiaca / Detail kategórie.</li><li>Burn Rate je v UI pomenovaný zrozumiteľnejšie ako Tempo míňania.</li><li>Pokročilé ovládanie grafu je schované pod Detail analýzy, všetky pôvodné ovládače a eventy zostali zachované.</li><li>Finančné výpočty, sync, kategórie, transakcie, Planning, Income Engine a GAS sa nemenia.</li></ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3"><div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.44.2</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Zjednodušený Financial Cockpit: jedna dominantná metrika a tri rýchle údaje.</li>
+                    <li>Safe to Spend zostáva viditeľný, sekundárne metriky sú presunuté pod Detail mesiaca.</li>
+                    <li>Filtre Transakcií sú vizuálne zjednotené do jedného kompaktného panelu.</li>
+                    <li>Zjednotená typografická hierarchia a menej vizuálneho šumu v hornej časti Transakcií.</li>
+                    <li>Žiadne finančné výpočty, Budget, Forecast, sync, kategórie ani GAS sa nemenia.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.44.1</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Finančný cockpit je presunutý nad filtre Transakcií, aby tvoril jeden kompaktný úvod obrazovky.</li>
+                    <li>Pridaný read-only Safe to Spend 2.0: existujúca rezerva Budget − Forecast prepočítaná aj na orientačný denný a 7-dňový bezpečný priestor.</li>
+                    <li>Safe to Spend nevytvára nový finančný model; používa presne existujúci Budget/Forecast a iba zrozumiteľnejšie prezentuje jeho rezervu.</li>
+                    <li>Výpočet používa iba existujúce dáta a nemení Budget, Forecast, Annual Plan, transakcie ani synchronizáciu.</li>
+                    <li>Budget modul, forecast model, Income Engine, kategórie a GAS zostávajú funkčne bez zmien.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.44.0</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Na obrazovku Transakcie pribudol read-only Finančný cockpit pre rýchly obraz aktuálneho mesiaca.</li>
+                    <li>Ukazuje minuté doteraz, existujúci forecast, rezervu podľa forecastu a očakávaný zostatok.</li>
+                    <li>Pridáva jeden prioritný insight z existujúceho Budget insight enginu a rýchly vstup do detailu Budgetu.</li>
+                    <li>Pri výbere viacerých mesiacov sa cockpit nevypočítava, aby nemiešal mesačné metriky.</li>
+                    <li>Budget modul, forecast model, Annual Plan, Income Engine, synchronizácia kategórií a GAS zostávajú bez zmien.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.43.5</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Opravená ochrana kategórií po vymazaní cache/cookies: aplikácia najprv overí cloud a až potom dovolí zápis.</li>
+                    <li>Generický starter zoznam kategórií je natrvalo zablokovaný pre zápis do Google Sheets.</li>
+                    <li>Pridaný bezpečný recovery master s poslednou potvrdenou sadou kategórií a podkategórií.</li>
+                    <li>Kategórie bez uid dostávajú stabilné deterministické ID, takže sa po vymazaní cache nemenia väzby categoryId.</li>
+                    <li>Nový GAS v2.43.5 pridáva verziu cloudových kategórií a automatickú históriu v hárku CategoriesBackup pred každou zmenou.</li>
+                    <li>Budget modul, forecast model a Income Engine zostávajú bez zmien.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.43.4</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Pri uzavretom mesiaci sú teraz priamo viditeľné historické hodnoty Budget, Forecast a Skutočné výdavky.</li>
+                    <li>Budget karta ukazuje aj rezervu alebo prekročenie oproti realite.</li>
+                    <li>Forecast karta ukazuje absolútnu odchýlku od skutočných výdavkov.</li>
+                    <li>Percentuálna zhoda Budget/Forecast zostáva pod sumami ako sekundárna informácia.</li>
+                    <li>Budget modul, forecast model, Income Engine a GAS sa nemenia.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.43.3</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Uzavreté mesiace porovnávajú skutočné výdavky z transakcií s uloženým budgetom a forecastom.</li>
+                    <li>Pribudla percentuálna zhoda Budget vs. realita a Forecast vs. realita s vizuálnymi progress indikátormi.</li>
+                    <li>Aktuálny mesiac ukazuje, koľko % budgetu a forecastu už bolo reálne vyčerpaných.</li>
+                    <li>Čerpanie zobrazuje aj pomer uplynutej časti mesiaca pre lepší kontext.</li>
+                    <li>Ak historický plán nie je uložený, appka percento nevymýšľa a stav transparentne označí.</li>
+                    <li>Budget modul, forecast model, Income Engine a GAS sa nemenia.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.43.2</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Uzavreté mesiace teraz jasne zobrazujú skutočné výdavky, skutočný príjem a konečný zostatok.</li>
+                    <li>Aktuálny mesiac oddeľuje minuté doteraz od forecastu konca mesiaca; budúce mesiace sú jednoznačne označené ako plán.</li>
+                    <li>Veľká suma vpravo má vždy popis: Skutočné výdavky alebo Mesačný budget.</li>
+                    <li>12-mesačný prehľad je plne klikateľný, zvýrazňuje aktuálny mesiac a plynulo naviguje na kartu mesiaca.</li>
+                    <li>Každý mesiac má tlačidlo ↑ Prehľad pre okamžitý návrat hore.</li>
+                    <li>Budget modul, forecast model, Income Engine a GAS sa nemenia.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.43.1</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Opravený Budget po UX release v2.43.0.</li>
+                    <li>Celý výpočet a renderovanie Budgetu sú obnovené byte-for-byte z overenej v2.42.6.</li>
+                    <li>Odstránené experimentálne rizikové zoradenie a statusy, ktoré zasahovali do Budget renderovania.</li>
+                    <li>Ročný 12-mesačný UX prehľad a ostatné bezpečné UI zlepšenia v2.43.0 zostávajú.</li>
+                    <li>Forecast model, Income Engine a Google Apps Script sa nemenia.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.43.0</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Ročný plán: 12-mesačný prehľad zostatkov s navigáciou na konkrétny mesiac.</li>
+                    <li>Budget: kategórie prioritizované podľa rizika a tempa míňania.</li>
+                    <li>Nové stavy V poriadku / Sleduj / Riziko / Nad plánom.</li>
+                    <li>Zjednotená semantika farieb, focus stavy a reduced-motion.</li>
+                    <li>Forecast, Income Engine a Google Apps Script sa nemenia.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.42.6</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Kategórie v detaile Ročného plánu majú nový profesionálny card layout.</li>
+                    <li>Každá kategória zobrazuje Budget, Forecast a výrazný Zostatok v jednej čitateľnej hierarchii.</li>
+                    <li>Stav kategórie je označený ako Rezerva, Tesne pri limite alebo Nad plánom.</li>
+                    <li>Pribudol tenký progress indikátor čerpania budgetu; farba nie je jediný nosič informácie.</li>
+                    <li>Doladený mobilný a dark-mode layout. Forecast ani backend sa nemenia.</li>
+                </ul>
+            </div>
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.42.5</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Zostatok kategórie je samostatný výsledkový pás pod Budget/Minuté/Forecast.</li>
+                    <li>Plus zobrazuje „Rezerva v kategórii“, mínus „Nad plánom“ s jemnou zelenou/červenou semantikou.</li>
+                    <li>V detaile mesiaca Ročného plánu má každá kategória vlastný zostatok Budget mínus Forecast.</li>
+                    <li>Mobilný layout presúva zostatok kategórie na samostatný riadok pre lepšiu čitateľnosť.</li>
+                    <li>Forecast, Income Engine a Google Apps Script sa nemenia.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.42.4</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Zostatky v Budgete a Ročnom pláne majú jednotnú semantiku: plus zelený, mínus červený, nula neutrálna.</li>
+                    <li>Výsledkové bunky majú jemné farebné pozadie a border bez zbytočného vizuálneho hluku.</li>
+                    <li>Hlavné zostatkové karty zobrazujú aj stav „V pluse“, „V mínuse“ alebo „Na nule“, takže informácia nestojí iba na farbe.</li>
+                    <li>Kontrast je doladený samostatne pre light a dark mode.</li>
+                    <li>Forecast model, Income Engine a Google Apps Script sa nemenia.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.42.3</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Plusové výsledky v Budgete a Ročnom pláne sú zelené, mínusové červené a nulové neutrálne.</li>
+                    <li>Farebné rozlíšenie sa používa pri Safe to spend, zostávajúcom budgete a mesačnom aj ročnom zostatku.</li>
+                    <li>Farby sú optimalizované pre light aj dark mode.</li>
+                    <li>Doplnený chýbajúci changelog v2.42.2.</li>
+                    <li>Forecast model, Income Engine a Google Apps Script sa nemenia.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.42.2</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Opravený kontrast dynamicky renderovaných kariet Budgetu a Ročného plánu v dark mode.</li>
+                    <li>Karty používajú spoločné theme premenné pre povrch, text a border.</li>
+                    <li>Pridaný cache-busting pre styles.css, aby PWA po aktualizácii nepoužila staré CSS.</li>
+                    <li>Forecast model, Income Engine a Google Apps Script sa nemenia.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.42.1</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Kompletná oprava čitateľnosti Budgetu v dark mode.</li>
+                    <li>Opravený Ročný plán v dark mode: hero karty, mesačné karty, štatistiky, udalosti, tlačidlá aj výber roku.</li>
+                    <li>Forecast model a Income Engine sa nemenia; nový backtest nie je potrebný.</li>
+                    <li>Google Apps Script sa nemení; zostáva backend v2.38.8.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.42.0</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Výdavkový forecast prešiel z výberu kategória + mesiac na stabilného championa pre každú kategóriu.</li>
+                    <li>Do kandidátov sa vrátil overený multi-year trend model z línie v2.38.2.</li>
+                    <li>Počiatoční championi boli nastavení podľa doterajšieho archívu walk-forward scenárov; challenger ich môže nahradiť iba pri jasnom a opakovanom zlepšení.</li>
+                    <li>Odstránené je agresívne mesačné prepínanie modelov, ktoré pri riedkych kategóriách spôsobovalo preučenie.</li>
+                    <li>Income Engine z v2.41.0 zostáva nezmenený.</li>
+                    <li>Google Apps Script sa nemení; zostáva backend v2.38.8.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.41.0</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Meta forecast pri výbere výdavkového modelu zohľadňuje aj konkrétny kalendárny mesiac; mesačné skóre je tlmené smerom ku kategóriovému, aby sa model nepreučil.</li>
+                    <li>Experimentálny archív scenárov bol použitý na nastavenie minimálnej vzorky a sily mesačného signálu.</li>
+                    <li>Nový Income Engine rozdeľuje príjmy podľa zdrojov/podkategórií a odlišuje stabilné, variabilné a riedke príjmy.</li>
+                    <li>Pravidelný príjem má prednosť pred historickým forecastom rovnakého zdroja, takže sa výplata nezapočíta dvakrát.</li>
+                    <li>Pravidelné plány teraz podporujú aj príjem (napr. výplatu) a stále generujú transakcie maximálne 12 mesiacov dopredu.</li>
+                    <li>Vyhodnotenie histórie archivuje a zobrazuje samostatné Income WAPE, MAE a Bias.</li>
+                    <li>Google Apps Script sa nemení; zostáva backend v2.38.8.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.40.0</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Champion/challenger engine testuje viac forecast modelov pre každú kategóriu.</li>
+                    <li>Challenger sa použije iba pri minimálne 3 % zlepšení oproti pôvodnému adaptívnemu baseline.</li>
+                    <li>Výber modelu je walk-forward a nepoužíva budúce dáta.</li>
+                    <li>Diagnostika ukazuje presnosť podľa konkrétne vybraného champion modelu.</li>
+                    <li>Backtest je optimalizovaný tak, aby počas výpočtu menej blokoval mobilné UI.</li>
+                    <li>Google Apps Script sa nemení; zostáva backend v2.38.8.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.39.0</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Forecast automaticky rozlišuje stabilné, variabilné, riedko sezónne a nepravidelné kategórie.</li>
+                    <li>Riedke sezónne výdavky používajú model pravdepodobnosti udalosti × typickej sumy namiesto rozlievania nákladu do celého roka.</li>
+                    <li>Nepravidelné výdavky používajú intervalový/hazard model, ktorý zohľadňuje typickú medzeru medzi udalosťami.</li>
+                    <li>Diagnostika ukazuje presnosť aj podľa použitého modelu a vysvetľuje WAPE, MAE a Bias.</li>
+                    <li>Roky s príliš malým počtom backtestov sa označia ako „málo dát“.</li>
+                    <li>Google Apps Script sa nemení; zostáva kompatibilný backend v2.38.8.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.8</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Forecast archív presunutý na cloud-first režim kvôli limitu localStorage.</li>
+                    <li>Planning načítava iba archív aktuálnej verzie modelu.</li>
+                    <li>Vyžaduje backend v2.38.8.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.7</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Opravené vyhodnotenie histórie a ukladanie walk-forward backtestu.</li>
+                    <li>Priebeh vyhodnotenia je viditeľný priamo na tlačidle.</li>
+                    <li>Archív sa do Google Sheets odosiela po dávkach.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.6</span>
+                </div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Nový adaptívny sezónny forecast pre kategórie s výraznou sezónnosťou.</li>
+                    <li>Pri opakujúcich sa sezónnych kategóriách sa viac využíva história rovnakého mesiaca naprieč rokmi.</li>
+                    <li>Jednorazový sezónny výkyv sa už automaticky neopakuje v každom roku.</li>
+                    <li>Do backtest archívu sa ukladajú aj údaje o sile a opakovateľnosti sezónnosti.</li>
+                    <li>Changelog je aktualizovaný priamo v aplikácii pod ikonou ⓘ.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.5</span></div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Pridaná diagnostika forecastu podľa kategórií, mesiacov, rokov a typu výdavkov.</li>
+                    <li>WAPE používa iba unikátne walk-forward backtesty.</li>
+                    <li>Opravené mobilné rozloženie súhrnných kariet Ročného plánu.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.4</span></div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Pridaný samostatný filter roku pre Grafy a Burn Rate.</li>
+                    <li>Grafy, Burn Rate a Transakcie majú nezávislé filtre.</li>
+                </ul>
+            </div>
+
+            <div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.3</span></div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Rýchly filter kategórií a podkategórií sa zobrazuje iba v Transakciách.</li>
+                    <li>Opravené prepínanie kategórie → podkategórie a kombinované filtrovanie.</li>
+                </ul>
+            </div>
+
+            <div class="pb-1">
+                <div class="flex items-center gap-2 mb-1"><span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 font-extrabold text-[10px]">v2.38.2</span></div>
+                <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">
+                    <li>Multi-year forecast a korektný walk-forward backtest bez budúcich dát.</li>
+                    <li>Optimalizované indexovanie historických transakcií.</li>
+                </ul>
+            </div>
+        </div>
 
         <button type="button" onclick="closeChangelogModal()" class="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-extrabold text-[11px] uppercase rounded-xl mt-2">Zavrieť</button>
     </div>
@@ -425,8 +778,8 @@
         <div class="settings-section">
             <div class="settings-section-title">Synchronizácia</div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button onclick="manualSync()" class="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-extrabold text-[11px] uppercase shadow-sm">Sync Dáta</button>
-                <button onclick="syncCategories('pull')" class="flex-1 py-3 bg-slate-800 text-white rounded-xl font-extrabold text-[11px] uppercase shadow-sm">Sync Kategórie</button>
+                <button onclick="manualSync()" class="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-extrabold text-[10px] uppercase shadow-sm">Sync Dáta</button>
+                <button onclick="syncCategories('pull')" class="flex-1 py-3 bg-slate-800 text-white rounded-xl font-extrabold text-[10px] uppercase shadow-sm">Sync Kategórie</button>
             </div>
         </div>
 
@@ -458,10 +811,10 @@
         <div class="settings-section">
             <div class="settings-section-title">Kategórie</div>
             <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700">
-                <div class="text-[11px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">Nová kategória</div>
+                <div class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">Nová kategória</div>
                 <div class="flex flex-col sm:flex-row gap-2">
                     <input type="text" id="new-cat-name" placeholder="Názov..." class="flex-1 p-3.5 rounded-xl text-sm outline-none">
-                    <button onclick="addCategory()" class="bg-emerald-500 text-white px-4 rounded-xl font-extrabold text-[11px] uppercase min-h-[48px]">Pridať</button>
+                    <button onclick="addCategory()" class="bg-emerald-500 text-white px-4 rounded-xl font-extrabold text-[10px] uppercase min-h-[48px]">Pridať</button>
                 </div>
             </div>
             <div id="manage-cats-list" class="space-y-2 mb-8"></div>
@@ -471,8 +824,8 @@
             <div class="settings-section-title">O aplikácii</div>
             <div class="settings-info-card">
                 <div class="text-sm font-extrabold">Flow V20 Online</div>
-                <div class="text-[12px] font-semibold text-slate-400 mt-1">Verzia aplikácie: <span data-app-version>—</span></div>
-                <button onclick="openChangelogModal()" class="mt-3 inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase text-emerald-500">
+                <div class="text-[11px] font-semibold text-slate-400 mt-1">Verzia aplikácie: v2.49.22</div>
+                <button onclick="openChangelogModal()" class="mt-3 inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase text-emerald-500">
                     <i data-lucide="history" class="w-4 h-4"></i> Zobraziť changelog
                 </button>
             </div>
@@ -486,19 +839,19 @@
         </div>
 
         <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700">
-            <div class="text-[11px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">Ikona kategórie</div>
+            <div class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">Ikona kategórie</div>
             <div class="flex flex-col sm:flex-row gap-2">
                 <input type="text" id="cat-icon-name" placeholder="napr. shopping-bag" class="flex-1 p-3.5 rounded-xl text-sm outline-none">
-                <button onclick="saveCategoryIcon()" class="bg-emerald-500 text-white px-4 rounded-xl font-extrabold text-[11px] uppercase min-h-[48px]">Uložiť</button>
+                <button onclick="saveCategoryIcon()" class="bg-emerald-500 text-white px-4 rounded-xl font-extrabold text-[10px] uppercase min-h-[48px]">Uložiť</button>
             </div>
-            <div class="text-[12px] font-semibold text-slate-400 mt-2">Použi názov ikony z Lucide, napr. wallet, car, shopping-bag, home.</div>
+            <div class="text-[11px] font-semibold text-slate-400 mt-2">Použi názov ikony z Lucide, napr. wallet, car, shopping-bag, home.</div>
         </div>
 
         <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl mb-4 border border-slate-200 dark:border-slate-700">
-            <div class="text-[11px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">Nová podkategória</div>
+            <div class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest text-center">Nová podkategória</div>
             <div class="flex flex-col sm:flex-row gap-2">
                 <input type="text" id="new-sub-name" placeholder="Názov..." class="flex-1 p-3.5 rounded-xl text-sm outline-none">
-                <button onclick="addSubCategory()" class="bg-emerald-500 text-white px-4 rounded-xl font-extrabold text-[11px] uppercase min-h-[48px]">Pridať</button>
+                <button onclick="addSubCategory()" class="bg-emerald-500 text-white px-4 rounded-xl font-extrabold text-[10px] uppercase min-h-[48px]">Pridať</button>
             </div>
         </div>
 
@@ -507,8 +860,6 @@
     </div>
 </div>
 
-<script src="assets/js/version.js"></script>
-<script src="assets/js/changelog.js"></script>
 <script src="assets/js/config.js"></script>
 <script src="assets/js/utils.js"></script>
 <script src="assets/js/sync.js"></script>
