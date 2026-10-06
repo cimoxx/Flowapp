@@ -1,4 +1,31 @@
+function escChangelog(text) {
+    return String(text).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function renderChangelog() {
+    const host = document.getElementById('changelog-list');
+    if (!host || typeof FLOW_CHANGELOG === 'undefined') return;
+    host.innerHTML = FLOW_CHANGELOG.map((entry, index) => {
+        const badge = index === 0
+            ? '<span class="changelog-tag changelog-tag-current">Aktuálna</span>'
+            : (index === 1 ? '<span class="changelog-tag">Predchádzajúca</span>' : '');
+        const title = entry.title ? `<div class="changelog-title">${escChangelog(entry.title)}</div>` : '';
+        return `<div class="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div class="flex items-center gap-2 mb-1"><span class="changelog-version">v${escChangelog(entry.version)}</span>${badge}</div>
+            ${title}
+            <ul class="text-slate-600 dark:text-slate-300 space-y-1 pl-3 list-disc font-medium">${(entry.items || []).map(item => `<li>${escChangelog(item)}</li>`).join('')}</ul>
+        </div>`;
+    }).join('');
+}
+
+function renderAppVersion() {
+    document.querySelectorAll('[data-app-version]').forEach(el => {
+        el.textContent = typeof APP_VERSION !== 'undefined' ? `v${APP_VERSION}` : '—';
+    });
+}
+
 function openChangelogModal() {
+    renderChangelog();
     document.getElementById('changelog-modal').classList.remove('hidden');
 }
 
@@ -11,10 +38,10 @@ function setType(t) {
     localStorage.setItem('f_last_type_v20', t);
 
     document.getElementById('t-ex').className =
-        `flex-1 py-2 rounded-lg text-[10px] font-black ${t === 'expense' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400'}`;
+        `flex-1 py-2 rounded-lg text-[12px] font-black ${t === 'expense' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400'}`;
 
     document.getElementById('t-in').className =
-        `flex-1 py-2 rounded-lg text-[10px] font-black ${t === 'income' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
+        `flex-1 py-2 rounded-lg text-[12px] font-black ${t === 'income' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-400'}`;
 }
 
 function closeModal() {
@@ -483,4 +510,28 @@ async function setupAutoBackup(btn){
     }catch(error){
       showToast({type:'error',title:'Automatická záloha sa nezapla',text:error?.message||'Skontroluj nový Google Apps Script v2.49.2.'});
     }finally{if(btn){btn.disabled=false;btn.classList.remove('opacity-60');}}
+}
+
+
+// Hlavička sa pri scrollovaní zmenší. Hysteréza (zapnúť pri 40 px, vypnúť pri 8 px)
+// bráni blikaniu, keď zmena výšky hlavičky posunie obsah okolo hranice.
+function initHeaderCompaction() {
+    const header = document.getElementById('app-header');
+    if (!header || header.dataset.compactionBound) return;
+    header.dataset.compactionBound = '1';
+
+    let ticking = false;
+    const apply = () => {
+        ticking = false;
+        const y = window.scrollY || document.documentElement.scrollTop || 0;
+        const compact = header.classList.contains('is-compact');
+        if (!compact && y > 40) header.classList.add('is-compact');
+        else if (compact && y < 8) header.classList.remove('is-compact');
+    };
+    window.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(apply);
+    }, { passive: true });
+    apply();
 }

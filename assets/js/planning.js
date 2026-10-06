@@ -471,6 +471,14 @@ function getPlannedEventsForMonth(year, month) {
     return flowPlannedEvents.filter(e => !e.deleted && String(e.date || '').slice(0, 7) === key);
 }
 
+const INCOME_OVERRIDE_CATEGORY = '__INCOME__';
+
+// Ručne upravený plánovaný príjem mesiaca. Používa rovnakú entitu "override" ako ručný budget
+// kategórie (už sa synchronizuje do cloudu), len s vyhradenou kategóriou __INCOME__.
+function getIncomeOverride(year, month) {
+    return getBudgetOverride(INCOME_OVERRIDE_CATEGORY, year, month);
+}
+
 function getBudgetOverride(category, year, month) {
     const key = getMonthKey(year, month);
     return flowBudgetOverrides.find(o => !o.deleted && o.monthKey === key && String(o.category || '') === String(category));
@@ -1758,10 +1766,17 @@ function getAnnualPlan(year) {
                 plannedIncome = round2(recurringIncome + incomeForecast.value + eventIncome);
             }
         }
+        // Ručná úprava príjmu nahrádza modelový odhad. V aktuálnom mesiaci nikdy nejde pod už prijatú sumu.
+        const modelIncome = plannedIncome;
+        const incomeOverride = closed ? null : getIncomeOverride(year, month);
+        if (incomeOverride) {
+            const manual = Math.max(0, Number(incomeOverride.amount) || 0);
+            plannedIncome = round2(isCurrent ? Math.max(manual, actualIncome) : manual);
+        }
         const plannedBalance = round2(plannedIncome - forecast);
 
         const archiveComparison = closed ? getMonthArchiveComparison(key, actualExpenses) : null;
-        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, plannedBalance, incomeForecast, categoryRows, events, recurring, archiveComparison });
+        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, modelIncome, incomeOverridden: Boolean(incomeOverride), incomeOverrideNote: incomeOverride?.notes || '', plannedBalance, incomeForecast, categoryRows, events, recurring, archiveComparison });
     }
     return result;
 }
@@ -1893,6 +1908,31 @@ function forecastQualityLabel(wape) {
     return 'Slabá';
 }
 
+function forecastQualityLevel(wape) {
+    const label = forecastQualityLabel(wape);
+    return { 'Výborná':'great', 'Dobrá':'good', 'Stredná':'mid', 'Slabá':'low' }[label] || 'none';
+}
+
+// Zrozumiteľné zhrnutie presnosti. Odborné metriky (WAPE, MAE, bias) ostávajú v detaile.
+// MAE sa počíta na jednu dvojicu kategória x mesiac, preto to tak aj pomenúvame.
+function renderForecastAccuracyCard(metrics) {
+    const has = metrics && metrics.count > 0;
+    const level = has ? forecastQualityLevel(metrics.wape) : 'none';
+    const label = has ? forecastQualityLabel(metrics.wape) : 'Bez dát';
+    const count = has ? new Intl.NumberFormat('sk-SK').format(metrics.count) : '';
+    const text = has
+        ? `Odhad výdavkov sa v priemere líši o <b>${Math.round(metrics.wape)} %</b> od skutočnosti.`
+        : 'Zatiaľ nie je dosť porovnaní s minulými mesiacmi. V detaile môžeš vyhodnotiť históriu.';
+    const meta = has
+        ? `Typicky o ${formatCurrency(metrics.mae)} na kategóriu za mesiac · ${count} porovnaní`
+        : 'Presnosť sa zobrazí po vyhodnotení histórie.';
+    return `<button type="button" class="accuracy-card" onclick="openForecastDiagnostics()" aria-label="Zobraziť detail presnosti odhadu">
+      <span class="accuracy-card-head"><span class="accuracy-card-title">Presnosť odhadu</span><span class="accuracy-chip is-${level}">${label}</span></span>
+      <span class="accuracy-card-text">${text}</span>
+      <span class="accuracy-card-foot"><span class="accuracy-card-meta">${meta}</span><span class="accuracy-card-cta">Detail <i data-lucide="chevron-right"></i></span></span>
+    </button>`;
+}
+
 function diagnosticRowsHtml(rows, limit = 6) {
     return rows.slice(0, limit).map(r => {
         const lowSample = r.reliable === false;
@@ -1907,17 +1947,17 @@ function openForecastDiagnostics() {
     const worstMonths = d.byMonth;
     const body = `
       <div class="forecast-diagnostic-summary">
-        <div><span>Forecast WAPE</span><b>${d.overall.count ? d.overall.wape + '%' : '—'}</b><small>${forecastQualityLabel(d.overall.wape)}</small></div>
-        <div><span>Budget WAPE</span><b>${d.overall.count ? d.overall.budgetWape + '%' : '—'}</b><small>${d.overall.count} unikátnych backtestov</small></div>
-        <div><span>MAE</span><b>${d.overall.count ? formatCurrency(d.overall.mae) : '—'}</b><small>Priemerná absolútna chyba</small></div>
-        <div><span>Bias</span><b>${d.overall.count ? formatCurrency(d.overall.bias) : '—'}</b><small>${d.overall.bias > 0 ? 'Model skôr nadhodnocuje' : d.overall.bias < 0 ? 'Model skôr podhodnocuje' : 'Bez systematického biasu'}</small></div>
+        <div><span>Odchýlka odhadu (WAPE)</span><b>${d.overall.count ? d.overall.wape + '%' : '—'}</b><small>${forecastQualityLabel(d.overall.wape)}</small></div>
+        <div><span>Odchýlka budgetu (WAPE)</span><b>${d.overall.count ? d.overall.budgetWape + '%' : '—'}</b><small>${d.overall.count} unikátnych backtestov</small></div>
+        <div><span>Typická chyba (MAE)</span><b>${d.overall.count ? formatCurrency(d.overall.mae) : '—'}</b><small>Na kategóriu za mesiac</small></div>
+        <div><span>Sklon odhadu (bias)</span><b>${d.overall.count ? formatCurrency(d.overall.bias) : '—'}</b><small>${d.overall.bias > 0 ? 'Model skôr nadhodnocuje' : d.overall.bias < 0 ? 'Model skôr podhodnocuje' : 'Bez systematického biasu'}</small></div>
       </div>
       <div class="forecast-diagnostic-section"><h4>Predikcia príjmov</h4>
         <div class="forecast-diagnostic-summary">
-          <div><span>Income WAPE</span><b>${d.incomeOverall.count ? d.incomeOverall.wape + '%' : '—'}</b><small>${d.incomeOverall.count ? forecastQualityLabel(d.incomeOverall.wape) : 'Vyhodnoť históriu'}</small></div>
-          <div><span>Income MAE</span><b>${d.incomeOverall.count ? formatCurrency(d.incomeOverall.mae) : '—'}</b><small>${d.incomeOverall.count} mesačných backtestov</small></div>
-          <div><span>Income Bias</span><b>${d.incomeOverall.count ? formatCurrency(d.incomeOverall.bias) : '—'}</b><small>${d.incomeOverall.bias > 0 ? 'Príjem skôr nadhodnocuje' : d.incomeOverall.bias < 0 ? 'Príjem skôr podhodnocuje' : 'Bez biasu'}</small></div>
-          <div><span>Income Accuracy</span><b>${d.incomeOverall.count ? Math.max(0,100-d.incomeOverall.wape).toFixed(1)+'%' : '—'}</b><small>Orientačne 100 − WAPE</small></div>
+          <div><span>Odchýlka príjmov (WAPE)</span><b>${d.incomeOverall.count ? d.incomeOverall.wape + '%' : '—'}</b><small>${d.incomeOverall.count ? forecastQualityLabel(d.incomeOverall.wape) : 'Vyhodnoť históriu'}</small></div>
+          <div><span>Typická chyba príjmov (MAE)</span><b>${d.incomeOverall.count ? formatCurrency(d.incomeOverall.mae) : '—'}</b><small>${d.incomeOverall.count} mesačných backtestov</small></div>
+          <div><span>Sklon príjmov (bias)</span><b>${d.incomeOverall.count ? formatCurrency(d.incomeOverall.bias) : '—'}</b><small>${d.incomeOverall.bias > 0 ? 'Príjem skôr nadhodnocuje' : d.incomeOverall.bias < 0 ? 'Príjem skôr podhodnocuje' : 'Bez biasu'}</small></div>
+          <div><span>Presnosť príjmov</span><b>${d.incomeOverall.count ? Math.max(0,100-d.incomeOverall.wape).toFixed(1)+'%' : '—'}</b><small>Orientačne 100 − WAPE</small></div>
         </div>
         <div class="planning-helper">Príjem sa vyhodnocuje samostatne od výdavkov. Stabilné zdroje (napr. výplata) sa modelujú robustným trendom, nepravidelné príjmy podľa pravdepodobnosti a sezónnosti. Pravidelný príjem z plánu nahrádza rovnaký historický stream, aby sa nezapočítal dvakrát.</div>
       </div>
@@ -2061,7 +2101,7 @@ async function archiveCurrentForecastSnapshot() {
         evaluatedAt:''
     }));
     rows.push({
-        id:createUid('fa'),targetMonth:key,category:'__INCOME__',forecastAmount:plan.plannedIncome,budgetAmount:plan.plannedIncome,actualAmount:plan.actualIncome,
+        id:createUid('fa'),targetMonth:key,category:'__INCOME__',forecastAmount:plan.modelIncome ?? plan.plannedIncome,budgetAmount:plan.plannedIncome,actualAmount:plan.actualIncome,
         modelVersion:FLOW_MODEL_VERSION,generatedAt:new Date().toISOString(),dataMonths:0,confidence:'live',method:'income-live-plan',
         inputsJson:JSON.stringify({type:'income',plannedIncome:plan.plannedIncome,eventIncome:plan.eventIncome}),evaluatedAt:''
     });
@@ -2306,7 +2346,7 @@ function renderAnnualPlanScreen() {
           <div class="planning-info-card"><div><strong>Model ${FLOW_MODEL_VERSION}</strong><div class="planning-muted">Výdavky používajú stabilného championa pre každú kategóriu; challenger ho nahradí iba pri jasnom zlepšení. Príjmový model zostáva nezmenený.</div></div><button type="button" onclick="runForecastBackfill()" data-forecast-backfill-btn class="planning-small-btn">Vyhodnotiť históriu</button></div>
         </div>
       </details>
-      <button type="button" class="planning-metrics-row planning-metrics-button" onclick="openForecastDiagnostics()" title="Zobraziť diagnostiku presnosti"><span>Backtest: <b>${metrics.count}</b></span><span>Forecast WAPE: <b>${metrics.count ? metrics.wape + ' %' : '—'}</b></span><span>Budget WAPE: <b>${metrics.count ? metrics.budgetWape + ' %' : '—'}</b></span><span>MAE: <b>${metrics.count ? formatCurrency(metrics.mae) : '—'}</b></span><span>Detail ›</span></button>
+      ${renderForecastAccuracyCard(metrics)}
       ${renderFinancialCalendar(year, new Date().getFullYear()===year ? new Date().getMonth() : 0)}
       <div class="annual-month-list">
       ${renderAnnualYearStrip(months)}
@@ -2334,12 +2374,12 @@ function renderAnnualPlanScreen() {
           <div class="annual-month-grid annual-month-grid-live">
             <div><span>Minuté doteraz</span><b>${formatCurrency(m.actualExpenses)}</b><small>skutočnosť</small></div>
             <div><span>Forecast výdavkov</span><b>${formatCurrency(m.forecast)}</b><small>odhad konca mesiaca</small></div>
-            <div><span>Očak. príjem</span><b>${formatCurrency(m.plannedIncome)}</b><small>skutočnosť + plán</small></div>
+            <div>${renderIncomeEditCell(m,'Očak. príjem',m.incomeOverridden?'ručne upravené':'skutočnosť + plán')}</div>
             <div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>${balanceLabel}</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b><small>príjem − forecast</small></div>
           </div>` : `
           <div class="annual-month-grid annual-month-grid-future">
             <div><span>Forecast výdavkov</span><b>${formatCurrency(m.forecast)}</b><small>odhad</small></div>
-            <div><span>Plánovaný príjem</span><b>${formatCurrency(m.plannedIncome)}</b><small>odhad</small></div>
+            <div>${renderIncomeEditCell(m,'Plánovaný príjem',m.incomeOverridden?'ručne upravené':'odhad')}</div>
             <div class="balance-result-cell ${getPlanningSignedSurfaceClass(m.plannedBalance)}"><span>${balanceLabel}</span><b class="${getPlanningSignedClass(m.plannedBalance)}">${formatCurrency(m.plannedBalance)}</b><small>príjem − forecast</small></div>
           </div>`}
 
@@ -2360,6 +2400,8 @@ function renderRecurringScreen() {
     const el = document.getElementById('recurring-plan-content');
     if (!el) return;
     const active = flowRecurringPlans.filter(p=>p.active);
+    // Pozastavené plány (bez konca) ostávajú viditeľné, aby sa dali obnoviť. Ukončené plány (s endDate) sa nezobrazujú.
+    const paused = flowRecurringPlans.filter(p=>!p.active && !p.deleted && !p.endDate);
     const now = new Date();
     const monthlyExpense = active.filter(p=>p.type!=='income').reduce((sum,p)=>sum+getPlanMonthlyAmount(p,now.getFullYear(),now.getMonth()),0);
     const monthlyIncome = active.filter(p=>p.type==='income').reduce((sum,p)=>sum+getPlanMonthlyAmount(p,now.getFullYear(),now.getMonth()),0);
@@ -2369,7 +2411,8 @@ function renderRecurringScreen() {
         <div class="annual-hero-card"><div class="annual-label">Pravidelné príjmy</div><div class="annual-value">${formatCurrency(monthlyIncome)}</div><div class="annual-sub">Známe príjmy podľa aktívnych plánov</div></div>
       </div>
       <div class="planning-section-head"><div><div class="budget-section-label">Plány</div><h3 class="budget-section-title">Pravidelné platby a príjmy</h3></div><button type="button" onclick="openRecurringPlanModal()" class="planning-primary-btn">＋ Pridať</button></div>
-      <div class="recurring-list">${active.length ? active.map(renderRecurringCard).join('') : `<div class="empty-state"><div class="empty-state-title">Zatiaľ nemáš pravidelné položky</div><div class="empty-state-text">Pridaj elektrinu, poistku, výplatu alebo inú opakovanú položku.</div></div>`}</div>`;
+      <div class="recurring-list">${active.length ? sortRecurringByNext(active).map(renderRecurringCard).join('') : `<div class="empty-state"><div class="empty-state-title">Zatiaľ nemáš pravidelné položky</div><div class="empty-state-text">Pridaj elektrinu, poistku, výplatu alebo inú opakovanú položku.</div></div>`}</div>
+      ${paused.length ? `<div class="recurring-paused-head"><div class="budget-section-label">Pozastavené · ${paused.length}</div></div><div class="recurring-list">${paused.map(renderRecurringCard).join('')}</div>` : ''}`;
 }
 
 function monthlyEquivalent(plan) {
@@ -2380,11 +2423,80 @@ function monthlyEquivalent(plan) {
     return amount;
 }
 
+function getRecurringNextOccurrence(plan) {
+    if (!plan || !plan.active) return null;
+    const from = new Date(); from.setHours(0,0,0,0);
+    const to = new Date(from); to.setFullYear(to.getFullYear() + 2);
+    const dates = recurringOccurrenceDates(plan, from, to);
+    return dates.length ? dates[0] : null;
+}
+
+function sortRecurringByNext(plans) {
+    const far = Number.MAX_SAFE_INTEGER;
+    return plans.map(plan => ({ plan, next: getRecurringNextOccurrence(plan) }))
+        .sort((a, b) => (a.next ? a.next.getTime() : far) - (b.next ? b.next.getTime() : far)
+            || String(a.plan.name || '').localeCompare(String(b.plan.name || ''), 'sk'))
+        .map(x => x.plan);
+}
+
+function formatRecurringNext(date) {
+    if (!date) return { label: 'Bez ďalšej platby', relative: '' };
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days = Math.round((date.getTime() - today.getTime()) / 86400000);
+    // Vlastné skratky mesiacov: výstup Intl pre sk-SK sa medzi zariadeniami líši ("okt" vs "10.").
+    const label = `${date.getDate()}. ${['jan','feb','mar','apr','máj','jún','júl','aug','sep','okt','nov','dec'][date.getMonth()]}`;
+    let relative;
+    if (days <= 0) relative = 'dnes';
+    else if (days === 1) relative = 'zajtra';
+    else if (days > 45) relative = `o ${Math.round(days / 30)} mes.`;
+    else relative = `o ${days} ${days <= 4 ? 'dni' : 'dní'}`;
+    return { label, relative };
+}
+
 function renderRecurringCard(p) {
     const cat = p.category || 'Nezaradené';
     const freq = {monthly:'mesačne',quarterly:'štvrťročne',yearly:'ročne',weekly:'týždenne'}[p.frequency] || p.frequency;
     const isIncome = p.type === 'income';
-    return `<div class="recurring-card"><div class="recurring-card-top"><div class="recurring-icon"><i data-lucide="${isIncome?'wallet':'repeat'}"></i></div><div class="min-w-0 flex-1"><div class="recurring-name">${escPlanning(p.name || cat)}</div><div class="planning-muted">${isIncome?'Príjem':'Výdavok'} · ${escPlanning(cat)}${p.sub ? ' / '+escPlanning(p.sub):''} · ${freq}</div></div><div class="recurring-amount ${isIncome?'text-emerald-600':''}">${isIncome?'+':''}${formatCurrency(p.amount)}</div></div><div class="recurring-meta"><span>Ďalšia podľa plánu: deň ${p.dayOfMonth || 1}.</span><span>${p.amountMode==='variable'?'Premenlivá':'Fixná'} suma</span></div><div class="annual-month-actions"><button type="button" onclick="openRecurringPlanModal('${p.id}')">Upraviť</button><button type="button" onclick="openRecurringHistoryMatcher('${p.id}')">História 12 mes.</button><button type="button" onclick="pauseRecurringPlan('${p.id}')">Pozastaviť</button><button type="button" class="text-rose-600" onclick="openRecurringDeleteChoice('${p.id}')">Odstrániť</button></div></div>`;
+    const isPaused = !p.active;
+    const title = escPlanning(p.name || cat);
+    const meta = `${isIncome ? 'Príjem · ' : ''}${escPlanning(cat)}${p.sub ? ' / ' + escPlanning(p.sub) : ''} · ${freq}`;
+    const next = formatRecurringNext(getRecurringNextOccurrence(p));
+    const footer = isPaused
+        ? `<div class="recurring-next recurring-next-paused"><i data-lucide="pause-circle"></i><span>Pozastavené</span></div>
+           <button type="button" class="recurring-resume" onclick="resumeRecurringPlan('${p.id}')">Obnoviť</button>`
+        : `<div class="recurring-next"><i data-lucide="calendar-clock"></i><span>Ďalšia platba <b>${next.label}</b>${next.relative ? ` <em>${next.relative}</em>` : ''}</span></div>`;
+    return `<article class="recurring-card${isPaused ? ' is-paused' : ''}">
+      <button type="button" class="recurring-card-main" onclick="openRecurringPlanModal('${p.id}')" aria-label="Upraviť: ${title}">
+        <span class="recurring-icon${isIncome ? ' is-income' : ''}"><i data-lucide="${isIncome ? 'wallet' : 'repeat'}"></i></span>
+        <span class="recurring-card-text"><span class="recurring-name">${title}</span><span class="recurring-sub">${meta}</span></span>
+        <span class="recurring-amount-wrap"><span class="recurring-amount ${isIncome ? 'is-income' : ''}">${isIncome ? '+' : ''}${formatCurrency(p.amount)}</span>${p.amountMode === 'variable' ? '<span class="recurring-amount-note">premenlivá</span>' : ''}</span>
+      </button>
+      <div class="recurring-card-foot">
+        ${footer}
+        <button type="button" class="recurring-more" onclick="openRecurringActions('${p.id}')" aria-label="Ďalšie akcie pre ${title}"><i data-lucide="more-horizontal"></i></button>
+      </div>
+    </article>`;
+}
+
+function openRecurringActions(id) {
+    const p = flowRecurringPlans.find(x => String(x.id) === String(id));
+    if (!p) return;
+    const isPaused = !p.active;
+    const row = (icon, label, hint, onclick, danger = false) => `
+      <button type="button" class="recurring-action-row${danger ? ' is-danger' : ''}" onclick="${onclick}">
+        <i data-lucide="${icon}"></i>
+        <span><b>${label}</b><small>${hint}</small></span>
+      </button>`;
+    showPlanningModal(p.name || p.category || 'Pravidelná položka', 'Akcie', `
+      <div class="recurring-action-list">
+        <div class="planning-change-summary"><b>${escPlanning(p.name || p.category || '')}</b><span>${p.type === 'income' ? '+' : ''}${formatCurrency(p.amount)}</span></div>
+        ${row('pencil', 'Upraviť', 'Suma, deň, frekvencia, kategória alebo začiatok.', `openRecurringPlanModal('${p.id}')`)}
+        ${row('history', 'História 12 mesiacov', 'Označ staršie platby, aby sa v odhade nepočítali dvakrát.', `openRecurringHistoryMatcher('${p.id}')`)}
+        ${isPaused
+            ? row('play-circle', 'Obnoviť', 'Plán sa znova začne zohľadňovať a generovať transakcie.', `resumeRecurringPlan('${p.id}')`)
+            : row('pause-circle', 'Pozastaviť', 'Plán sa prestane generovať, no zostane uložený a dá sa obnoviť.', `pauseRecurringPlan('${p.id}')`)}
+        ${row('trash-2', 'Odstrániť', 'Vyber, či zmizne len jedna platba, budúce alebo všetky.', `openRecurringDeleteChoice('${p.id}')`, true)}
+      </div>`);
 }
 
 function closePlanningModal() {
@@ -2549,7 +2661,7 @@ function openRecurringHistoryMatcher(planId, options={}) {
             if(item.score.dayClose) flags.push('podobný deň');
         }
         const flagHtml=flags.length
-            ? `<div class="text-[9px] font-bold text-slate-400 mt-1">${flags.map(escPlanning).join(' · ')}</div>`
+            ? `<div class="text-[12px] font-bold text-slate-400 mt-1">${flags.map(escPlanning).join(' · ')}</div>`
             : '';
         return `
           <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40">
@@ -2560,7 +2672,7 @@ function openRecurringHistoryMatcher(planId, options={}) {
                 <div class="font-black text-[12px] text-slate-700 dark:text-slate-200">${escPlanning(getCleanDateStr(tx.date) || '')}</div>
                 <div class="font-black text-[12px] ${String(tx.type)==='income'?'text-emerald-600':'text-slate-800 dark:text-slate-100'}">${String(tx.type)==='income'?'+':''}${formatCurrency(tx.amount)}</div>
               </div>
-              <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escPlanning(tx.note || 'Bez poznámky')}</div>
+              <div class="text-[12px] text-slate-500 dark:text-slate-400 truncate">${escPlanning(tx.note || 'Bez poznámky')}</div>
               ${flagHtml}
             </div>
           </label>`;
@@ -2572,7 +2684,7 @@ function openRecurringHistoryMatcher(planId, options={}) {
           Flow našiel ručné transakcie v rovnakej kategórii a podkategórii ako <b>${escPlanning(plan.name)}</b>.
           Označ iba tie, ktoré naozaj patria k tejto pravidelnej platbe. Tým sa v predikcii prestanú počítať ako variabilné výdavky.
         </div>
-        <div class="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-400">
+        <div class="flex items-center justify-between gap-2 text-[12px] font-bold text-slate-400">
           <span>${candidates.length} kandidátov · ${likely} odporúčaných${already?` · ${already} už označených`:''}</span>
           <button type="button" class="text-emerald-600 font-black" onclick="document.querySelectorAll('.recurring-history-check').forEach(x=>x.checked=true)">Označiť všetky</button>
         </div>
@@ -2674,7 +2786,7 @@ function openRecurringPlanModal(id=null) {
         <div><label class="planning-form-label">Podkategória / zdroj</label><select id="rp-sub" class="planning-form-input">${recurringSubOptions(defaultCategory,p?.sub || '',type)}</select></div>
         <div><label class="planning-form-label">Začiatok</label><input id="rp-start" required type="date" class="planning-form-input" value="${normalizePlanDateValue(p?.startDate) || getTodayStr()}"></div>
         <div class="planning-helper">${type==='income'?'Pravidelný príjem má pri predikcii prednosť pred historickým odhadom rovnakého zdroja.':'Pravidelná platba je plán. Po uložení ti Flow ponúkne označenie starších platieb za posledných 12 mesiacov, aby sa v predikcii nezapočítali druhýkrát.'} Do Transakcií sa vytvárajú iba platby pre aktuálne začatý mesiac. Ďalší mesiac sa vytvorí až po jeho začatí.</div>
-        <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">Uložiť</button>
+        <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[11px] uppercase">Uložiť</button>
       </form>`);
 }
 
@@ -2811,7 +2923,19 @@ function pauseRecurringPlan(id) {
     const p=flowRecurringPlans.find(x=>String(x.id)===String(id));
     if(!p)return;
     p.active=false;p.version=(Number(p.version)||1)+1;p.updatedAt=new Date().toISOString();
+    closePlanningModal();
     savePlanningEntity('recurring',p);
+    showToast?.({type:'info',title:'Plán pozastavený',text:`${p.name||p.category||'Položka'} nájdeš dole v sekcii Pozastavené.`});
+}
+
+function resumeRecurringPlan(id) {
+    const p=flowRecurringPlans.find(x=>String(x.id)===String(id));
+    if(!p)return;
+    p.active=true;p.version=(Number(p.version)||1)+1;p.updatedAt=new Date().toISOString();
+    closePlanningModal();
+    savePlanningEntity('recurring',p);
+    if(typeof processRecurringPayments==='function') processRecurringPayments();
+    showToast?.({type:'success',title:'Plán obnovený',text:`${p.name||p.category||'Položka'} sa znova zohľadňuje.`});
 }
 
 function openRecurringDeleteChoice(id) {
@@ -2938,7 +3062,7 @@ function openPlannedEventStatus(eventId){
         return `<button type="button" class="w-full text-left p-3 rounded-xl border ${recommended?'border-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/20':'border-slate-200 dark:border-slate-700'}" onclick="confirmPlannedEventMatch('${escPlanning(item.id)}','${escPlanning(String(tx.id||''))}',this)">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0"><div class="font-black text-[12px] text-slate-800 dark:text-slate-100">${escPlanning(getCleanDateStr(tx.date))} · ${escPlanning(tx.note||'Bez poznámky')}</div>
-            <div class="text-[10px] font-bold text-slate-400">${recommended?'Najpravdepodobnejšia zhoda':'Možná zhoda'}${String(tx.category||'')?` · ${escPlanning(tx.category)}`:''}</div></div>
+            <div class="text-[12px] font-bold text-slate-400">${recommended?'Najpravdepodobnejšia zhoda':'Možná zhoda'}${String(tx.category||'')?` · ${escPlanning(tx.category)}`:''}</div></div>
             <strong class="${String(tx.type)==='income'?'text-emerald-600':'text-slate-800 dark:text-slate-100'}">${String(tx.type)==='income'?'+':'−'}${formatCurrency(Math.abs(Number(tx.amount)||0))}</strong>
           </div>
         </button>`;
@@ -2951,7 +3075,7 @@ function openPlannedEventStatus(eventId){
         <div class="planning-helper">${completed
           ? `Flow túto udalosť už nepočíta medzi to, čo ešte očakávaš.${linked?` Je prepojená s transakciou <b>${escPlanning(getCleanDateStr(linked.date))} · ${escPlanning(linked.note||'Bez poznámky')}</b>.`:''}`
           : `Flow ju zatiaľ považuje za <b>čakajúcu</b>. Nižšie sú reálne transakcie s podobnou sumou a dátumom. Vyber iba tú, ktorá túto udalosť naozaj splnila.`}</div>
-        ${!completed && candidates.length ? `<div class="space-y-2">${rows}</div>` : !completed ? `<div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 text-[11px] font-bold text-slate-500">Nenašiel som dostatočne podobnú transakciu. Udalosť zostáva čakajúca.</div>`:''}
+        ${!completed && candidates.length ? `<div class="space-y-2">${rows}</div>` : !completed ? `<div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 text-[12px] font-bold text-slate-500">Nenašiel som dostatočne podobnú transakciu. Udalosť zostáva čakajúca.</div>`:''}
         <div class="grid grid-cols-2 gap-2">
           <button type="button" class="planning-choice-btn justify-center" onclick="openPlanningEventModal('', '${escPlanning(item.id)}')"><i data-lucide="pencil" class="w-4 h-4"></i> Upraviť</button>
           <button type="button" class="planning-choice-btn justify-center text-rose-600" onclick="openPlannedEventDeleteConfirm('${escPlanning(item.id)}')"><i data-lucide="trash-2" class="w-4 h-4"></i> Odstrániť</button>
@@ -3018,7 +3142,7 @@ function openPlanningEventModal(monthKey='', eventId='') {
       <div class="planning-helper">${editing
         ? `Po uložení Flow okamžite prepočíta mesiac. Ak zmeníš údaje, podľa ktorých bola splnená udalosť spárovaná s transakciou, prepojenie sa bezpečne zruší a udalosť sa vráti na <b>Čaká</b>.`
         : `Udalosť je iba plán. Nevytvorí automaticky transakciu. Keď Flow nájde podobnú reálnu transakciu, ponúkne ti kontrolu zhody.`}</div>
-      <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">${editing?'Uložiť zmeny':'Pridať do plánu'}</button>
+      <button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[11px] uppercase">${editing?'Uložiť zmeny':'Pridať do plánu'}</button>
     </form>`);
     if(typeof lucide!=='undefined') lucide.createIcons();
 }
@@ -3147,7 +3271,7 @@ async function deletePlannedEvent(eventId,btn){
 
 function openMonthPlanDetail(key) {
     const [year,month1]=key.split('-').map(Number); const month=month1-1; const plan=getAnnualPlan(year)[month]; if(!plan)return;
-    showPlanningModal(`${plan.monthName} ${year}`,'Detail mesiaca',`<div class="space-y-4"><div class="planning-detail-grid"><div><span>Budget</span><b>${formatCurrency(plan.budget)}</b></div><div><span>Forecast</span><b>${formatCurrency(plan.forecast)}</b></div><div><span>Príjem</span><b>${formatCurrency(plan.plannedIncome)}</b></div></div><div class="planning-helper"><b>Príjem:</b> známe pravidelné ${formatCurrency(plan.recurringIncome||0)} · historický model ${formatCurrency(plan.incomeForecast?.value||0)} · plánované udalosti ${formatCurrency(plan.eventIncome||0)}. Pri aktuálnom mesiaci Flow odpočíta príjmy, ktoré už eviduje.</div><div class="space-y-2">${plan.categoryRows.filter(r=>r.budget>0).sort((a,b)=>b.budget-a.budget).map(r=>{const remaining=round2(r.budget-r.forecast);const health=getPlanningCategoryHealth(r.budget,r.forecast);const progress=getPlanningProgressWidth(r.budget,r.forecast);return `<div class="planning-category-card tone-${health.tone}">
+    showPlanningModal(`${plan.monthName} ${year}`,'Detail mesiaca',`<div class="space-y-4"><div class="planning-detail-grid"><div><span>Budget</span><b>${formatCurrency(plan.budget)}</b></div><div><span>Forecast</span><b>${formatCurrency(plan.forecast)}</b></div><div><span>Príjem${plan.incomeOverridden?' · ručne':''}</span><b>${formatCurrency(plan.plannedIncome)}</b></div></div>${plan.closed?'':`<button type="button" onclick="openIncomeOverrideModal('${key}')" class="income-edit-btn"><i data-lucide="pencil"></i> ${plan.incomeOverridden?'Upraviť ručný príjem':'Upraviť plánovaný príjem'}</button>`}<div class="planning-helper"><b>Príjem:</b> známe pravidelné ${formatCurrency(plan.recurringIncome||0)} · historický model ${formatCurrency(plan.incomeForecast?.value||0)} · plánované udalosti ${formatCurrency(plan.eventIncome||0)}. Pri aktuálnom mesiaci Flow odpočíta príjmy, ktoré už eviduje.</div><div class="space-y-2">${plan.categoryRows.filter(r=>r.budget>0).sort((a,b)=>b.budget-a.budget).map(r=>{const remaining=round2(r.budget-r.forecast);const health=getPlanningCategoryHealth(r.budget,r.forecast);const progress=getPlanningProgressWidth(r.budget,r.forecast);return `<div class="planning-category-card tone-${health.tone}">
     <div class="planning-category-card-head">
         <div class="planning-category-main">
             <div class="planning-category-title-row"><b>${escPlanning(r.category)}</b><span class="planning-health-badge tone-${health.tone}">${health.label}</span></div>
@@ -3166,8 +3290,89 @@ function openMonthPlanDetail(key) {
 </div>`}).join('')}</div></div>`);
 }
 
+function renderIncomeEditCell(m, label, hint) {
+    return `<button type="button" class="income-edit-cell${m.incomeOverridden ? ' is-manual' : ''}" onclick="openIncomeOverrideModal('${m.key}')" aria-label="Upraviť plánovaný príjem: ${m.monthName}">
+      <span>${label} <i data-lucide="pencil"></i></span><b>${formatCurrency(m.plannedIncome)}</b><small>${hint}</small>
+    </button>`;
+}
+
+function openIncomeOverrideModal(key) {
+    const [year, month1] = key.split('-').map(Number);
+    const month = month1 - 1;
+    const months = getAnnualPlan(year);
+    const plan = months[month];
+    if (!plan || plan.closed) return;
+    const later = months.filter(m => !m.closed && m.month > month);
+    const parts = [];
+    if (plan.recurringIncome) parts.push(`pravidelné ${formatCurrency(plan.recurringIncome)}`);
+    if (plan.incomeForecast?.value) parts.push(`historický model ${formatCurrency(plan.incomeForecast.value)}`);
+    if (plan.eventIncome) parts.push(`plánované udalosti ${formatCurrency(plan.eventIncome)}`);
+    const modelText = `Model: ${formatCurrency(plan.modelIncome)}${parts.length ? ' (' + parts.join(' + ') + ')' : ''}`;
+    const currentNote = plan.isCurrent
+        ? `<div class="planning-helper">Aktuálny mesiac: už prijatých je ${formatCurrency(plan.actualIncome)}. Plán nemôže byť nižší ako táto suma.</div>` : '';
+    const laterLabel = later.length === 1 ? 'ďalší mesiac' : later.length < 5 ? 'ďalšie mesiace' : 'ďalších mesiacov';
+    showPlanningModal('Plánovaný príjem', `${plan.monthName} ${year}`, `<form class="space-y-4" onsubmit="submitIncomeOverride(event,'${key}')">
+      <div class="planning-change-summary"><b>${plan.incomeOverridden ? 'Ručne upravené' : 'Odhad modelu'}</b><span>${formatCurrency(plan.plannedIncome)}</span></div>
+      <div class="planning-muted">${modelText}</div>
+      <div><label class="planning-form-label" for="income-override-amount">Plánovaný príjem za mesiac (€)</label>
+        <input id="income-override-amount" required type="number" inputmode="decimal" min="0" step="0.01" class="planning-form-input" value="${plan.plannedIncome}"></div>
+      ${currentNote}
+      <div><label class="planning-form-label" for="income-override-note">Poznámka</label>
+        <textarea id="income-override-note" class="planning-form-input min-h-[70px]" placeholder="Napr. zvýšená mzda, prémia, neplatené voľno…">${escPlanning(plan.incomeOverrideNote || '')}</textarea></div>
+      ${later.length ? `<label class="income-apply-later"><input id="income-override-later" type="checkbox"> <span>Použiť rovnakú sumu aj pre ${later.length} ${laterLabel} do konca roka</span></label>` : ''}
+      <button type="submit" class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[11px] uppercase">Uložiť príjem</button>
+      ${plan.incomeOverridden ? `<button type="button" onclick="resetIncomeOverride('${key}')" class="w-full py-3 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-[11px] uppercase">Vrátiť na odhad modelu</button>` : ''}
+    </form>`);
+}
+
+async function submitIncomeOverride(event, key) {
+    event.preventDefault();
+    const btn = event.submitter || event.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'UKLADÁM…'; btn.classList.add('opacity-70'); }
+    const [year, month1] = key.split('-').map(Number);
+    const amount = Math.max(0, Number(document.getElementById('income-override-amount').value) || 0);
+    const notes = document.getElementById('income-override-note').value.trim();
+    const applyLater = Boolean(document.getElementById('income-override-later')?.checked);
+    const targets = getAnnualPlan(year).filter(m => !m.closed && (m.month === month1 - 1 || (applyLater && m.month > month1 - 1)));
+    let allCloud = true;
+    try {
+        for (const m of targets) {
+            const old = getIncomeOverride(year, m.month);
+            const result = await savePlanningEntity('override', {
+                ...(old || {}),
+                id: old?.id || createUid('bo'),
+                monthKey: m.key,
+                category: INCOME_OVERRIDE_CATEGORY,
+                amount,
+                notes,
+                version: (Number(old?.version) || 0) + 1,
+                createdAt: old?.createdAt || new Date().toISOString()
+            });
+            if (result?.cloudSaved === false) allCloud = false;
+        }
+        closePlanningModal();
+        showToast?.({
+            type: allCloud ? 'success' : 'warning',
+            title: allCloud ? 'Plánovaný príjem uložený' : 'Príjem uložený v aplikácii',
+            text: targets.length > 1 ? `Platí pre ${targets.length} mesiacov.` : 'Ročný plán aj budget sa prepočítali.'
+        });
+    } catch (error) {
+        console.warn('Income override save failed:', error);
+        if (btn) { btn.disabled = false; btn.textContent = 'Uložiť príjem'; btn.classList.remove('opacity-70'); }
+    }
+}
+
+async function resetIncomeOverride(key) {
+    const [year, month1] = key.split('-').map(Number);
+    const old = getIncomeOverride(year, month1 - 1);
+    closePlanningModal();
+    if (!old) return;
+    await deletePlanningEntity('override', old.id);
+    showToast?.({ type: 'info', title: 'Príjem vrátený na model', text: 'Mesiac opäť používa odhad modelu.' });
+}
+
 function openBudgetOverrideModal(key, category, current) {
-    showPlanningModal('Upraviť budget','Ročný plán',`<form class="space-y-4" onsubmit="submitBudgetOverride(event,'${key}','${escPlanning(category)}')"><div class="planning-change-summary"><b>${escPlanning(category)}</b><span>Model: ${formatCurrency(current)}</span></div><div><label class="planning-form-label">Tvoj budget</label><input id="override-amount" required type="number" min="0" step="0.01" class="planning-form-input" value="${current}"></div><div><label class="planning-form-label">Poznámka</label><textarea id="override-note" class="planning-form-input min-h-[70px]" placeholder="Prečo upravuješ plán?"></textarea></div><button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[10px] uppercase">Uložiť úpravu</button></form>`);
+    showPlanningModal('Upraviť budget','Ročný plán',`<form class="space-y-4" onsubmit="submitBudgetOverride(event,'${key}','${escPlanning(category)}')"><div class="planning-change-summary"><b>${escPlanning(category)}</b><span>Model: ${formatCurrency(current)}</span></div><div><label class="planning-form-label">Tvoj budget</label><input id="override-amount" required type="number" min="0" step="0.01" class="planning-form-input" value="${current}"></div><div><label class="planning-form-label">Poznámka</label><textarea id="override-note" class="planning-form-input min-h-[70px]" placeholder="Prečo upravuješ plán?"></textarea></div><button class="w-full py-3 rounded-xl bg-emerald-600 text-white font-black text-[11px] uppercase">Uložiť úpravu</button></form>`);
 }
 
 async function submitBudgetOverride(event,key,category){

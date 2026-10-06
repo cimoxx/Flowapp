@@ -22,8 +22,8 @@ function renderManageCats() {
                     <span class="truncate">${c.id}</span>
                 </div>
                 <div class="text-right">
-                    <div class="text-[9px] text-slate-300 uppercase font-black tracking-tighter">${c.subs ? c.subs.length : 0} subs</div>
-                    <div class="text-[9px] text-slate-400 font-black">${getCategoryTransactionCount(c.id)} tx</div>
+                    <div class="text-[11px] text-slate-300 uppercase font-black tracking-tighter">${c.subs ? c.subs.length : 0} subs</div>
+                    <div class="text-[12px] text-slate-400 font-black">${getCategoryTransactionCount(c.id)} tx</div>
                 </div>
             </div>
             <button type="button" onclick="editCategoryName(${i})" class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-emerald-500" aria-label="Premenovať kategóriu"><i data-lucide="pencil" class="w-4 h-4"></i></button>

@@ -65,6 +65,8 @@ function refreshAllViews() {
 }
 
 (function initApp() {
+    if (typeof renderAppVersion === 'function') renderAppVersion();
+    if (typeof initHeaderCompaction === 'function') initHeaderCompaction();
     const currentYear = new Date().getFullYear();
     if (typeof refreshYearSelectors === 'function') refreshYearSelectors();
 
