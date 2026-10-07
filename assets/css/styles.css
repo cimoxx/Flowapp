@@ -3194,3 +3194,112 @@ button:focus-visible,.annual-year-chip:focus-visible,.planning-edit-icon:focus-v
     display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; line-height: 1.35; cursor: pointer;
 }
 .income-apply-later input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: #10b981; }
+
+
+/* ===== v2.50.1 - kompaktná hlavička ===== */
+html { scroll-padding-top: 84px; }
+
+.app-header {
+    --header-pad-y: 10px;
+    padding: calc(var(--header-pad-y) + env(safe-area-inset-top, 0px)) 16px var(--header-pad-y);
+    transition: padding 0.2s ease, box-shadow 0.2s ease;
+}
+.app-header.is-compact {
+    --header-pad-y: 6px;
+    box-shadow: 0 6px 16px -10px rgba(15, 23, 42, 0.35);
+}
+.app-header-row { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+.app-header-balance { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.app-header-label {
+    font-size: 11px; line-height: 1.2; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #10b981; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-height: 14px; opacity: 1; transition: max-height 0.2s ease, opacity 0.15s ease;
+}
+.app-header-amount {
+    font-size: 1.7rem; line-height: 1.1; font-weight: 800; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums; white-space: nowrap; transition: font-size 0.2s ease;
+}
+.app-header.is-compact .app-header-label { max-height: 0; opacity: 0; }
+.app-header.is-compact .app-header-amount { font-size: 1.3rem; }
+.app-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.app-header .app-brand-icon-wrap { width: 40px; height: 40px; border-radius: 13px; transition: width 0.2s ease, height 0.2s ease; }
+.app-brand-icon { width: 24px; height: 24px; transition: width 0.2s ease, height 0.2s ease; }
+.app-header.is-compact .app-brand-icon-wrap { width: 32px; height: 32px; border-radius: 11px; }
+.app-header.is-compact .app-brand-icon { width: 20px; height: 20px; }
+.app-header .sync-pill { min-height: 36px; }
+.app-header .utility-icon-btn { width: 36px; height: 36px; }
+@media (prefers-reduced-motion: reduce) { .app-header, .app-header * { transition: none !important; } }
+
+/* ===== v2.50.1 - karty pravidelných platieb ===== */
+.recurring-card.recurring-card-v2 { padding: 0; overflow: hidden; }
+.recurring-card-v2.is-paused { opacity: .72; }
+.recurring-card-v2 .recurring-card-main {
+    width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 14px 12px; text-align: left;
+    background: transparent; color: inherit; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.recurring-card-v2 .recurring-card-main:active { background: var(--bg-soft); }
+.recurring-card-v2 .recurring-icon { width: 40px; height: 40px; flex: 0 0 auto; }
+.recurring-card-v2 .recurring-icon i { width: 20px; height: 20px; }
+.recurring-card-v2 .recurring-card-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.recurring-card-v2 .recurring-name { font-size: 15px; line-height: 1.25; }
+.recurring-card-v2 .recurring-sub { font-size: 12px; font-weight: 600; line-height: 1.3; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recurring-card-v2 .recurring-amount-wrap { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.recurring-card-v2 .recurring-amount { font-size: 16px; font-variant-numeric: tabular-nums; }
+.recurring-card-v2 .recurring-amount-note { font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.recurring-card-v2 .recurring-card-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 2px 6px 6px 14px; border-top: 1px solid var(--border); min-height: 46px;
+}
+.recurring-card-v2 .recurring-next { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--text-dim); }
+.recurring-card-v2 .recurring-next i { width: 16px; height: 16px; flex: 0 0 auto; color: #10b981; }
+.recurring-card-v2 .recurring-next b { color: var(--text-main); font-weight: 800; }
+.recurring-card-v2 .recurring-next em { font-style: normal; font-weight: 700; color: #10b981; }
+.recurring-card-v2 .recurring-next-paused i { color: var(--text-dim); }
+.recurring-card-v2 .recurring-more {
+    width: 40px; height: 40px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+    border-radius: 12px; border: 0; background: transparent; color: var(--text-dim); cursor: pointer;
+}
+.recurring-card-v2 .recurring-more:active { background: var(--bg-soft-2); }
+.recurring-card-v2 .recurring-more i { width: 20px; height: 20px; }
+.recurring-card-v2 .recurring-resume {
+    margin-left: auto; padding: 8px 14px; border-radius: 10px; border: 1px solid #10b981;
+    background: rgba(16,185,129,.1); color: #10b981; font-size: 12px; font-weight: 800; cursor: pointer;
+}
+.recurring-paused-head { margin: 22px 0 8px; }
+.recurring-action-list { display: flex; flex-direction: column; gap: 8px; }
+.recurring-action-row {
+    width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 12px 14px;
+    border-radius: 16px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-main);
+    cursor: pointer; min-height: 56px;
+}
+.recurring-action-row:active { background: var(--bg-soft); }
+.recurring-action-row i { width: 20px; height: 20px; flex: 0 0 auto; color: var(--text-dim); }
+.recurring-action-row span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.recurring-action-row b { font-size: 14px; font-weight: 800; }
+.recurring-action-row small { font-size: 12px; font-weight: 600; line-height: 1.35; color: var(--text-dim); }
+.recurring-action-row.is-danger, .recurring-action-row.is-danger i, .recurring-action-row.is-danger b { color: #e11d48; }
+
+/* ===== v2.50.1 - presnosť odhadu ===== */
+.accuracy-card {
+    width: 100%; display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 14px 16px;
+    border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-main);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.accuracy-card:active { background: var(--bg-soft); }
+.accuracy-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.accuracy-card-title { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+.accuracy-chip { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; background: rgba(100,116,139,.14); color: var(--text-dim); }
+.accuracy-chip.is-great, .accuracy-chip.is-good { background: rgba(16,185,129,.14); color: #059669; }
+.accuracy-chip.is-mid { background: rgba(245,158,11,.16); color: #b45309; }
+.accuracy-chip.is-low { background: rgba(244,63,94,.14); color: #e11d48; }
+.accuracy-card-text { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.accuracy-card-text b { font-weight: 800; }
+.accuracy-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.accuracy-card-meta { font-size: 12px; font-weight: 600; line-height: 1.35; color: var(--text-dim); }
+.accuracy-card-cta { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; font-size: 12px; font-weight: 800; color: #10b981; }
+.accuracy-card-cta i { width: 16px; height: 16px; }
+@media (prefers-color-scheme: dark) {
+    .accuracy-chip.is-great, .accuracy-chip.is-good { color: #34d399; }
+    .accuracy-chip.is-mid { color: #fbbf24; }
+    .accuracy-chip.is-low { color: #fb7185; }
+}

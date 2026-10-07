@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.50.1 – Kompaktná hlavička, nové karty pravidelných platieb, presnosť odhadu, jeden zdroj verzie
+
+- Hlavička je nižšia a pri scrolle sa ešte zmenší. Nad sumou je napísané, čo číslo znamená (napr. Spolu · Okt 2026, Nové · Okt 2026). Suma používa jednotný formát meny.
+- Pravidelné platby: klepnutie na kartu otvorí úpravu, ďalšie akcie (História 12 mes., Pozastaviť, Odstrániť) sú v menu ⋯. Karta ukazuje skutočný dátum ďalšej platby, zoznam je zoradený podľa najbližšej.
+- Pozastavené pravidelné platby ostávajú viditeľné v sekcii Pozastavené a dajú sa obnoviť.
+- Presnosť odhadu je v ľudskej reči (napr. Odhad sa v priemere líši o 57 %, typicky o 132 € na kategóriu za mesiac). Odborné metriky WAPE, MAE a bias sú v Detaile s jasnejšími názvami.
+- Jeden zdroj verzie: assets/js/version.js. Číta ho aplikácia, nastavenia, changelog aj service worker (názov cache). Novú verziu zapíšeš cez python3 tools/bump_version.py <verzia> --note "…".
+
 ## v2.49.23 – Ručná úprava plánovaného príjmu
 
 - Ročný plán: plánovaný príjem mesiaca sa dá upraviť klepnutím na políčko príjmu v karte mesiaca alebo cez „Upraviť plánovaný príjem“ v detaile mesiaca.

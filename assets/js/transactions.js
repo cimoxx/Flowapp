@@ -69,7 +69,25 @@ function updateTotals(currentListData) {
             : acc - parseFloat(curr.amount);
     }, 0);
 
-    document.getElementById('display-balance').innerText = total.toFixed(2) + ' €';
+    document.getElementById('display-balance').innerText = formatCurrency(total);
+    updateBalanceLabel();
+}
+
+const BALANCE_MONTH_SHORT_SK = ['Jan', 'Feb', 'Mar', 'Apr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+
+// Názov nad sumou hovorí, čo číslo znamená: stav filtra (Nové/Spolu), obdobie a prípadná kategória.
+function updateBalanceLabel() {
+    const label = document.getElementById('balance-label');
+    if (!label) return;
+    const year = document.getElementById('filter-year')?.value || new Date().getFullYear();
+    const months = [...selectedMonths].sort((x, y) => x - y);
+    let period;
+    if (months.length === 0 || months.length === 12) period = `Rok ${year}`;
+    else if (months.length <= 3) period = `${months.map(m => BALANCE_MONTH_SHORT_SK[m]).join(', ')} ${year}`;
+    else period = `${months.length} mes. ${year}`;
+    const parts = [currentStatusFilter === 'unprocessed' ? 'Nové' : 'Spolu', period];
+    if (typeof activeCategoryFilter !== 'undefined' && activeCategoryFilter) parts.push(activeCategoryFilter);
+    label.textContent = parts.join(' · ');
 }
 
 function setModalMeta(isEdit = false) {

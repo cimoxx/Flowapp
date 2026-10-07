@@ -1,9 +1,14 @@
-const CACHE_NAME = 'flow-v20-cache-v2.49.23';
+// Verzia (a tým aj názov cache) pochádza z jedného miesta: assets/js/version.js.
+// Prehliadač pri kontrole aktualizácie sleduje aj importované skripty, takže zmena verzie vyvolá nový install.
+importScripts('./assets/js/version.js');
+const CACHE_NAME = `flow-v20-cache-v${APP_VERSION}`;
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './assets/css/styles.css?v=2.49.23',
+  './assets/css/styles.css',
+  './assets/js/version.js',
+  './assets/js/changelog.js',
   './assets/js/config.js',
   './assets/js/utils.js',
   './assets/js/sync.js',
