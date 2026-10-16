@@ -21,6 +21,16 @@ function normalizeRecurringPlanDates(plan) {
     return { ...plan, startDate: normalizePlanDateValue(plan.startDate), endDate: normalizePlanDateValue(plan.endDate) };
 }
 
+// Text z dát (poznámka, kategória, podkategória, ID) sa do innerHTML vkladá iba cez escHtml.
+function escHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+// Hodnota ako bezpečný JS reťazec v inline handleri: onclick="f(${jsArg(x)})".
+function jsArg(value) {
+    return escHtml(JSON.stringify(String(value ?? '')));
+}
+
 function getCleanDateStr(dStr) {
     if (!dStr) return getTodayStr();
     let s = String(dStr).trim();

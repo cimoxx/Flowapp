@@ -71,10 +71,10 @@ function showToast({ type = 'success', title = '', text = '', duration = 2600, a
     toast.innerHTML = `
         <i data-lucide="${iconMap[type] || 'info'}" class="toast-icon"></i>
         <div class="toast-content">
-            <div class="toast-title">${title}</div>
-            ${text ? `<div class="toast-text">${text}</div>` : ''}
+            <div class="toast-title">${escHtml(title)}</div>
+            ${text ? `<div class="toast-text">${escHtml(text)}</div>` : ''}
         </div>
-        ${action ? `<button type="button" class="toast-action-btn">${action.label}</button>` : ''}
+        ${action ? `<button type="button" class="toast-action-btn">${escHtml(action.label)}</button>` : ''}
         <button type="button" class="toast-close" onclick="dismissToast(this.closest('.toast'))">
             <i data-lucide="x" class="w-4 h-4"></i>
         </button>

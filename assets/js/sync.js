@@ -395,8 +395,9 @@ async function syncTransactions(action = 'pull') {
         });
 
         const historicalTombstones=getHistoricalTombstones();
+        const cloudIds = new Set(cloudData.map(c => String(c.id)));
         localById.forEach((local, id) => {
-            if (!cloudData.some(c => String(c.id) === id) && !queuedById.has(id) && !local.deleted) {
+            if (!cloudIds.has(id) && !queuedById.has(id) && !local.deleted) {
                 if(/^HIST-/i.test(String(id)) && historicalTombstones.has(String(id))) return;
                 merged.push(local);
                 queueMutation({ ...local, action: 'save' });

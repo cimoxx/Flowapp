@@ -3,6 +3,16 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.50.3",
+    "title": "Bezpečnejšie zobrazovanie dát, stabilné knižnice, rýchlejší sync",
+    "items": [
+      "Poznámky, kategórie a podkategórie sa zobrazujú ako čistý text. Text z Google Sheets už nemôže spustiť kód v aplikácii (ochrana proti XSS).",
+      "Podkategórie a ID s apostrofom alebo úvodzovkami (napr. O'Neil) sa dajú normálne vybrať, filtrovať a odškrtnúť.",
+      "Knižnice Lucide (1.58.0) a Chart.js (4.5.1) majú pevnú verziu, takže nové vydanie na CDN appku nerozbije. Výpadok CDN už nezhodí offline cache aplikácie.",
+      "Rýchlejšia synchronizácia pri veľkom počte transakcií v aplikácii aj v Google Apps Scripte (nový voliteľný backend v2.50.3; frontend funguje aj so starým v2.49.21)."
+    ]
+  },
+  {
     "version": "2.50.1",
     "title": "Kompaktná hlavička, nové karty pravidelných platieb, presnosť odhadu, jeden zdroj verzie",
     "items": [
