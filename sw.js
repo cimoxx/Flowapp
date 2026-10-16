@@ -10,6 +10,7 @@ const ASSETS = [
   './assets/js/version.js',
   './assets/js/changelog.js',
   './assets/js/config.js',
+  './assets/js/auth.js',
   './assets/js/utils.js',
   './assets/js/sync.js',
   './assets/js/ui.js',

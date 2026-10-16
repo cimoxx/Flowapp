@@ -3,6 +3,17 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.51.0",
+    "title": "Prihlásenie cez Google",
+    "items": [
+      "Flow sa otvára až po prihlásení Google účtom. Prístup majú len účty z hárku FlowUsers v Google Sheets.",
+      "Prihlásenie platí 90 dní a pri používaní sa samo predlžuje. Odhlásiť sa dá v Nastaveniach → Účet.",
+      "Starý zdieľaný kľúč už nie je v kóde stránky. Backend ho prijíma len počas prechodu, kým ho nevypneš funkciou disableLegacyToken.",
+      "Keď prihlásenie vyprší, appka sa vráti na prihlasovaciu obrazovku a neodoslané zmeny ostanú v telefóne.",
+      "Vyžaduje Google Apps Script v2.51.0."
+    ]
+  },
+  {
     "version": "2.50.3",
     "title": "Bezpečnejšie zobrazovanie dát, stabilné knižnice, rýchlejší sync",
     "items": [

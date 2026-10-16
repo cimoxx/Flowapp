@@ -3303,3 +3303,18 @@ html { scroll-padding-top: 84px; }
     .accuracy-chip.is-mid { color: #fbbf24; }
     .accuracy-chip.is-low { color: #fb7185; }
 }
+
+/* v2.51.0 Google prihlásenie */
+.auth-screen{display:none}
+.flow-locked .app-shell,.flow-locked #settings-screen,.flow-locked #toast-container{visibility:hidden}
+.flow-locked .auth-screen{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg-main)}
+.auth-card{width:100%;max-width:340px;padding:28px 22px;border-radius:24px;background:var(--bg-card);border:1px solid var(--border);box-shadow:var(--shadow-soft);text-align:center;color:var(--text-main)}
+.auth-logo{width:56px;height:56px;margin:0 auto 10px}
+.auth-title{font-family:'Outfit',sans-serif;font-size:26px;font-weight:800;margin:0 0 6px}
+.auth-text{font-size:13px;line-height:1.5;font-weight:600;color:var(--text-dim);margin:0 0 20px}
+.auth-google-btn{display:flex;justify-content:center;min-height:44px}
+.auth-status{margin-top:14px;font-size:12px;line-height:1.45;font-weight:700;color:var(--text-dim);min-height:18px}
+.auth-status[data-tone="warn"]{color:var(--danger)}
+.auth-status[data-tone="good"]{color:var(--accent)}
+.auth-account{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.auth-logout-btn{width:auto;flex:0 0 auto}

@@ -1,5 +1,13 @@
 # Flow changelog
 
+## v2.51.0 – Prihlásenie cez Google
+
+- Flow sa otvára až po prihlásení Google účtom. Prístup majú len účty z hárku FlowUsers v Google Sheets.
+- Prihlásenie platí 90 dní a pri používaní sa samo predlžuje. Odhlásiť sa dá v Nastaveniach → Účet.
+- Starý zdieľaný kľúč už nie je v kóde stránky. Backend ho prijíma len počas prechodu, kým ho nevypneš funkciou disableLegacyToken.
+- Keď prihlásenie vyprší, appka sa vráti na prihlasovaciu obrazovku a neodoslané zmeny ostanú v telefóne.
+- Vyžaduje Google Apps Script v2.51.0.
+
 ## v2.50.3 – Bezpečnejšie zobrazovanie dát, stabilné knižnice, rýchlejší sync
 
 - Poznámky, kategórie a podkategórie sa zobrazujú ako čistý text. Text z Google Sheets už nemôže spustiť kód v aplikácii (ochrana proti XSS).

@@ -20,7 +20,7 @@ function updateSyncUI(status) {
 }
 
 function getSyncToken() {
-    return typeof FLOW_API_TOKEN === 'string' ? FLOW_API_TOKEN : '';
+    return typeof flowAuthToken === 'function' ? flowAuthToken() : '';
 }
 
 function buildSyncGetUrl(action) {
@@ -110,6 +110,8 @@ const SYNC_MAX_RETRY_DELAY = 60000;
 
 function scheduleSyncRetry() {
     if (syncRetryTimer || (syncQueue.length === 0 && !pendingCatSync)) return;
+    // Bez prihlásenia sa neopakuje; fronta sa odošle po prihlásení.
+    if (typeof flowAuthHasSession === 'function' && !flowAuthHasSession()) return;
 
     const delay = Math.min(
         2000 * Math.pow(2, Math.max(0, syncRetryAttempt - 1)),
