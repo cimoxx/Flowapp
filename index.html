@@ -8,6 +8,12 @@
     <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/48/safe.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script>
+        // Bez prihlásenia skry dáta ešte pred prvým vykreslením (kľúč = FLOW_AUTH_KEY v auth.js).
+        try { if (!JSON.parse(localStorage.getItem('flow_auth_session_v251') || 'null')?.token) document.documentElement.classList.add('flow-locked'); }
+        catch (_) { document.documentElement.classList.add('flow-locked'); }
+    </script>
+    <script src="https://accounts.google.com/gsi/client" async></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@1.58.0/dist/umd/lucide.min.js"></script>
@@ -16,6 +22,16 @@
     <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body class="desktop-safe-body">
+
+<div id="auth-screen" class="auth-screen" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+    <div class="auth-card">
+        <img src="https://img.icons8.com/fluency/96/safe.png" class="auth-logo" alt="">
+        <h1 id="auth-title" class="auth-title">Flow</h1>
+        <p class="auth-text">Prihlás sa Google účtom, ktorý má prístup k rodinným financiám.</p>
+        <div id="auth-google-btn" class="auth-google-btn"></div>
+        <div id="auth-status" class="auth-status" role="status" aria-live="polite"></div>
+    </div>
+</div>
 
 <div class="app-shell">
     <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col pb-24 app-container shadow-2xl app-frame">
@@ -423,6 +439,17 @@
         </div>
 
         <div class="settings-section">
+            <div class="settings-section-title">Účet</div>
+            <div class="settings-info-card auth-account">
+                <div class="min-w-0">
+                    <div id="auth-account-name" class="text-sm font-extrabold truncate">—</div>
+                    <div id="auth-account-email" class="text-[11px] font-semibold text-slate-400 truncate"></div>
+                </div>
+                <button type="button" onclick="flowAuthLogout()" class="settings-action-btn auth-logout-btn"><i data-lucide="log-out" class="w-4 h-4"></i> Odhlásiť</button>
+            </div>
+        </div>
+
+        <div class="settings-section">
             <div class="settings-section-title">Synchronizácia</div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button onclick="manualSync()" class="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-extrabold text-[10px] uppercase shadow-sm">Sync Dáta</button>
@@ -510,6 +537,7 @@
 <script src="assets/js/version.js"></script>
 <script src="assets/js/changelog.js"></script>
 <script src="assets/js/config.js"></script>
+<script src="assets/js/auth.js"></script>
 <script src="assets/js/utils.js"></script>
 <script src="assets/js/sync.js"></script>
 <script src="assets/js/ui.js"></script>
