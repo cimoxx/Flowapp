@@ -400,7 +400,7 @@ function renderBudgetCategoryList(data) {
         const remaining = round2(row.recommended - row.spent);
         const pct = row.recommended > 0 ? Math.max(0,(row.spent/row.recommended)*100) : 0;
         return `<div class="budget-cat-card budget-cat-simple">
-            <div class="budget-cat-top"><div class="budget-cat-left"><div class="budget-cat-icon"><i data-lucide="${row.icon}"></i></div><div class="min-w-0"><div class="budget-cat-name">${row.category}</div><div class="budget-cat-compact-line">${formatCurrency(row.spent)} / ${formatCurrency(row.recommended)}</div></div></div><div class="budget-cat-status tone-${row.status.tone}">${row.status.label}</div></div>
+            <div class="budget-cat-top"><div class="budget-cat-left"><div class="budget-cat-icon"><i data-lucide="${escHtml(row.icon)}"></i></div><div class="min-w-0"><div class="budget-cat-name">${escHtml(row.category)}</div><div class="budget-cat-compact-line">${formatCurrency(row.spent)} / ${formatCurrency(row.recommended)}</div></div></div><div class="budget-cat-status tone-${row.status.tone}">${row.status.label}</div></div>
             <div class="budget-progress-wrap compact"><div class="budget-progress-bar"><div class="budget-progress-fill tone-${row.status.tone}" style="width:${Math.min(pct,100)}%"></div></div><div class="budget-progress-head"><span>${Math.round(pct)} % vyčerpané</span><strong class="${getSignedResultClass(remaining)}">${remaining >= 0 ? 'Zostáva' : 'Nad rozpočtom'} ${formatCurrency(Math.abs(remaining))}</strong></div></div>
             <details class="budget-cat-details"><summary>Detail kategórie</summary><div class="budget-cat-values grid grid-cols-3 gap-2"><div class="budget-mini-stat"><div class="budget-mini-label">Rozpočet</div><div class="budget-mini-value">${formatCurrency(row.recommended)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Minuté</div><div class="budget-mini-value">${formatCurrency(row.spent)}</div></div><div class="budget-mini-stat"><div class="budget-mini-label">Odhad</div><div class="budget-mini-value">${formatCurrency(row.forecast)}</div></div></div><div class="budget-cat-confidence">${row.confidenceLabel}</div></details>
         </div>`;
@@ -424,7 +424,7 @@ function renderBudgetForecastList(data) {
     el.innerHTML = rows.map(row => `
         <div class="forecast-row">
             <div class="forecast-row-left">
-                <div class="forecast-row-name">${row.category}</div>
+                <div class="forecast-row-name">${escHtml(row.category)}</div>
                 <div class="forecast-row-sub">Rozpočet ${formatCurrency(row.recommended)}</div>
             </div>
             <div class="forecast-row-right">
@@ -447,8 +447,8 @@ function renderBudgetInsights(data) {
                 <i data-lucide="${item.icon}"></i>
             </div>
             <div class="budget-insight-content">
-                <div class="budget-insight-title">${item.title}</div>
-                <div class="budget-insight-text">${item.text}</div>
+                <div class="budget-insight-title">${escHtml(item.title)}</div>
+                <div class="budget-insight-text">${escHtml(item.text)}</div>
             </div>
         </div>
     `).join('');

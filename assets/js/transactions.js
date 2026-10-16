@@ -465,10 +465,9 @@ function renderSummary(sums, currentFiltered) {
         if (sortedCategories.length > 0) {
             html += '<div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1">';
             sortedCategories.forEach(category => {
-                const safe = String(category).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 html += `
-                    <button type="button" onclick="toggleFilter('${safe}')" class="summary-card p-2.5 cursor-pointer flex flex-col justify-between shrink-0 text-left">
-                        <span class="text-[9px] font-black uppercase text-slate-400 truncate">${category}</span>
+                    <button type="button" onclick="toggleFilter(${jsArg(category)})" class="summary-card p-2.5 cursor-pointer flex flex-col justify-between shrink-0 text-left">
+                        <span class="text-[9px] font-black uppercase text-slate-400 truncate">${escHtml(category)}</span>
                         <span class="text-[13px] font-extrabold mt-1">${sums[category].toFixed(2)} €</span>
                     </button>
                 `;
@@ -489,11 +488,10 @@ function renderSummary(sums, currentFiltered) {
         if (sortedSubs.length > 0) {
             html += '<div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1">';
             sortedSubs.forEach(sub => {
-                const safe = String(sub).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 const isActive = window.activeSubFilter === sub;
                 html += `
-                    <button type="button" onclick="toggleSubFilter('${safe}')" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0 text-left">
-                        <span class="text-[9px] font-black uppercase text-amber-500/80 truncate">${sub}</span>
+                    <button type="button" onclick="toggleSubFilter(${jsArg(sub)})" class="summary-card ${isActive ? 'active-filter' : ''} p-2.5 cursor-pointer flex flex-col justify-between shrink-0 text-left">
+                        <span class="text-[9px] font-black uppercase text-amber-500/80 truncate">${escHtml(sub)}</span>
                         <span class="text-[13px] font-extrabold mt-1">${subSums[sub].toFixed(2)} €</span>
                     </button>
                 `;
@@ -658,30 +656,30 @@ function renderList() {
                 </div>
                 <div class="space-y-1.5">
                     ${dayItems.map(item => `
-                        <div class="swipe-wrapper" id="wrapper-${item.id}">
-                            <div class="swipe-bg" id="bg-${item.id}">
+                        <div class="swipe-wrapper" id="wrapper-${escHtml(item.id)}">
+                            <div class="swipe-bg" id="bg-${escHtml(item.id)}">
                                 <span class="left-action flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> <span>Zapísaná</span></span>
                                 <span class="right-action flex items-center gap-1.5"><span>Vymazať</span> <i data-lucide="trash-2" class="w-4 h-4"></i></span>
                             </div>
 
                             <div class="swipe-content tx-row tx-${item.type} p-3.5 flex items-center justify-between ${item.processed ? 'processed' : ''}"
-                                 id="item-${item.id}"
-                                 ontouchstart="handleSwipeStart(event, '${item.id}')"
-                                 ontouchmove="handleSwipeMove(event, '${item.id}')"
-                                 ontouchend="handleSwipeEnd(event, '${item.id}')">
+                                 id="item-${escHtml(item.id)}"
+                                 ontouchstart="handleSwipeStart(event, ${jsArg(item.id)})"
+                                 ontouchmove="handleSwipeMove(event, ${jsArg(item.id)})"
+                                 ontouchend="handleSwipeEnd(event, ${jsArg(item.id)})">
 
                                 <div class="tx-main flex-1 min-w-0">
                                     <div class="tx-title">
                                         ${item.isRecurring ? '<i data-lucide="repeat" class="w-3.5 h-3.5 text-emerald-500 inline shrink-0"></i>' : ''}
-                                        <span class="truncate">${item.category}</span>
-                                        ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${item.sub}</span>` : ''}
+                                        <span class="truncate">${escHtml(item.category)}</span>
+                                        ${item.sub ? `<span class="tx-subsep">/</span><span class="truncate text-safe-dim">${escHtml(item.sub)}</span>` : ''}
                                     </div>
-                                    <div class="tx-note">${item.note ? item.note : '&nbsp;'}</div>
+                                    <div class="tx-note">${item.note ? escHtml(item.note) : '&nbsp;'}</div>
                                 </div>
 
                                 <div class="tx-meta">
                                     <span class="tx-amount ${item.type === 'income' ? 'income' : 'expense'}">${item.type === 'income' ? '+' : '-'}${parseFloat(item.amount).toFixed(2)} €</span>
-                                    <div onclick="event.stopPropagation(); toggleProcessed('${item.id}')" class="tx-check ${item.processed ? 'done' : 'pending'}">
+                                    <div onclick="event.stopPropagation(); toggleProcessed(${jsArg(item.id)})" class="tx-check ${item.processed ? 'done' : 'pending'}">
                                         <i data-lucide="check" class="w-4 h-4"></i>
                                     </div>
                                 </div>

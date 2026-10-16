@@ -19,16 +19,23 @@ const ASSETS = [
   './assets/js/budget.js',
   './assets/js/cockpit.js',
   './assets/js/planning.js',
-  './assets/js/app.js',
+  './assets/js/app.js'
+];
+// Knižnice z CDN majú pevnú verziu (musí sedieť s index.html), aby sa appka nerozbila
+// pri ich novom vydaní. Výpadok CDN nesmie zhodiť inštaláciu vlastných súborov.
+const CDN_ASSETS = [
   'https://cdn.tailwindcss.com',
-  'https://unpkg.com/lucide@latest',
-  'https://cdn.jsdelivr.net/npm/chart.js'
+  'https://unpkg.com/lucide@1.58.0/dist/umd/lucide.min.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js'
 ];
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) => Promise.all([
+      cache.addAll(ASSETS),
+      ...CDN_ASSETS.map(url => cache.add(url).catch(err => console.warn('CDN cache skipped:', url, err)))
+    ]))
   );
 });
 

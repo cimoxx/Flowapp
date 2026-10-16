@@ -331,11 +331,11 @@ function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'ana
 
                 return `
                     <div class="tree-group">
-                        <div class="tree-top-row tree-clickable" onclick="toggleBreakdownGroup('${scope}', '${String(cat).replace(/'/g, "\\'")}')">
+                        <div class="tree-top-row tree-clickable" onclick="toggleBreakdownGroup('${scope}', ${jsArg(cat)})">
                             <div class="tree-cat-left">
                                 <div class="tree-cat-name-row">
                                     <span class="tree-color-dot" style="background:${color}"></span>
-                                    <span class="tree-cat-name">${cat}</span>
+                                    <span class="tree-cat-name">${escHtml(cat)}</span>
                                     <span class="tree-expand-indicator">${expanded ? '−' : '+'}</span>
                                 </div>
                                 <div class="tree-progress">
@@ -354,10 +354,10 @@ function renderTreeBreakdown(containerId, nestedData, accentColors, scope = 'ana
                                 ${subEntries.map(([sub, subVal]) => {
                                     const subPct = catTotalAbs > 0 ? (Math.abs(subVal) / catTotalAbs) * 100 : 0;
                                     return `
-                                        <div class="tree-sub-row" onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', '${String(sub).replace(/'/g, "\\'")}')">
+                                        <div class="tree-sub-row" onclick="filterFromStats(${jsArg(cat)}, ${jsArg(sub)})">
                                             <div class="tree-sub-left">
                                                 <span class="tree-branch">└─</span>
-                                                <span class="tree-sub-name">${sub}</span>
+                                                <span class="tree-sub-name">${escHtml(sub)}</span>
                                             </div>
                                             <div class="tree-sub-right">
                                                 <span class="tree-sub-share">${subPct.toFixed(0)}% z kat.</span>
@@ -518,10 +518,10 @@ function updateAnalytics() {
             const [cat, sub] = label.split(' / ');
 
             return `
-                <div onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', ${sub ? `'${String(sub).replace(/'/g, "\\'")}'` : 'null'})" class="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-emerald-500/50 transition-all">
+                <div onclick="filterFromStats(${jsArg(cat)}, ${sub ? jsArg(sub) : 'null'})" class="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-emerald-500/50 transition-all">
                     <div class="flex items-center gap-2">
                         <div class="w-2.5 h-2.5 rounded-full" style="background:${colors[idx % colors.length]}"></div>
-                        <span class="text-xs font-bold">${label}</span>
+                        <span class="text-xs font-bold">${escHtml(label)}</span>
                     </div>
                     <div class="text-right">
                         <div class="text-xs font-extrabold">${val.toFixed(2)} €</div>
@@ -688,9 +688,9 @@ function updateBurnRateTab() {
             const [cat, sub] = label.split(' / ');
 
             return `
-                <div onclick="filterFromStats('${String(cat).replace(/'/g, "\\'")}', ${sub ? `'${String(sub).replace(/'/g, "\\'")}'` : 'null'})" class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-amber-500/50 transition-all space-y-1.5">
+                <div onclick="filterFromStats(${jsArg(cat)}, ${sub ? jsArg(sub) : 'null'})" class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 cursor-pointer hover:border-amber-500/50 transition-all space-y-1.5">
                     <div class="flex justify-between items-center">
-                        <span class="text-xs font-extrabold">${label}</span>
+                        <span class="text-xs font-extrabold">${escHtml(label)}</span>
                         <span class="text-xs font-black text-amber-500">${val.toFixed(2)} €</span>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-[9px] pt-1 border-t border-slate-100 dark:border-slate-800">

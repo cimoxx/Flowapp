@@ -5,9 +5,9 @@ function getCategoryTransactionCount(catId) {
 function renderCatGrid() {
     const catGrid = document.getElementById('cat-grid');
     catGrid.innerHTML = categories.map(c => `
-        <div onclick="selectCat('${c.id}', event)" data-id="${c.id}" class="cat-tile flex flex-col items-center justify-center p-1 font-extrabold uppercase">
-            <i data-lucide="${c.icon || 'layers'}"></i>
-            <span>${c.id}</span>
+        <div onclick="selectCat(${jsArg(c.id)}, event)" data-id="${escHtml(c.id)}" class="cat-tile flex flex-col items-center justify-center p-1 font-extrabold uppercase">
+            <i data-lucide="${escHtml(c.icon || 'layers')}"></i>
+            <span>${escHtml(c.id)}</span>
         </div>
     `).join('');
     lucide.createIcons();
@@ -18,8 +18,8 @@ function renderManageCats() {
         <div class="flex items-center gap-2">
             <div onclick="openCatDetail(${i})" class="flex-1 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between shadow-sm cursor-pointer active:scale-[0.98] transition-all">
                 <div class="font-extrabold text-sm uppercase flex items-center gap-2 min-w-0">
-                    <i data-lucide="${c.icon || 'layers'}" class="w-4 h-4 shrink-0"></i>
-                    <span class="truncate">${c.id}</span>
+                    <i data-lucide="${escHtml(c.icon || 'layers')}" class="w-4 h-4 shrink-0"></i>
+                    <span class="truncate">${escHtml(c.id)}</span>
                 </div>
                 <div class="text-right">
                     <div class="text-[9px] text-slate-300 uppercase font-black tracking-tighter">${c.subs ? c.subs.length : 0} subs</div>
@@ -146,7 +146,7 @@ function renderManageSubs() {
     document.getElementById('manage-subs-list').innerHTML = cat.subs.map((s, i) => `
         <div class="flex items-center gap-2">
             <div class="flex-1 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-center justify-between border border-transparent dark:border-slate-700">
-                <div class="font-bold text-xs uppercase">${s}</div>
+                <div class="font-bold text-xs uppercase">${escHtml(s)}</div>
                 <div class="flex items-center gap-1">
                     <button type="button" onclick="editSubCategoryName(${i})" class="p-1.5 text-slate-400 hover:text-emerald-500"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
                     <button type="button" onclick="deleteSub(${i})" class="p-1.5 text-red-300 hover:text-red-500"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
@@ -280,7 +280,7 @@ function selectCat(id, e = null) {
 
     if (cat && cat.subs && cat.subs.length > 0) {
         subSection.classList.remove('hidden');
-        subGrid.innerHTML = cat.subs.map(s => `<button type="button" onclick="selectSub('${s}', event)" data-sub="${s}" class="sub-chip px-3 py-2 rounded-xl font-extrabold uppercase shadow-sm">${s}</button>`).join('');
+        subGrid.innerHTML = cat.subs.map(s => `<button type="button" onclick="selectSub(${jsArg(s)}, event)" data-sub="${escHtml(s)}" class="sub-chip px-3 py-2 rounded-xl font-extrabold uppercase shadow-sm">${escHtml(s)}</button>`).join('');
     } else {
         subSection.classList.add('hidden');
         subGrid.innerHTML = '';
