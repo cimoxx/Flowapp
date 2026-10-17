@@ -64,6 +64,20 @@ function refreshAllViews() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
+// Skratky z ikony appky (manifest.json → shortcuts): index.html?add=expense|income.
+// Bez prihlásenia sa adresa nechá tak, po prihlásení appka robí reload a skratka sa dokončí.
+function handleLaunchShortcut() {
+    let mode = '';
+    try { mode = new URLSearchParams(location.search).get('add') || ''; } catch (_) { return; }
+    if (mode !== 'expense' && mode !== 'income') return;
+    if (typeof flowAuthHasSession === 'function' && !flowAuthHasSession()) return;
+
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (_) {}
+    if (typeof openModal !== 'function') return;
+    openModal();
+    setType(mode);
+}
+
 (function initApp() {
     if (typeof renderAppVersion === 'function') renderAppVersion();
     if (typeof initHeaderCompaction === 'function') initHeaderCompaction();
@@ -90,4 +104,6 @@ function refreshAllViews() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
+
+    handleLaunchShortcut();
 })();

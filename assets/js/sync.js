@@ -415,6 +415,9 @@ async function syncTransactions(action = 'pull') {
         updateAnalytics();
         updateBurnRateTab();
         if (typeof updateBudgetScreen === 'function') updateBudgetScreen();
+        // Formulár otvorený ešte pred prvým stiahnutím dát (napr. zo skratky) dostane čerstvé návrhy.
+        if (typeof renderQuickPicks === 'function' && !document.getElementById('entry-id')?.value &&
+            !document.getElementById('modal-overlay')?.classList.contains('hidden')) renderQuickPicks();
     } catch (e) {
         console.error("Sync pull error:", e);
         syncRetryAttempt++;

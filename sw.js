@@ -46,6 +46,6 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   e.respondWith(
-    caches.match(e.request).then((res) => res || fetch(e.request))
+    caches.match(e.request, { ignoreSearch: e.request.mode === 'navigate' }).then((res) => res || fetch(e.request))
   );
 });

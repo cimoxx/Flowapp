@@ -1,5 +1,12 @@
 # Flow changelog
 
+## v2.52.0 – Rýchle pridanie výdavku
+
+- Pri novej transakcii pribudol riadok Často používané: kombinácie typ, kategória, podkategória a poznámka z posledných 120 dní (napr. Billa, Slovnaft, Výplata). Jedno klepnutie vyplní formulár, stačí napísať sumu a uložiť.
+- Návrhy sa radia podľa počtu použití. Pravidelné platby, zmazané záznamy a historický import sa nezapočítavajú. Suma sa nikdy nepredvypĺňa.
+- Skratky z ikony appky: dlhým podržaním ikony Flow na ploche sa dá priamo otvoriť Nový výdavok alebo Nový príjem (Android; po zmene sa môže vyžadovať znova pridať appku na plochu).
+- Skratky fungujú aj offline a po prihlásení sa dokončia (formulár sa otvorí až po prihlásení).
+
 ## v2.51.0 – Prihlásenie cez Google
 
 - Flow sa otvára až po prihlásení Google účtom. Prístup majú len účty z hárku FlowUsers v Google Sheets.

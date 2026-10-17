@@ -3,6 +3,16 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.52.0",
+    "title": "Rýchle pridanie výdavku",
+    "items": [
+      "Pri novej transakcii pribudol riadok Často používané: kombinácie typ, kategória, podkategória a poznámka z posledných 120 dní (napr. Billa, Slovnaft, Výplata). Jedno klepnutie vyplní formulár, stačí napísať sumu a uložiť.",
+      "Návrhy sa radia podľa počtu použití. Pravidelné platby, zmazané záznamy a historický import sa nezapočítavajú. Suma sa nikdy nepredvypĺňa.",
+      "Skratky z ikony appky: dlhým podržaním ikony Flow na ploche sa dá priamo otvoriť Nový výdavok alebo Nový príjem (Android; po zmene sa môže vyžadovať znova pridať appku na plochu).",
+      "Skratky fungujú aj offline a po prihlásení sa dokončia (formulár sa otvorí až po prihlásení)."
+    ]
+  },
+  {
     "version": "2.51.0",
     "title": "Prihlásenie cez Google",
     "items": [
