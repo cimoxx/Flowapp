@@ -3318,3 +3318,12 @@ html { scroll-padding-top: 84px; }
 .auth-status[data-tone="good"]{color:var(--accent)}
 .auth-account{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .auth-logout-btn{width:auto;flex:0 0 auto}
+
+/* v2.52.0 Rýchle pridanie */
+.quick-picks-list{display:flex;gap:6px;overflow-x:auto;padding:2px 1px 6px;margin:0 -2px;scrollbar-width:none}
+.quick-picks-list::-webkit-scrollbar{display:none}
+.quick-pick{flex:0 0 auto;max-width:170px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:44px;padding:8px 12px;border-radius:14px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-main);text-align:left;box-shadow:var(--shadow-soft)}
+.quick-pick:active{transform:scale(.97)}
+.quick-pick-income{border-color:rgba(16,185,129,.35);background:var(--accent-soft)}
+.quick-pick-title{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:800}
+.quick-pick-detail{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;font-weight:700;color:var(--text-dim)}

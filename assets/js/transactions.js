@@ -105,6 +105,76 @@ function setModalMeta(isEdit = false) {
     }
 }
 
+// Často používané kombinácie (typ + kategória + podkategória + poznámka) z posledných 120 dní.
+// Pravidelné platby a historický import sa nezapočítavajú, ide o to, čo človek zadáva ručne.
+const QUICK_PICK_DAYS = 120;
+const QUICK_PICK_LIMIT = 6;
+let quickPicks = [];
+
+function getQuickPicks(limit = QUICK_PICK_LIMIT) {
+    const since = Date.now() - QUICK_PICK_DAYS * 86400000;
+    const groups = new Map();
+
+    (Array.isArray(db) ? db : []).forEach(tx => {
+        if (!tx || tx.deleted || tx.isRecurring || tx.recurringPlanId) return;
+        if (/^(RPOCC_|HIST-)/i.test(String(tx.id || ''))) return;
+
+        const when = Date.parse(getCleanDateStr(tx.date) + 'T00:00:00');
+        if (!Number.isFinite(when) || when < since) return;
+
+        const cat = categories.find(c => c.id === tx.category);
+        if (!cat) return;
+
+        const type = tx.type === 'income' ? 'income' : 'expense';
+        const subName = tx.sub && Array.isArray(cat.subs) && cat.subs.includes(tx.sub) ? tx.sub : '';
+        const note = String(tx.note || '').trim();
+        const key = [type, cat.id, subName, note.toLowerCase()].join('|');
+
+        const group = groups.get(key) || { type, category: cat.id, sub: subName, note, count: 0, last: 0 };
+        group.count += 1;
+        group.last = Math.max(group.last, when);
+        groups.set(key, group);
+    });
+
+    return [...groups.values()]
+        .sort((a, b) => b.count - a.count || b.last - a.last)
+        .slice(0, limit);
+}
+
+function renderQuickPicks() {
+    const wrap = document.getElementById('quick-picks');
+    const list = document.getElementById('quick-picks-list');
+    if (!wrap || !list) return;
+
+    quickPicks = getQuickPicks();
+    wrap.classList.toggle('hidden', quickPicks.length === 0);
+
+    list.innerHTML = quickPicks.map((p, i) => {
+        const where = p.sub ? `${p.category} / ${p.sub}` : p.category;
+        const title = p.note || p.sub || p.category;
+        const detail = p.note ? where : (p.sub ? p.category : '');
+        return `<button type="button" onclick="applyQuickPick(${i})" class="quick-pick quick-pick-${p.type}">
+            <span class="quick-pick-title">${p.type === 'income' ? '+ ' : ''}${escHtml(title)}</span>
+            ${detail ? `<span class="quick-pick-detail">${escHtml(detail)}</span>` : ''}
+        </button>`;
+    }).join('');
+}
+
+function applyQuickPick(index) {
+    const pick = quickPicks[index];
+    if (!pick) return;
+
+    setType(pick.type);
+    selectCat(pick.category);
+    if (pick.sub) selectSub(pick.sub);
+    document.getElementById('f-note').value = pick.note;
+
+    // Suma sa nikdy nepredvypĺňa: stačí ju napísať a uložiť.
+    const amountInput = document.getElementById('f-amount');
+    amountInput.focus();
+    amountInput.select();
+}
+
 function openModal(id = null) {
     const overlay = document.getElementById('modal-overlay');
     const amountInput = document.getElementById('f-amount');
@@ -134,6 +204,7 @@ function openModal(id = null) {
         if (item.sub) selectSub(item.sub);
 
         document.getElementById('del-btn').classList.remove('hidden');
+        document.getElementById('quick-picks')?.classList.add('hidden');
     } else {
         setModalMeta(false);
 
@@ -164,6 +235,7 @@ function openModal(id = null) {
         }
 
         document.getElementById('del-btn').classList.add('hidden');
+        renderQuickPicks();
     }
 
     setTimeout(() => {
