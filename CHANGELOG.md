@@ -1,5 +1,9 @@
 # Flow changelog
 
+## v2.52.1 – Kratšie obdobie pre Často používané
+
+- Návrhy v riadku Často používané sa počítajú z posledných 30 dní (predtým 120), takže sa rýchlejšie prispôsobia tomu, čo práve zadávaš.
+
 ## v2.52.0 – Rýchle pridanie výdavku
 
 - Pri novej transakcii pribudol riadok Často používané: kombinácie typ, kategória, podkategória a poznámka z posledných 120 dní (napr. Billa, Slovnaft, Výplata). Jedno klepnutie vyplní formulár, stačí napísať sumu a uložiť.

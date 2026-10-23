@@ -105,9 +105,9 @@ function setModalMeta(isEdit = false) {
     }
 }
 
-// Často používané kombinácie (typ + kategória + podkategória + poznámka) z posledných 120 dní.
+// Často používané kombinácie (typ + kategória + podkategória + poznámka) z posledných 30 dní.
 // Pravidelné platby a historický import sa nezapočítavajú, ide o to, čo človek zadáva ručne.
-const QUICK_PICK_DAYS = 120;
+const QUICK_PICK_DAYS = 30;
 const QUICK_PICK_LIMIT = 6;
 let quickPicks = [];
 

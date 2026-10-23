@@ -3,6 +3,13 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.52.1",
+    "title": "Kratšie obdobie pre Často používané",
+    "items": [
+      "Návrhy v riadku Často používané sa počítajú z posledných 30 dní (predtým 120), takže sa rýchlejšie prispôsobia tomu, čo práve zadávaš."
+    ]
+  },
+  {
     "version": "2.52.0",
     "title": "Rýchle pridanie výdavku",
     "items": [
