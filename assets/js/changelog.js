@@ -3,6 +3,15 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.54.1",
+    "title": "Oprava nadhodnotených porovnaní minulých mesiacov",
+    "items": [
+      "Oprava: porovnania minulých mesiacov (plán a odhad) ukazovali približne šesťnásobok skutočnosti. Archív odhadov obsahoval viac kópií toho istého odhadu (z opakovaného prepočtu histórie) a appka ich sčítavala. Teraz sa berie jedna, najnovšia kópia.",
+      "Už uložené chybné snímky sa nezobrazujú, pri štarte sa prepočítajú a opravia aj v cloude (vyžaduje Apps Script v2.54.1).",
+      "Apps Script v2.54.1: nahradenie snímky staršej verzie novšou a funkcia reportForecastArchiveDuplicates (len na čítanie), ktorá vypíše počet duplicitných riadkov v archíve."
+    ]
+  },
+  {
     "version": "2.54.0",
     "title": "Trvalé uloženie porovnania odhad vs. skutočnosť",
     "items": [

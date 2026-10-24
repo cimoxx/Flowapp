@@ -105,3 +105,29 @@ test('snímky vyžadujú platné prihlásenie (token)', () => {
     assert.equal(res.status, 'error');
     assert.equal(res.code, 'unauthorized');
 });
+
+test('savePlanSnapshots: snímka staršej verzie sa nahradí novšou, rovnaká verzia sa neprepíše', () => {
+    const gas = createGas();
+    gas.post({ action: 'savePlanSnapshots', items: [snapshot('2026-09', { source: 'backtest', version: 1 })] });
+    const better = snapshot('2026-09', { source: 'backtest', version: 2, total: { budget: 10, forecast: 11, actual: 12, budgetDelta: -2, forecastDelta: -1 } });
+    const up = gas.post({ action: 'savePlanSnapshots', items: [better] });
+    assert.equal(up.results[0].status, 'upgraded');
+    assert.equal(up.results[0].snapshot.version, 2);
+    const again = gas.post({ action: 'savePlanSnapshots', items: [snapshot('2026-09', { source: 'backtest', version: 2 })] });
+    assert.equal(again.results[0].status, 'already_saved');
+    assert.equal(again.results[0].snapshot.total.actual, 12);
+    const older = gas.post({ action: 'savePlanSnapshots', items: [snapshot('2026-09', { source: 'backtest', version: 1 })] });
+    assert.equal(older.results[0].status, 'already_saved', 'staršia verzia novšiu nikdy neprepíše');
+});
+
+test('reportForecastArchiveDuplicates: spočíta kópie a nič nemení', () => {
+    const gas = createGas();
+    const rows = [];
+    for (let i = 0; i < 4; i++) rows.push(archiveRow(`fa_a${i}`, '2026-09', { backtest: 'walk-forward' }));
+    rows.push(archiveRow('fa_b', '2026-08', { backtest: 'walk-forward' }));
+    gas.post({ action: 'archiveForecasts', rows });
+    const before = JSON.stringify(gas.sheets.FlowForecastArchive.rows);
+    const r = gas.run('reportForecastArchiveDuplicates()');
+    assert.deepEqual({ rows: r.rows, uniqueKeys: r.uniqueKeys, extraCopies: r.extraCopies, mostCopiesOfOne: r.mostCopiesOfOne }, { rows: 5, uniqueKeys: 2, extraCopies: 3, mostCopiesOfOne: 4 });
+    assert.equal(JSON.stringify(gas.sheets.FlowForecastArchive.rows), before);
+});

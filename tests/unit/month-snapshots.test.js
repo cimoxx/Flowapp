@@ -271,3 +271,91 @@ test('normalizeMonthKey (klient) vráti správny mesiac v ľubovoľnej časovej 
         if (original === undefined) delete process.env.TZ; else process.env.TZ = original;
     }
 });
+
+// --- v2.54.1: duplicitné kópie v archíve (opakovaný prepočet histórie) a už uložené chybné snímky ---
+
+test('duplicitné kópie odhadu v archíve sa nesčítavajú (regresia: 6 kópií dalo 6× vyššie sumy)', async () => {
+    const totals = {};
+    for (const n of [1, 6]) {
+        const gas = createGas();
+        const app = openApp(gas);
+        // Backtest riadky majú generatedAt = začiatok mesiaca, všetky kópie padnú do tej istej skupiny.
+        const rows = [];
+        for (let i = 0; i < n; i++) rows.push(...app.liveRows(CLOSED, { generatedDays: ['2026-09-01'] }).map(r => ({ ...r, backtest: 'walk-forward', id: `bt${i}_${r.id}`, generatedAt: '2026-09-01T00:00:00.000Z' })));
+        gas.post({ action: 'archiveForecasts', rows });
+        await app.run('loadPlanningData()');
+        const legacy = comparison(app);                                  // ešte bez snímky
+        await app.run('ensureClosedMonthSnapshots()');
+        const stored = comparison(app);
+        assert.equal(stored.budget, legacy.budget, 'snímka sa zhoduje s výpočtom z archívu');
+        assert.equal(stored.forecast, legacy.forecast);
+        totals[n] = { budget: stored.budget, forecast: stored.forecast };
+    }
+    assert.deepEqual(totals[6], totals[1], 'šesť kópií musí dať rovnaké čísla ako jedna');
+});
+
+test('z duplicitných kópií sa berie najnovšia (podľa času vzniku, potom id)', async () => {
+    const gas = createGas();
+    const app = openApp(gas);
+    const version = app.run('FLOW_MODEL_VERSION');
+    const row = (id, forecast, generatedAt) => ({ id, targetMonth: CLOSED, category: 'Strava', budgetAmount: forecast + 10, forecastAmount: forecast, modelVersion: version, generatedAt, backtest: 'walk-forward' });
+    app.sandbox.__rows = [row('fa_aaa', 100, '2026-09-01T00:00:00.000Z'), row('fa_zzz', 300, '2026-09-01T00:00:00.000Z'), row('fa_mmm', 200, '2026-09-01T00:00:00.000Z')];
+    app.run('flowForecastArchive = __rows; markForecastIndexDirty();');
+    const snap = plain(app.run(`buildMonthSnapshot('${CLOSED}')`));
+    assert.equal(snap.categories.find(c => c.category === 'Strava').forecast, 300);
+});
+
+test('už uložená chybná snímka (verzia 1, násobne vyššie sumy) sa nezobrazí a prepočíta sa; cloud sa opraví', async () => {
+    const gas = createGas();
+    const storage = new Map();
+    const app = openApp(gas, { storage });
+    const rows = [];
+    for (let i = 0; i < 6; i++) rows.push(...app.liveRows(CLOSED, { generatedDays: ['2026-09-01'] }).map(r => ({ ...r, backtest: 'walk-forward', id: `bt${i}_${r.id}`, generatedAt: '2026-09-01T00:00:00.000Z' })));
+    gas.post({ action: 'archiveForecasts', rows });
+
+    // Chybná snímka tak, ako ju uložila verzia 2.54.0: sčítané kópie, verzia 1, už odoslaná do cloudu.
+    const bad = { monthKey: CLOSED, source: 'backtest', modelVersion: app.run('FLOW_MODEL_VERSION'), createdAt: '2026-10-25T08:00:00.000Z',
+        total: { budget: 6366, forecast: 6060, actual: 1037.4, budgetDelta: 5328.6, forecastDelta: 5022.6 }, categories: [], income: null };
+    gas.post({ action: 'savePlanSnapshots', items: [bad] });
+    storage.set('flow_month_snapshots_v254', JSON.stringify({ version: 1, items: [{ ...bad, synced: true }] }));
+
+    const restarted = openApp(gas, { storage });
+    const beforeCloud = comparison(restarted);
+    assert.ok(beforeCloud === null || beforeCloud.forecast < 2000, 'chybná snímka sa nesmie zobraziť');
+    await restarted.run('loadPlanningData()');
+    const shown = comparison(restarted);
+    assert.ok(shown.forecast < 2000 && shown.budget < 2000, `zobrazené ${shown.budget} / ${shown.forecast}`);
+    const result = await restarted.run('ensureClosedMonthSnapshots()');
+    assert.ok(result.upgraded >= 1);
+
+    const fixed = comparison(restarted);
+    assert.ok(fixed.stored && fixed.forecast < 2000 && fixed.budget < 2000);
+    const inCloud = gas.get({ get: 'planning', archiveModel: '' }).snapshots.find(s => s.monthKey === CLOSED);
+    assert.equal(inCloud.version, 2, 'cloud má opravenú verziu');
+    assert.ok(inCloud.total.forecast < 2000);
+
+    // Druhé zariadenie vidí už len opravenú snímku.
+    const other = openApp(gas);
+    await other.run('loadPlanningData()');
+    assert.deepEqual(comparison(other), comparison(restarted));
+});
+
+test('keď cloud ešte nemá nový script, lokálna opravená snímka ostane a staršia cloudová ju neprepíše', async () => {
+    const gas = createGas('Flowapp-Google-Apps-Script-v2.54.0.gs');   // script bez výmeny verzie snímky
+    const storage = new Map();
+    const app = openApp(gas, { storage });
+    const rows = [];
+    for (let i = 0; i < 6; i++) rows.push(...app.liveRows(CLOSED, { generatedDays: ['2026-09-01'] }).map(r => ({ ...r, backtest: 'walk-forward', id: `bt${i}_${r.id}`, generatedAt: '2026-09-01T00:00:00.000Z' })));
+    gas.post({ action: 'archiveForecasts', rows });
+    const bad = { version: 1, monthKey: CLOSED, source: 'backtest', modelVersion: app.run('FLOW_MODEL_VERSION'), createdAt: '2026-10-25T08:00:00.000Z',
+        total: { budget: 6366, forecast: 6060, actual: 1037.4, budgetDelta: 5328.6, forecastDelta: 5022.6 }, categories: [], income: null };
+    gas.post({ action: 'savePlanSnapshots', items: [bad] });
+
+    await app.run('loadPlanningData()');
+    await app.run('ensureClosedMonthSnapshots()');
+    const local = comparison(app);
+    assert.ok(local.stored && local.forecast < 2000, 'lokálne je správna hodnota');
+    assert.equal(plain(app.run(`findMonthSnapshotRaw('${CLOSED}')`)).synced, false, 'čaká na nový script');
+    await app.run('uploadPendingMonthSnapshots()');
+    assert.deepEqual(comparison(app), local, 'staršia cloudová verzia ju neprepísala');
+});

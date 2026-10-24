@@ -70,7 +70,7 @@ class Sheet {
     getDataRange() { return this.getRange(1, 1, Math.max(1, this.getLastRow()), this.rows.reduce((m, r) => Math.max(m, (r || []).length), 1)); }
 }
 
-function createGas(file = 'Flowapp-Google-Apps-Script-v2.54.0.gs') {
+function createGas(file = 'Flowapp-Google-Apps-Script-v2.54.1.gs') {
     const code = fs.readFileSync(path.join(GAS_DIR, file), 'utf8');
     const sheets = {};
     const ss = {
