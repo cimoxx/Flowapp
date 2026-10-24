@@ -1,5 +1,11 @@
 # Flow changelog
 
+## v2.54.1 – Oprava nadhodnotených porovnaní minulých mesiacov
+
+- Oprava: porovnania minulých mesiacov (plán a odhad) ukazovali približne šesťnásobok skutočnosti. Archív odhadov obsahoval viac kópií toho istého odhadu (z opakovaného prepočtu histórie) a appka ich sčítavala. Teraz sa berie jedna, najnovšia kópia.
+- Už uložené chybné snímky sa nezobrazujú, pri štarte sa prepočítajú a opravia aj v cloude (vyžaduje Apps Script v2.54.1).
+- Apps Script v2.54.1: nahradenie snímky staršej verzie novšou a funkcia reportForecastArchiveDuplicates (len na čítanie), ktorá vypíše počet duplicitných riadkov v archíve.
+
 ## v2.54.0 – Trvalé uloženie porovnania odhad vs. skutočnosť
 
 - Porovnania za ukončené mesiace (odhad, plán, skutočnosť, rozdiel, celkovo aj po kategóriách) sa po skončení mesiaca uložia ako snímka a po refreshi už nezmiznú. Ukladajú sa lokálne aj do Google Sheets (nový hárok FlowMonthSnapshots), takže ich uvidíš aj na druhom zariadení.
