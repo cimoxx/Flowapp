@@ -16,7 +16,7 @@ const ROOT = path.resolve(__dirname, '..');
 // Poradie ako v index.html (bez auth.js a app.js, ktoré potrebujú DOM a prihlásenie).
 const SCRIPTS = ['version', 'config', 'utils', 'sync', 'ui', 'categories', 'transactions', 'analytics', 'budget', 'planning', 'cockpit'];
 
-function createApp({ now = new Date(2026, 9, 24, 12) } = {}) {
+function createApp({ now = new Date(2026, 9, 24, 12), storage = new Map(), fetch = null } = {}) {
     const RealDate = Date;
     const FIXED = now.getTime();
     class FakeDate extends RealDate {
@@ -24,7 +24,7 @@ function createApp({ now = new Date(2026, 9, 24, 12) } = {}) {
         static now() { return FIXED; }
     }
 
-    const store = new Map();
+    const store = storage; // zdieľané úložisko = „refresh“ appky v teste
     const noop = () => {};
     const element = () => new Proxy(function () {}, {
         get: (_, prop) => {
@@ -41,14 +41,14 @@ function createApp({ now = new Date(2026, 9, 24, 12) } = {}) {
 
     const sandbox = {
         Date: FakeDate, Math, JSON, Intl, Set, Map, WeakMap, Promise, Symbol, Number, String, Boolean, Array, Object, RegExp, Error, TypeError,
-        parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, decodeURIComponent, setTimeout: noop, clearTimeout: noop, requestAnimationFrame: noop,
+        parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, decodeURIComponent, setTimeout: (fn) => setTimeout(fn, 0), clearTimeout, requestAnimationFrame: noop,
         console: { log: noop, warn: noop, error: noop, info: noop },
         localStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) },
         document: { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener: noop, createElement: element, documentElement: element(), body: element() },
         navigator: {},
         location: { search: '', pathname: '/', hash: '' },
         history: { replaceState: noop },
-        fetch: () => Promise.reject(new Error('fetch is disabled in tests')),
+        fetch: fetch || (() => Promise.reject(new Error('fetch is disabled in tests'))),
         alert: noop, confirm: () => true
     };
     sandbox.addEventListener = noop;
@@ -63,6 +63,7 @@ function createApp({ now = new Date(2026, 9, 24, 12) } = {}) {
 
     const app = {
         sandbox,
+        storage: store,
         run: code => vm.runInContext(code, sandbox),
         /** Nastaví kategórie a transakcie a zneplatní vypočítané indexy. */
         setData({ categories, transactions, recurring = [], events = [], overrides = [] }) {

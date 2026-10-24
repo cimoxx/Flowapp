@@ -9,6 +9,12 @@ let flowForecastArchive = [];
 try { localStorage.removeItem('flow_forecast_archive_v235'); } catch (_) {}
 let flowModelState = JSON.parse(localStorage.getItem('flow_model_state_v235') || '{}');
 let planningLoaded = false;
+// v2.54: nemenné snímky porovnania odhad vs. skutočnosť za ukončené mesiace.
+// Načítajú sa z localStorage ešte pred prvým vykreslením, takže prežijú refresh aj bez siete.
+const FLOW_MONTH_SNAPSHOT_KEY = 'flow_month_snapshots_v254';
+let flowMonthSnapshots = readLocalMonthSnapshots();
+let planningCloudOk = false;           // cloud sa v tejto relácii úspešne načítal
+let monthSnapshotUploadBusy = false;
 
 const FLOW_MODEL_VERSION = '2.42.0-category-champions-v1';
 if (flowModelState?.forecastModelVersion !== FLOW_MODEL_VERSION) {
@@ -327,8 +333,11 @@ async function loadPlanningData() {
             syncLocalBudgetOverridesToCloud(localOverridesBeforeLoad, payload.overrides, flowBudgetOverrides);
         }
 
-        if (Array.isArray(payload.archive)) flowForecastArchive = payload.archive;
+        // Hárok vracia mesiac niekedy ako dátum/ISO časovú značku. Archív sa páruje podľa textu YYYY-MM.
+        if (Array.isArray(payload.archive)) flowForecastArchive = payload.archive.map(normalizeArchiveRow);
         if (payload.modelState && typeof payload.modelState === 'object') flowModelState = payload.modelState;
+        if (Array.isArray(payload.snapshots)) mergeCloudMonthSnapshots(payload.snapshots);
+        planningCloudOk = true;
 
         planningLoaded = true;
         planningPersist();
@@ -1516,8 +1525,12 @@ function getPlanningComparisonTone(percent, mode = 'accuracy') {
 }
 
 function getMonthArchiveComparison(targetMonth, actualExpenses) {
+    // v2.54: uložená snímka ukončeného mesiaca má prednosť a už sa nepočíta znova.
+    const storedSnapshot = getStoredMonthSnapshot(targetMonth);
+    if (storedSnapshot) return getMonthComparisonFromSnapshot(storedSnapshot);
+
     const rows = (Array.isArray(flowForecastArchive) ? flowForecastArchive : [])
-        .filter(r => String(r.targetMonth || '') === String(targetMonth || ''))
+        .filter(r => normalizeMonthKey(r.targetMonth) === normalizeMonthKey(targetMonth))
         .filter(r => String(r.category || '') !== '__INCOME__')
         .filter(r => Number.isFinite(Number(r.forecastAmount)) || Number.isFinite(Number(r.budgetAmount)));
 
@@ -1594,6 +1607,8 @@ function renderClosedMonthComparison(month) {
     const budgetTone = getPlanningComparisonTone(cmp.budgetAccuracy, 'accuracy');
     const forecastTone = getPlanningComparisonTone(cmp.forecastAccuracy, 'accuracy');
     const sourceLabel = cmp.source === 'snapshot' ? 'uložené počas mesiaca' : 'spätne dopočítané';
+    // Uložená snímka zobrazuje aj skutočnosť zo seba (nemení sa, keď sa neskôr upravia transakcie).
+    const actualShown = cmp.stored ? cmp.actual : month.actualExpenses;
 
     return `<div class="planning-comparison-card">
         <div class="planning-comparison-head">
@@ -1614,8 +1629,8 @@ function renderClosedMonthComparison(month) {
             </div>
             <div class="planning-closed-summary-item actual">
                 <span>Skutočné výdavky</span>
-                <strong>${formatCurrency(month.actualExpenses)}</strong>
-                <small>zo zapísaných transakcií</small>
+                <strong>${formatCurrency(actualShown)}</strong>
+                <small>${cmp.stored ? 'uložené pri uzavretí mesiaca' : 'zo zapísaných transakcií'}</small>
             </div>
         </div>
 
@@ -1624,14 +1639,14 @@ function renderClosedMonthComparison(month) {
             percent:cmp.budgetAccuracy,
             tone:budgetTone,
             accuracy:true,
-            amountText:`${formatCurrency(cmp.budget)} vs. ${formatCurrency(month.actualExpenses)}`
+            amountText:`${formatCurrency(cmp.budget)} vs. ${formatCurrency(actualShown)}`
         })}
         ${renderPlanningMeter({
             label:'Forecast – zhoda',
             percent:cmp.forecastAccuracy,
             tone:forecastTone,
             accuracy:true,
-            amountText:`${formatCurrency(cmp.forecast)} vs. ${formatCurrency(month.actualExpenses)}`
+            amountText:`${formatCurrency(cmp.forecast)} vs. ${formatCurrency(actualShown)}`
         })}
         <div class="planning-comparison-foot">100 % = presná zhoda. Budget a forecast sú historické hodnoty pre daný mesiac; skutočnosť sa berie zo zapísaných výdavkov.</div>
     </div>`;
@@ -1858,6 +1873,235 @@ function getAnnualPlan(year) {
         result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, modelIncome, incomeOverridden: Boolean(incomeOverride), incomeOverrideNote: incomeOverride?.notes || '', plannedBalance, freeToSpend, freeBreakdown, forecastRange, incomeForecast, categoryRows, events, recurring, archiveComparison });
     }
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// v2.54: Trvalé snímky porovnania odhad vs. skutočnosť za ukončené mesiace
+// ---------------------------------------------------------------------------
+// Snímka mesiaca = odhad, plán (rozpočet), skutočnosť a rozdiel, celkovo aj po kategóriách.
+// Raz uložená sa nepočíta znova ani neprepisuje; zobrazuje sa vždy z uložených dát.
+// Ukladá sa do localStorage aj do Google Sheets (hárok FlowMonthSnapshots).
+// Výnimka: spätne dopočítaná snímka (source = 'backtest') sa smie nahradiť snímkou
+// uloženou počas mesiaca (source = 'snapshot'), ak sa takáto neskôr nájde.
+
+// Mesiac z hodnoty, ktorú Google Sheets vráti ako dátum alebo ISO časovú značku.
+// Takáto hodnota je polnoc 1. dňa mesiaca v časovej zóne tabuľky, v UTC teda predchádzajúci deň 22:00 alebo 23:00.
+// Pripočítanie 12 hodín a čítanie mesiaca v UTC vráti správny mesiac pre ľubovoľnú časovú zónu
+// (aj keď je zariadenie v inej zóne než tabuľka).
+function normalizeMonthKey(value) {
+    if (value === null || value === undefined || value === '') return '';
+    const pad = n => String(n).padStart(2, '0');
+    const fromInstant = date => {
+        if (isNaN(date.getTime())) return null;
+        const shifted = new Date(date.getTime() + 12 * 3600 * 1000);
+        return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}`;
+    };
+    if (value instanceof Date) return fromInstant(value) || '';
+    const text = String(value).trim();
+    if (/^\d{4}-\d{2}$/.test(text)) return text;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text.slice(0, 7);
+    return fromInstant(new Date(text)) || text;
+}
+
+function normalizeArchiveRow(row) {
+    return row && typeof row === 'object' ? { ...row, targetMonth: normalizeMonthKey(row.targetMonth) } : row;
+}
+
+function readLocalMonthSnapshots() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(FLOW_MONTH_SNAPSHOT_KEY) || 'null');
+        const items = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : []);
+        return items.filter(x => x && /^\d{4}-\d{2}$/.test(String(x.monthKey || '')) && x.total);
+    } catch (_) {
+        return [];
+    }
+}
+
+function persistMonthSnapshotsLocally() {
+    try {
+        localStorage.setItem(FLOW_MONTH_SNAPSHOT_KEY, JSON.stringify({ version: 1, items: flowMonthSnapshots }));
+        return true;
+    } catch (error) {
+        console.warn('Month snapshots could not be saved locally:', error);
+        return false;
+    }
+}
+
+function getStoredMonthSnapshot(monthKey) {
+    const key = normalizeMonthKey(monthKey);
+    return flowMonthSnapshots.find(x => x.monthKey === key) || null;
+}
+
+function putMonthSnapshot(snapshot) {
+    const index = flowMonthSnapshots.findIndex(x => x.monthKey === snapshot.monthKey);
+    if (index > -1) flowMonthSnapshots[index] = snapshot; else flowMonthSnapshots.push(snapshot);
+    flowMonthSnapshots.sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+}
+
+// Zlúči snímky z cloudu s lokálnymi. Cloud je zdroj pravdy: kto ju uložil prvý, ten vyhráva.
+// Lokálna snímka, ktorú cloud ešte nemá, ostane a odošle sa neskôr.
+function mergeCloudMonthSnapshots(cloudItems) {
+    const cloudKeys = new Set();
+    (Array.isArray(cloudItems) ? cloudItems : []).forEach(raw => {
+        const key = normalizeMonthKey(raw?.monthKey);
+        if (!/^\d{4}-\d{2}$/.test(key) || !raw.total) return;
+        cloudKeys.add(key);
+        const local = getStoredMonthSnapshot(key);
+        const cloud = { ...raw, monthKey: key, synced: true };
+        // Lokálna ešte neodoslaná živá snímka je lepšia než cloudová spätne dopočítaná.
+        if (local && !local.synced && local.source === 'snapshot' && cloud.source === 'backtest') return;
+        putMonthSnapshot(cloud);
+    });
+    // Označená ako odoslaná, no cloud ju už nemá (napr. zmazaný riadok): odošle sa znova.
+    flowMonthSnapshots.forEach(x => { if (x.synced && !cloudKeys.has(x.monthKey)) x.synced = false; });
+    persistMonthSnapshotsLocally();
+}
+
+function pickArchiveFirstLast(rows) {
+    const live = rows.filter(r => String(r.backtest || '') !== 'walk-forward');
+    const source = live.length
+        ? live
+        : rows.filter(r => String(r.backtest || '') === 'walk-forward' && String(r.modelVersion || '') === String(FLOW_MODEL_VERSION));
+    if (!source.length) return null;
+    const byDay = new Map();
+    source.forEach(r => {
+        const day = String(r.generatedAt || r.evaluatedAt || '').slice(0, 10) || 'unknown';
+        const group = byDay.get(day) || [];
+        group.push(r);
+        byDay.set(day, group);
+    });
+    const days = [...byDay.keys()].sort();
+    // Plán = najskorší uložený plán mesiaca, odhad = posledný uložený odhad (rovnako ako getMonthArchiveComparison).
+    return { first: byDay.get(days[0]) || [], last: byDay.get(days[days.length - 1]) || [], source: live.length ? 'snapshot' : 'backtest' };
+}
+
+// Zostaví snímku z archívu odhadov a skutočných transakcií. Nič nevymýšľa: bez archívu vráti null.
+function buildMonthSnapshot(monthKey) {
+    const key = normalizeMonthKey(monthKey);
+    const match = /^(\d{4})-(\d{2})$/.exec(key);
+    if (!match) return null;
+    const year = Number(match[1]), month = Number(match[2]) - 1;
+
+    const rows = (Array.isArray(flowForecastArchive) ? flowForecastArchive : []).filter(r => normalizeMonthKey(r.targetMonth) === key);
+    const expenseRows = rows.filter(r => !isIncomeArchiveRow(r) && (Number.isFinite(Number(r.forecastAmount)) || Number.isFinite(Number(r.budgetAmount))));
+    const picked = pickArchiveFirstLast(expenseRows);
+    if (!picked) return null;
+
+    const sum = (list, category, field) => round2(list.filter(r => String(r.category) === category).reduce((s, r) => s + (Number.isFinite(Number(r[field])) ? Number(r[field]) : 0), 0));
+    const index = rebuildForecastIndex();
+    const monthBuckets = index.months[key] || {};
+    const names = new Set([...picked.first, ...picked.last].map(r => String(r.category)));
+    Object.keys(monthBuckets).forEach(name => { if ((Number(monthBuckets[name]?.totalExpense) || 0) > 0) names.add(name); });
+
+    const categoryRows = [...names].sort().map(category => {
+        const budget = sum(picked.first, category, 'budgetAmount');
+        const forecast = sum(picked.last, category, 'forecastAmount');
+        const actual = round2(Number(monthBuckets[category]?.totalExpense) || 0);
+        return { category, budget, forecast, actual, budgetDelta: round2(budget - actual), forecastDelta: round2(forecast - actual) };
+    }).filter(r => r.budget || r.forecast || r.actual);
+
+    const total = categoryRows.reduce((t, r) => ({ budget: t.budget + r.budget, forecast: t.forecast + r.forecast, actual: t.actual + r.actual }), { budget: 0, forecast: 0, actual: 0 });
+    total.budget = round2(total.budget); total.forecast = round2(total.forecast); total.actual = round2(total.actual);
+    total.budgetDelta = round2(total.budget - total.actual);
+    total.forecastDelta = round2(total.forecast - total.actual);
+
+    let income = null;
+    const incomePicked = pickArchiveFirstLast(rows.filter(isIncomeArchiveRow));
+    if (incomePicked) {
+        const plan = round2(incomePicked.first.reduce((s, r) => s + (Number(r.budgetAmount) || 0), 0));
+        const forecast = round2(incomePicked.last.reduce((s, r) => s + (Number(r.forecastAmount) || 0), 0));
+        const actual = round2(getIndexedIncome(year, month));
+        income = { plan, forecast, actual, planDelta: round2(plan - actual), forecastDelta: round2(forecast - actual) };
+    }
+
+    return { version: 1, monthKey: key, source: picked.source, modelVersion: FLOW_MODEL_VERSION, createdAt: new Date().toISOString(), total, categories: categoryRows, income, synced: false };
+}
+
+function getMonthComparisonFromSnapshot(snapshot) {
+    const budget = Number(snapshot.total.budget) || 0;
+    const forecast = Number(snapshot.total.forecast) || 0;
+    const actual = Number(snapshot.total.actual) || 0;
+    return {
+        budget, forecast, actual,
+        budgetAccuracy: getPlanningHitAccuracy(budget, actual),
+        forecastAccuracy: getPlanningHitAccuracy(forecast, actual),
+        budgetDelta: round2(budget - actual),
+        forecastDelta: round2(forecast - actual),
+        source: snapshot.source === 'backtest' ? 'backtest' : 'snapshot',
+        stored: true
+    };
+}
+
+function isClosedMonth(year, month, today = new Date(new Date().setHours(0, 0, 0, 0))) {
+    return new Date(year, month + 1, 0) < today;
+}
+
+// Pri štarte: uložené snímky sú už načítané (localStorage + cloud). Tu sa dopočítajú chýbajúce ukončené
+// mesiace a hneď sa uložia. Bez úspešného načítania cloudu sa nič nedopočítava, aby sa nezmrazila
+// horšia (spätná) snímka, keď sa živé odhady ešte len sťahujú.
+async function ensureClosedMonthSnapshots() {
+    if (!planningCloudOk) return { created: 0, upgraded: 0, skipped: 'cloud-not-loaded' };
+    const today = new Date(new Date().setHours(0, 0, 0, 0));
+    const years = typeof getHistoricalDataYears === 'function' ? getHistoricalDataYears() : [];
+    let created = 0, upgraded = 0;
+
+    years.forEach(year => {
+        for (let month = 0; month < 12; month++) {
+            if (!isClosedMonth(year, month, today)) continue;
+            const key = getMonthKey(year, month);
+            const stored = getStoredMonthSnapshot(key);
+            if (stored && !(stored.source === 'backtest')) continue;
+            const built = buildMonthSnapshot(key);
+            if (!built) continue;
+            if (!stored) { putMonthSnapshot(built); created++; }
+            else if (built.source === 'snapshot') { putMonthSnapshot(built); upgraded++; }
+        }
+    });
+
+    if (created || upgraded) {
+        persistMonthSnapshotsLocally();
+        if (typeof renderPlanningScreens === 'function') renderPlanningScreens();
+    }
+    await uploadPendingMonthSnapshots();
+    return { created, upgraded };
+}
+
+// Odošle do cloudu snímky, ktoré tam ešte nie sú. Pri zlyhaní ostanú lokálne a skúsi sa to znova
+// pri ďalšom štarte alebo po obnovení pripojenia.
+async function uploadPendingMonthSnapshots() {
+    if (monthSnapshotUploadBusy) return { uploaded: 0, failed: 0 };
+    const pending = flowMonthSnapshots.filter(x => !x.synced);
+    if (!pending.length) return { uploaded: 0, failed: 0 };
+    monthSnapshotUploadBusy = true;
+    let uploaded = 0, failed = 0;
+    try {
+        for (let i = 0; i < pending.length; i += 12) {
+            const chunk = pending.slice(i, i + 12);
+            try {
+                const items = chunk.map(({ synced, ...rest }) => rest);
+                const result = await planningPost({ action: 'savePlanSnapshots', items });
+                (Array.isArray(result?.results) ? result.results : []).forEach(r => {
+                    if (!r || r.status === 'error' || !r.snapshot) return;
+                    // Cloud vyhráva: ak už snímku mal, použije sa jeho verzia (nemennosť).
+                    putMonthSnapshot({ ...r.snapshot, monthKey: normalizeMonthKey(r.monthKey), synced: true });
+                    uploaded++;
+                });
+            } catch (error) {
+                failed += chunk.length;
+                console.warn('Month snapshot cloud save failed (zostáva lokálne):', error);
+                break;
+            }
+        }
+        persistMonthSnapshotsLocally();
+    } finally {
+        monthSnapshotUploadBusy = false;
+    }
+    if (uploaded && typeof renderPlanningScreens === 'function') renderPlanningScreens();
+    return { uploaded, failed };
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('online', () => { if (planningCloudOk) uploadPendingMonthSnapshots().catch(() => {}); });
 }
 
 function isIncomeArchiveRow(row) {
@@ -3639,6 +3883,13 @@ function initPlanning() {
                 }
             } catch (error) {
                 console.warn('Historical month accuracy repair failed:', error);
+            }
+
+            // v2.54: dopočítať chýbajúce snímky ukončených mesiacov a hneď ich uložiť (lokálne aj do cloudu).
+            try {
+                await ensureClosedMonthSnapshots();
+            } catch (error) {
+                console.warn('Closed month snapshots failed:', error);
             }
 
             if (document.visibilityState !== 'hidden') renderPlanningScreens();
