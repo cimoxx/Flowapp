@@ -72,6 +72,37 @@ function flowAuthLock(message) {
     flowAuthRenderButton();
 }
 
+function flowAuthShort(text, max = 160) {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    return clean.length > max ? clean.slice(0, max) + '…' : clean;
+}
+
+// Zrozumiteľná hláška podľa odpovede servera. `ping` je odpoveď na ?get=ping (verzia backendu bez prihlásenia),
+// alebo null, keď server neodpovedal správne.
+function flowAuthLoginFailureMessage(result, ping) {
+    const code = result && result.code;
+    if (code === 'not_allowed' || code === 'login_failed') return (result && result.message) || 'Prihlásenie sa nepodarilo.';
+    if (code === 'busy') return 'Server je práve zaneprázdnený. Skús to o chvíľu znova.';
+    if (code === 'unknown_action') return 'Backend nepozná prihlásenie. Nasaď Google Apps Script v2.54.2 alebo novší.';
+    if (code === 'server_error') return `Chyba na strane servera: ${flowAuthShort(result && result.message)}`;
+    // Odpoveď bez kódu: starý script, alebo chyba, ktorú starý script nevie pomenovať.
+    if (ping && ping.backendVersion) {
+        return `Server (v${ping.backendVersion}) vrátil neočakávanú odpoveď: ${flowAuthShort(result && result.message) || 'bez textu'}`;
+    }
+    return 'Backend neodpovedá správne alebo nemá prihlásenie. Skontroluj nasadenie Google Apps Script (Manage deployments → Version).';
+}
+
+async function flowAuthPing() {
+    try {
+        const res = await flowAuthRawFetch(`${GOOGLE_URL}?get=ping`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data && data.status === 'success' && data.backendVersion ? data : null;
+    } catch (_) {
+        return null;
+    }
+}
+
 async function flowAuthOnCredential(response) {
     if (!response || !response.credential) return;
     flowAuthSetStatus('Overujem účet…');
@@ -96,13 +127,10 @@ async function flowAuthOnCredential(response) {
             return;
         }
 
-        if (result && !result.code) {
-            // Starý backend nepozná googleLogin a odmietne požiadavku bez tokenu.
-            flowAuthSetStatus('Backend ešte nemá prihlásenie. Nasaď Google Apps Script v2.51.0.', 'warn');
-            return;
-        }
-        flowAuthSetStatus(result.message || 'Prihlásenie sa nepodarilo.', 'warn');
-        if (result.code === 'not_allowed' && window.google) google.accounts.id.disableAutoSelect();
+        // Odpoveď bez kódu môže znamenať starý script aj chybu servera. Ping (verzia backendu) to rozlíši.
+        const ping = result && !result.code ? await flowAuthPing() : null;
+        flowAuthSetStatus(flowAuthLoginFailureMessage(result, ping), 'warn');
+        if (result && result.code === 'not_allowed' && window.google) google.accounts.id.disableAutoSelect();
     } catch (error) {
         console.error('Google login error:', error);
         flowAuthSetStatus('Prihlásenie sa nepodarilo. Skontroluj pripojenie a skús znova.', 'warn');

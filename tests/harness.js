@@ -16,7 +16,7 @@ const ROOT = path.resolve(__dirname, '..');
 // Poradie ako v index.html (bez auth.js a app.js, ktoré potrebujú DOM a prihlásenie).
 const SCRIPTS = ['version', 'config', 'utils', 'sync', 'ui', 'categories', 'transactions', 'analytics', 'budget', 'planning', 'cockpit'];
 
-function createApp({ now = new Date(2026, 9, 24, 12), storage = new Map(), fetch = null } = {}) {
+function createApp({ now = new Date(2026, 9, 24, 12), storage = new Map(), fetch = null, extraScripts = [] } = {}) {
     const RealDate = Date;
     const FIXED = now.getTime();
     class FakeDate extends RealDate {
@@ -56,7 +56,7 @@ function createApp({ now = new Date(2026, 9, 24, 12), storage = new Map(), fetch
     sandbox.globalThis = sandbox;
     vm.createContext(sandbox);
 
-    SCRIPTS.forEach(name => {
+    [...SCRIPTS, ...extraScripts].forEach(name => {
         const file = path.join(ROOT, 'assets', 'js', `${name}.js`);
         vm.runInContext(fs.readFileSync(file, 'utf8'), sandbox, { filename: file });
     });

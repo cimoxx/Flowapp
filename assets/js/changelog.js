@@ -3,6 +3,14 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.54.2",
+    "title": "Zrozumiteľné chyby pri prihlásení",
+    "items": [
+      "Prihlasovacia obrazovka už neukazuje zavádzajúce „Backend ešte nemá prihlásenie“ pri každej chybe. Zobrazí skutočnú príčinu: chyba servera s textom, zaneprázdnený server, nepovolený účet, alebo odporúčanie skontrolovať nasadenie Apps Scriptu.",
+      "Apps Script v2.54.2: každá chyba servera má kód (server_error, busy, unknown_action) a nový diagnostický dotaz ?get=ping vráti verziu backendu bez tokenu (nič z dát)."
+    ]
+  },
+  {
     "version": "2.54.1",
     "title": "Oprava nadhodnotených porovnaní minulých mesiacov",
     "items": [

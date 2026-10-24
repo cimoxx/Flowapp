@@ -1,5 +1,10 @@
 # Flow changelog
 
+## v2.54.2 – Zrozumiteľné chyby pri prihlásení
+
+- Prihlasovacia obrazovka už neukazuje zavádzajúce „Backend ešte nemá prihlásenie“ pri každej chybe. Zobrazí skutočnú príčinu: chyba servera s textom, zaneprázdnený server, nepovolený účet, alebo odporúčanie skontrolovať nasadenie Apps Scriptu.
+- Apps Script v2.54.2: každá chyba servera má kód (server_error, busy, unknown_action) a nový diagnostický dotaz ?get=ping vráti verziu backendu bez tokenu (nič z dát).
+
 ## v2.54.1 – Oprava nadhodnotených porovnaní minulých mesiacov
 
 - Oprava: porovnania minulých mesiacov (plán a odhad) ukazovali približne šesťnásobok skutočnosti. Archív odhadov obsahoval viac kópií toho istého odhadu (z opakovaného prepočtu histórie) a appka ich sčítavala. Teraz sa berie jedna, najnovšia kópia.
