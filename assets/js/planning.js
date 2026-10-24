@@ -571,11 +571,15 @@ function getHistoricalYearSeasonalityFromRows(historical, targetYear, targetMont
     [...byYear.entries()].forEach(([year, yearRows]) => {
         const observed = new Map(yearRows.map(r => [r.month, Number(r.value)||0]));
         if (observed.size < 4) return;
+        // v2.53: rok, v ktorom cieľový mesiac ešte nebol pozorovaný (napr. rozbehnutý rok), sa preskočí.
+        // Predtým sa taký mesiac počítal ako nulový výdavok a stiahol sezónny index smerom k nule.
+        // Rovnako sa správa aj verzia nad indexom (getHistoricalYearSeasonality).
+        if (!observed.has(targetMonth)) return;
         let total = 0;
         observed.forEach(v => total += v);
         if (total <= 0) return;
         const annualAverage = total / observed.size;
-        const targetValue = observed.has(targetMonth) ? observed.get(targetMonth) : 0;
+        const targetValue = observed.get(targetMonth);
         const ratio = annualAverage > 0 ? targetValue / annualAverage : 0;
         if (!Number.isFinite(ratio) || ratio < 0 || ratio > 8) return;
         const yearAge = Math.max(0, Number(targetYear) - Number(year));
@@ -1004,8 +1008,10 @@ function predictMultiYearTrend(rows, year, month) {
         if(observed.size<4 || positiveMonths<4) return;
         let total=0; observed.forEach(v=>total+=v);
         if(total<=0) return;
+        // v2.53: rok bez pozorovaného cieľového mesiaca sa preskočí (predtým sa počítal ako nulový výdavok).
+        if(!observed.has(month)) return;
         const annualAverage=total/observed.size;
-        const targetValue=observed.has(month)?observed.get(month):0;
+        const targetValue=observed.get(month);
         const ratio=annualAverage>0?targetValue/annualAverage:0;
         if(!Number.isFinite(ratio)||ratio<0||ratio>8) return;
         const yearAge=Math.max(0,Number(year)-histYear);
@@ -1696,6 +1702,53 @@ function renderCurrentMonthProgress(month) {
     </div>`;
 }
 
+// v2.53: odhad zvyšku mesiaca a rozpätie.
+// Konštanty sú pomenované, aby sa dali meniť a testovať na jednom mieste.
+const FLOW_PACE_MAX_WEIGHT = 0.5;      // najviac polovicu odhadu môže určiť doterajšie tempo
+const FLOW_PACE_WEIGHT_PER_PROGRESS = 0.6; // váha tempa rastie s priebehom mesiaca
+const FLOW_PACE_MAX_RATIO = 2;         // tempo nikdy nepredpovedá viac ako 2× model
+const FLOW_RANGE_Z = 1.2816;           // ~80 % pásmo pri normálnom rozdelení
+const FLOW_RANGE_SIGMA_PER_WAPE = 1.25; // sigma ≈ 1.25 × priemerná absolútna chyba
+const FLOW_RANGE_SELECTION_INFLATION = 1.3; // chyba víťazného modelu je optimistická (vybral sa z 9)
+const FLOW_RANGE_FALLBACK_WAPE = 40;   // kategórie bez validácie (v %)
+const FLOW_RANGE_CORRELATION = 0.25;   // kategórie sa nemýlia úplne nezávisle
+
+function getMonthProgress(year, month, now = new Date()) {
+    if (now.getFullYear() !== year || now.getMonth() !== month) return 1;
+    const days = new Date(year, month + 1, 0).getDate();
+    return Math.min(1, Math.max(0.05, now.getDate() / days));
+}
+
+// Celkový variabilný výdavok kategórie na konci aktuálneho mesiaca.
+// Zmes dvoch pohľadov: model (koľko sa v kategórii obvykle minie za mesiac) a doterajšie tempo.
+// Model je kotva, tempo ho posúva hore aj dole, no na začiatku mesiaca skoro nič (váha ~ priebeh mesiaca).
+// Bez modelovej hodnoty (nová kategória) sa nič neextrapoluje.
+function projectVariableMonthEnd(expected, variableActual, progress) {
+    const exp = Math.max(0, Number(expected) || 0);
+    const act = Math.max(0, Number(variableActual) || 0);
+    if (exp <= 0) return act;
+    const weight = Math.min(FLOW_PACE_MAX_WEIGHT, FLOW_PACE_WEIGHT_PER_PROGRESS * progress);
+    const modelTotal = Math.max(act, exp);
+    const paceTotal = Math.max(act, Math.min(act / progress, exp * FLOW_PACE_MAX_RATIO));
+    return (1 - weight) * modelTotal + weight * paceTotal;
+}
+
+// Odhad neistoty variabilnej časti kategórie (sigma v eurách) pre zvyšok mesiaca.
+function getCategoryForecastSigma(variable, progress) {
+    const expected = Math.max(0, Number(variable?.expected ?? variable?.value) || 0);
+    if (expected <= 0) return 0;
+    const wape = Number.isFinite(Number(variable?.validationWape)) ? Number(variable.validationWape) : FLOW_RANGE_FALLBACK_WAPE;
+    const sigmaFull = FLOW_RANGE_SIGMA_PER_WAPE * FLOW_RANGE_SELECTION_INFLATION * (wape / 100) * expected;
+    return sigmaFull * Math.sqrt(Math.max(0, 1 - progress));
+}
+
+function combineForecastSigmas(sigmas) {
+    const list = sigmas.filter(x => x > 0);
+    const sum = list.reduce((a, b) => a + b, 0);
+    const sumSq = list.reduce((a, b) => a + b * b, 0);
+    return Math.sqrt((1 - FLOW_RANGE_CORRELATION) * sumSq + FLOW_RANGE_CORRELATION * sum * sum);
+}
+
 function getAnnualPlan(year) {
     const result = [];
     const expenseCategories = categories.filter(c => c.id !== 'Prijem');
@@ -1725,13 +1778,21 @@ function getAnnualPlan(year) {
             const now = new Date();
             const isCurrent = year === now.getFullYear() && month === now.getMonth();
             let forecast = actual;
+            let remainingRecurringRow = 0;
+            let sigma = 0;
             if (!closed) {
-                const remainingVariable = Math.max(0, (variable.expected ?? variable.value) - variableActual);
-                const remainingRecurring = Math.max(0, recurringAmount - recurringActual);
-                forecast = round2(actual + remainingVariable + remainingRecurring);
+                const expectedVariable = variable.expected ?? variable.value;
+                const progress = getMonthProgress(year, month);
+                // Aktuálny mesiac: model + doterajšie tempo. Budúce mesiace: model.
+                const remainingVariable = isCurrent
+                    ? Math.max(0, projectVariableMonthEnd(expectedVariable, variableActual, progress) - variableActual)
+                    : Math.max(0, expectedVariable - variableActual);
+                remainingRecurringRow = Math.max(0, recurringAmount - recurringActual);
+                forecast = round2(actual + remainingVariable + remainingRecurringRow);
                 if (!isCurrent) forecast = round2(base);
+                sigma = getCategoryForecastSigma(variable, isCurrent ? progress : 0);
             }
-            return { category: cat.id, icon: cat.icon || 'circle', actual, recurring: closed?recurringActual:recurringAmount, variable: variable.value, expected: variable.expected ?? variable.value, budget, forecast, confidence: variable.confidence, method: variable.method, dataMonths: variable.dataMonths, overridden: Boolean(override) };
+            return { category: cat.id, icon: cat.icon || 'circle', actual, recurring: closed?recurringActual:recurringAmount, variable: variable.value, expected: variable.expected ?? variable.value, budget, forecast, confidence: variable.confidence, method: variable.method, dataMonths: variable.dataMonths, overridden: Boolean(override), remainingRecurring: round2(remainingRecurringRow), forecastSigma: round2(sigma) };
         });
 
         // Completed events are already represented by real transactions.
@@ -1775,8 +1836,26 @@ function getAnnualPlan(year) {
         }
         const plannedBalance = round2(plannedIncome - forecast);
 
+        // „Koľko ešte môžem minúť“ = rozpočet kategórií − už minuté − pravidelné platby, ktoré ešte len prídu
+        // − plánované udalosti. Reaguje na to, že míňaš menej aj viac než zvyčajne.
+        let freeToSpend = null, freeBreakdown = null, forecastRange = null;
+        if (!closed) {
+            const coreBudget = categoryRows.reduce((s,r) => s + r.budget, 0);
+            const coreSpent = categoryRows.reduce((s,r) => s + r.actual, 0);
+            const remainingRecurring = categoryRows.reduce((s,r) => s + (r.remainingRecurring || 0), 0);
+            if (isCurrent) {
+                freeToSpend = round2(coreBudget - coreSpent - remainingRecurring - eventExpense);
+                freeBreakdown = { budget: round2(coreBudget), spent: round2(coreSpent), remainingRecurring: round2(remainingRecurring), pendingEvents: round2(eventExpense) };
+            }
+            const sigma = combineForecastSigmas(categoryRows.map(r => r.forecastSigma || 0));
+            if (sigma > 0) {
+                const floor = round2(categoryRows.reduce((s,r) => s + r.actual + (r.remainingRecurring || 0), 0) + eventExpense);
+                forecastRange = { low: round2(Math.max(floor, forecast - FLOW_RANGE_Z * sigma)), high: round2(forecast + FLOW_RANGE_Z * sigma), sigma: round2(sigma) };
+            }
+        }
+
         const archiveComparison = closed ? getMonthArchiveComparison(key, actualExpenses) : null;
-        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, modelIncome, incomeOverridden: Boolean(incomeOverride), incomeOverrideNote: incomeOverride?.notes || '', plannedBalance, incomeForecast, categoryRows, events, recurring, archiveComparison });
+        result.push({ key, year, month, monthName: MONTH_NAMES_SK[month], isCurrent, closed, actualExpenses, actualIncome, recurringExpense, recurringIncome, variableBudget, eventExpense, eventIncome, budget, forecast, plannedIncome, modelIncome, incomeOverridden: Boolean(incomeOverride), incomeOverrideNote: incomeOverride?.notes || '', plannedBalance, freeToSpend, freeBreakdown, forecastRange, incomeForecast, categoryRows, events, recurring, archiveComparison });
     }
     return result;
 }
@@ -1967,9 +2046,112 @@ function openForecastDiagnostics() {
       <div class="forecast-diagnostic-section"><h4>Presnosť podľa typu výdavkov</h4>${diagnosticRowsHtml(d.byStructure)}</div>
       <div class="forecast-diagnostic-section"><h4>Presnosť podľa použitého modelu</h4>${diagnosticRowsHtml(d.byMethod)}</div>
       <div class="forecast-diagnostic-section"><h4>Vývoj podľa rokov</h4>${diagnosticRowsHtml(d.byYear, 20)}</div>
+      <button type="button" onclick="openChampionComparison()" class="income-edit-btn"><i data-lucide="scale"></i> Porovnať šampiónov s jednoduchým modelom</button>
       <div class="forecast-diagnostic-section"><h4>Ako čítať metriky</h4><div class="planning-helper"><b>WAPE</b> = celková percentuálna chyba vzhľadom na objem skutočných výdavkov. Čím menej, tým lepšie.<br><b>MAE</b> = priemerná absolútna chyba jednej predikcie v eurách.<br><b>Bias</b> = smer chyby. Záporný znamená, že model skôr podhodnocuje; kladný, že skôr nadhodnocuje.</div></div>
       <div class="planning-helper">Diagnostika používa iba unikátne walk-forward backtesty. Výdavkový model má stabilného championa pre každú kategóriu; challenger ho nahradí iba pri jasnom zlepšení na vlastnej historickej validácii kategórie. Príjmový model je nezmenený a backtestuje sa samostatne. Roky s menej než 24 výdavkovými vzorkami sú označené ako „málo dát“.</div>`;
     showPlanningModal('Diagnostika forecastu', `Model ${FLOW_MODEL_VERSION}`, body);
+}
+
+// v2.53: Poctivé porovnanie kategórnych „šampiónov“ s jednoduchým modelom.
+// Každý mesiac sa predpovedá iba z dát, ktoré boli známe pred ním: šampión sa vyberie zo stavu
+// pred daným mesiacom (rovnako ako v appke) a až potom sa stav doplní skutočnosťou.
+// Upozornenie: počiatočné priory šampiónov vznikli z tvojho archívu scenárov, teda z rovnakej histórie.
+// Porovnanie je preto mierne naklonené v prospech šampióna. Ak ho jednoduchý model aj tak neprekoná,
+// zložitosť sa nevypláca.
+const FLOW_BACKTEST_BASELINES = ['recent-robust', 'legacy-adaptive'];
+
+function runChampionBacktest(options = {}) {
+    const now = options.now instanceof Date ? options.now : new Date();
+    const evalMonths = Math.max(6, Number(options.evalMonths) || 24);
+    const minHistory = Math.max(18, Number(options.minHistory) || 18);
+    const names = ['champion', ...FLOW_BACKTEST_BASELINES];
+    const makeAcc = () => Object.fromEntries(names.map(n => [n, { abs: 0, actual: 0, n: 0 }]));
+    const total = makeAcc();
+    const rows = [];
+
+    categories.filter(c => c.id !== 'Prijem').forEach(cat => {
+        const chron = rowsChronological(getHistoricalCategorySpend(cat.id, now.getFullYear(), now.getMonth()));
+        if (chron.length < minHistory + 6) return;
+
+        const state = createOnlineChampionState();
+        const acc = makeAcc();
+        const used = new Map();
+        chron.forEach((row, idx) => {
+            if (state.history.length >= minHistory && idx >= chron.length - evalMonths) {
+                const sel = selectOnlineChampion(state, cat.id);
+                const predict = candidate => Math.max(0, Number(predictForecastCandidate(candidate, state.history, cat.id, row.year, row.month)?.expected) || 0);
+                const preds = { champion: predict(sel.candidate) };
+                FLOW_BACKTEST_BASELINES.forEach(b => { preds[b] = predict(b); });
+                names.forEach(name => {
+                    const err = Math.abs(preds[name] - row.value);
+                    acc[name].abs += err; acc[name].actual += row.value; acc[name].n++;
+                    total[name].abs += err; total[name].actual += row.value; total[name].n++;
+                });
+                used.set(sel.candidate, (used.get(sel.candidate) || 0) + 1);
+            }
+            updateOnlineChampionState(state, cat.id, row.year, row.month, row.value);
+        });
+
+        if (!acc.champion.n || acc.champion.actual <= 0) return;
+        const wape = a => a.actual > 0 ? round2(a.abs / a.actual * 100) : null;
+        const topModel = [...used.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+        rows.push({
+            category: cat.id, months: acc.champion.n, actual: round2(acc.champion.actual), topModel,
+            champion: wape(acc.champion),
+            baselines: Object.fromEntries(FLOW_BACKTEST_BASELINES.map(b => [b, wape(acc[b])]))
+        });
+    });
+
+    const overall = { champion: total.champion.actual > 0 ? round2(total.champion.abs / total.champion.actual * 100) : null, baselines: {}, months: total.champion.n };
+    FLOW_BACKTEST_BASELINES.forEach(b => { overall.baselines[b] = total[b].actual > 0 ? round2(total[b].abs / total[b].actual * 100) : null; });
+    const bestBaseline = FLOW_BACKTEST_BASELINES
+        .filter(b => overall.baselines[b] !== null)
+        .sort((a, b) => overall.baselines[a] - overall.baselines[b])[0] || null;
+
+    // Rozdiel sa hodnotí relatívne aj v percentuálnych bodoch: 0,4 b. pri chybe okolo 5 % je šum, nie rozdiel.
+    let verdict = 'insufficient';
+    let relativeGain = null;
+    let gainPoints = null;
+    if (overall.champion !== null && bestBaseline) {
+        gainPoints = overall.baselines[bestBaseline] - overall.champion;
+        relativeGain = gainPoints / Math.max(overall.baselines[bestBaseline], 0.01);
+        verdict = gainPoints >= 1 && relativeGain >= 0.10 ? 'champions-better'
+            : gainPoints <= -1 && relativeGain <= -0.10 ? 'simple-better'
+            : 'similar';
+    }
+    rows.sort((a, b) => b.actual - a.actual);
+    return { rows, overall, bestBaseline, relativeGain: relativeGain === null ? null : round2(relativeGain * 100), gainPoints: gainPoints === null ? null : round2(gainPoints), verdict, evalMonths, categories: rows.length };
+}
+
+function openChampionComparison() {
+    showPlanningModal('Porovnanie modelov', 'Šampióni vs jednoduchý model', '<div class="planning-muted">Počítam… môže to trvať pár sekúnd.</div>');
+    setTimeout(() => {
+        let r;
+        try { r = runChampionBacktest(); } catch (error) {
+            console.error('Champion backtest failed:', error);
+            showPlanningModal('Porovnanie modelov', 'Šampióni vs jednoduchý model', '<div class="planning-helper">Porovnanie sa nepodarilo vypočítať.</div>');
+            return;
+        }
+        const label = { 'recent-robust': 'Jednoduchý (posledné mesiace)', 'legacy-adaptive': 'Starší adaptívny' };
+        const bestName = label[r.bestBaseline] || '';
+        const verdictText = {
+            'champions-better': `Šampióni sú presnejší o ${r.gainPoints} b. (${r.relativeGain} %) než najlepší jednoduchý model (${bestName}). Zložitosť sa oplatí.`,
+            'similar': `Rozdiel oproti modelu „${bestName}“ je malý (${r.gainPoints} b., ${r.relativeGain} %). Jednoduchší model by stačil a znížil by riziko, že sa výber modelu preučí.`,
+            'simple-better': `Model „${bestName}“ je presnejší o ${Math.abs(r.gainPoints)} b. (${Math.abs(r.relativeGain)} %). Výber šampiónov sa neoplatí.`,
+            'insufficient': 'Zatiaľ nie je dosť histórie na férové porovnanie (treba aspoň 24 mesiacov v kategórii).'
+        }[r.verdict];
+        const pct = v => v === null ? '—' : v + ' %';
+        const table = r.rows.map(x => `<div class="forecast-diagnostic-row"><span>${escPlanning(x.category)}<small> · ${x.months} mes. · najčastejšie ${escPlanning(x.topModel)}</small></span><b>${pct(x.champion)}</b><small>jednoduchý ${pct(x.baselines['recent-robust'])} · starší ${pct(x.baselines['legacy-adaptive'])}</small></div>`).join('') || '<div class="planning-muted">Zatiaľ nie je dosť dát.</div>';
+        const body = `
+            <div class="planning-helper"><b>${escPlanning(verdictText)}</b></div>
+            <div class="planning-detail-grid">
+                <div><span>Šampióni</span><b>${pct(r.overall.champion)}</b></div>
+                ${FLOW_BACKTEST_BASELINES.map(b => `<div><span>${escPlanning(label[b])}</span><b>${pct(r.overall.baselines[b])}</b></div>`).join('')}
+            </div>
+            <div class="forecast-diagnostic-section"><h4>Podľa kategórií (odchýlka WAPE, nižšie je lepšie)</h4>${table}</div>
+            <div class="planning-helper">Každý z posledných ${r.evalMonths} mesiacov sa odhadol iba z dát známych pred ním. Počiatočné priory šampiónov vznikli z tvojho archívu scenárov, teda z rovnakej histórie, preto je porovnanie mierne naklonené v prospech šampiónov. Ak ich jednoduchý model neprekoná ani tak, sú zbytočné.</div>`;
+        showPlanningModal('Porovnanie modelov', 'Šampióni vs jednoduchý model', body);
+    }, 40);
 }
 
 function getHistoricalRecurringBaseline(category,targetYear,targetMonth){

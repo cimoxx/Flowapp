@@ -195,6 +195,9 @@ function getBudgetDataset() {
                 recurringExpense: monthPlan.recurringExpense,
                 eventExpense: monthPlan.eventExpense,
                 plannedBalance: monthPlan.plannedBalance,
+                freeToSpend: monthPlan.freeToSpend,
+                freeBreakdown: monthPlan.freeBreakdown,
+                forecastRange: monthPlan.forecastRange,
                 modelVersion: typeof FLOW_MODEL_VERSION !== 'undefined' ? FLOW_MODEL_VERSION : 'v2.35'
             };
         }

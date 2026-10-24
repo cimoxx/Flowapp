@@ -3,6 +3,18 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.53.0",
+    "title": "Presnejšie odhady, reálna rezerva, testy",
+    "items": [
+      "Koľko ešte môžem minúť: rezerva sa počíta z rozpočtu, už minutých peňazí a pravidelných platieb, ktoré ešte prídu. Keď míňaš menej než zvyčajne, rezerva rastie (predtým ostávala stále rovnaká).",
+      "Odhad výdavkov na koniec mesiaca zohľadňuje, ako rýchlo míňaš. Pod obvyklým tempom je nižší, nad ním vyšší. Pri odhade je orientačné rozpätie (typicky od – do).",
+      "Oprava: karta Prehľad mesiaca sa prekreslí hneď po uložení transakcie aj po synchronizácii (predtým ostala stará, kým si neprepol obrazovku).",
+      "Oprava výpočtu: nepozorovaný mesiac v rozbehnutom roku sa už nepočíta ako mesiac s nulovými výdavkami. Týka sa modelov legacy-adaptive, seasonal-index a multi-year-trend, odhady niektorých kategórií sa môžu zmeniť.",
+      "Diagnostika forecastu: nové porovnanie šampiónov s jednoduchým modelom na tvojich dátach.",
+      "Automatické testy výpočtov (node --test tests/unit/*.test.js)."
+    ]
+  },
+  {
     "version": "2.52.1",
     "title": "Kratšie obdobie pre Často používané",
     "items": [
