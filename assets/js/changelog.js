@@ -3,6 +3,17 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.54.0",
+    "title": "Trvalé uloženie porovnania odhad vs. skutočnosť",
+    "items": [
+      "Porovnania za ukončené mesiace (odhad, plán, skutočnosť, rozdiel, celkovo aj po kategóriách) sa po skončení mesiaca uložia ako snímka a po refreshi už nezmiznú. Ukladajú sa lokálne aj do Google Sheets (nový hárok FlowMonthSnapshots), takže ich uvidíš aj na druhom zariadení.",
+      "Uložená snímka ukončeného mesiaca sa už neprepočítava ani neprepisuje, zobrazuje sa vždy z uložených dát. Aktuálny mesiac sa počíta živo ako doteraz.",
+      "Pri štarte sa uložené snímky načítajú ako prvé, chýbajúce ukončené mesiace sa dopočítajú a hneď uložia. Pri výpadku siete ostanú v telefóne a odošlú sa neskôr.",
+      "Príčina zmiznutia: Google Sheets zmenil mesiac 2026-09 na dátum, ten sa vrátil ako časová značka a appka ho nespárovala. Mesiac sa teraz páruje správne aj z dátumu, nový Apps Script (v2.54.0) ho ukladá ako text.",
+      "Vyžaduje nový Google Apps Script v2.54.0. Raz spusti funkciu repairForecastArchiveMonths, ktorá opraví už poškodený stĺpec s mesiacom v hárku FlowForecastArchive."
+    ]
+  },
+  {
     "version": "2.53.0",
     "title": "Presnejšie odhady, reálna rezerva, testy",
     "items": [

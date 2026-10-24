@@ -17,8 +17,11 @@ Vyžaduje Node 22 alebo novší.
 | `quick-picks.test.js` | pravidlá návrhov Často používané (30 dní, vylúčenia, radenie) |
 | `champion-backtest.test.js` | porovnanie šampiónov s jednoduchým modelom |
 | `escape.test.js` | escapovanie textu do HTML a inline handlerov |
+| `month-snapshots.test.js` | trvalé snímky porovnania odhad vs. skutočnosť: vytvoriť, refresh, nové zariadenie, nemennosť, výpadok siete, poškodený archív, časové zóny |
+| `gas-snapshots.test.js` | Google Apps Script (`.gs`) so simulovaným Sheets: mesiac ako text, snímky, oprava archívu |
 
-`harness.js` načíta skripty appky, `helpers.js` obsahuje syntetickú domácnosť
+`harness.js` načíta skripty appky, `gas-harness.js` načíta Apps Script do simulovaného Google Sheets
+(vrátane správania, ktoré mení text `2026-09` na dátum) a prepojí ho s appkou, `helpers.js` obsahuje syntetickú domácnosť
 (kategórie, obvyklé sumy, šum a voliteľná sezónnosť).
 
 ## Ako testy rozšíriť
