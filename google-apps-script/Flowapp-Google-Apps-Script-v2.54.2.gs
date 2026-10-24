@@ -999,34 +999,54 @@ function repairForecastArchiveMonths() {
   return result;
 }
 
+// v2.54.2: konštantný počet volaní Sheets bez ohľadu na počet riadkov. Predtým sa každý aktualizovaný riadok
+// zapisoval zvlášť (2 volania na riadok), takže požiadavka s tisíckami riadkov držala zámok scriptu minúty
+// a blokovala ostatné požiadavky vrátane prihlásenia.
 function archiveForecasts_(ss, rows) {
   const sheet = ensureSheet_(ss,'FlowForecastArchive',PLANNING_HEADERS_.archive);
   if (!Array.isArray(rows) || !rows.length) return { status:'success', saved:0 };
   const headers = PLANNING_HEADERS_.archive;
+  const monthCol = headers.indexOf('targetMonth');
   const last = sheet.getLastRow();
   const existingRows = last >= 2 ? sheet.getRange(2,1,last-1,headers.length).getValues() : [];
-  const rowById = new Map();
-  existingRows.forEach((r,i)=>{ if(r[0]) rowById.set(String(r[0]), i+2); });
+  const indexById = new Map();
+  existingRows.forEach((r,i)=>{ if(r[0]) indexById.set(String(r[0]), i); });
 
-  const monthCol = headers.indexOf('targetMonth') + 1;
-  const updates=[];
-  const inserts=[];
+  let firstChanged = -1, lastChanged = -1;
+  const inserts = [];
+  let saved = 0;
   rows.filter(r=>r && r.id).forEach(r=>{
-    const row=objectToRow_('archive',{...r,targetMonth:normalizeMonthKey_(r.targetMonth)});
-    const idx=rowById.get(String(r.id));
-    if(idx) updates.push({idx,row}); else inserts.push(row);
+    const row = objectToRow_('archive',{...r,targetMonth:normalizeMonthKey_(r.targetMonth)});
+    const idx = indexById.get(String(r.id));
+    if (idx !== undefined) {
+      existingRows[idx] = row;
+      if (firstChanged < 0 || idx < firstChanged) firstChanged = idx;
+      if (idx > lastChanged) lastChanged = idx;
+    } else {
+      inserts.push(row);
+      indexById.set(String(r.id), existingRows.length + inserts.length - 1);
+    }
+    saved++;
   });
-  // Stĺpec s mesiacom musí byť text, inak z '2026-09' vznikne dátum.
-  updates.forEach(u=>{
-    sheet.getRange(u.idx,monthCol).setNumberFormat('@');
-    sheet.getRange(u.idx,1,1,headers.length).setValues([u.row]);
-  });
-  if(inserts.length){
-    const start=sheet.getLastRow()+1;
-    sheet.getRange(start,monthCol,inserts.length,1).setNumberFormat('@');
-    sheet.getRange(start,1,inserts.length,headers.length).setValues(inserts);
+
+  // Aktualizácie: jeden zápis súvislého bloku. Mesiac v nezmenených riadkoch bloku sa zároveň zjednotí na text YYYY-MM.
+  if (lastChanged >= 0) {
+    const block = existingRows.slice(firstChanged, lastChanged + 1).map(r => {
+      const copy = r.slice();
+      copy[monthCol] = normalizeMonthKey_(copy[monthCol]);
+      return copy;
+    });
+    const range = sheet.getRange(2 + firstChanged, 1, block.length, headers.length);
+    // Stĺpec s mesiacom musí byť text, inak z '2026-09' vznikne dátum.
+    sheet.getRange(2 + firstChanged, monthCol + 1, block.length, 1).setNumberFormat('@');
+    range.setValues(block);
   }
-  return { status:'success', saved:updates.length+inserts.length };
+  if (inserts.length) {
+    const start = sheet.getLastRow() + 1;
+    sheet.getRange(start, monthCol + 1, inserts.length, 1).setNumberFormat('@');
+    sheet.getRange(start, 1, inserts.length, headers.length).setValues(inserts);
+  }
+  return { status:'success', saved:saved };
 }
 
 const FLOW_HIST_TOMBSTONE_HEADERS_ = ['id','deletedAt','reason'];
