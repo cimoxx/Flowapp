@@ -1,5 +1,14 @@
 # Flow changelog
 
+## v2.53.0 – Presnejšie odhady, reálna rezerva, testy
+
+- Koľko ešte môžem minúť: rezerva sa počíta z rozpočtu, už minutých peňazí a pravidelných platieb, ktoré ešte prídu. Keď míňaš menej než zvyčajne, rezerva rastie (predtým ostávala stále rovnaká).
+- Odhad výdavkov na koniec mesiaca zohľadňuje, ako rýchlo míňaš. Pod obvyklým tempom je nižší, nad ním vyšší. Pri odhade je orientačné rozpätie (typicky od – do).
+- Oprava: karta Prehľad mesiaca sa prekreslí hneď po uložení transakcie aj po synchronizácii (predtým ostala stará, kým si neprepol obrazovku).
+- Oprava výpočtu: nepozorovaný mesiac v rozbehnutom roku sa už nepočíta ako mesiac s nulovými výdavkami. Týka sa modelov legacy-adaptive, seasonal-index a multi-year-trend, odhady niektorých kategórií sa môžu zmeniť.
+- Diagnostika forecastu: nové porovnanie šampiónov s jednoduchým modelom na tvojich dátach.
+- Automatické testy výpočtov (node --test tests/unit/*.test.js).
+
 ## v2.52.1 – Kratšie obdobie pre Často používané
 
 - Návrhy v riadku Často používané sa počítajú z posledných 30 dní (predtým 120), takže sa rýchlejšie prispôsobia tomu, čo práve zadávaš.

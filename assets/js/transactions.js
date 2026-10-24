@@ -765,4 +765,6 @@ function renderList() {
 
     list.innerHTML = html;
     lucide.createIcons();
+    // Karta „Prehľad mesiaca“ sa musí zhodovať so zoznamom pod ňou (nová transakcia, sync, odškrtnutie…).
+    if (typeof refreshFinancialCockpitIfChanged === 'function') refreshFinancialCockpitIfChanged();
 }

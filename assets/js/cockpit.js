@@ -12,22 +12,27 @@
     }
     function buildSafeToSpend(data,meta){
         if(!meta.isCurrent)return null;
-        // Keep the existing financial source of truth: recommended budget minus
-        // the current end-of-month forecast. Known recurring/event expenses are
-        // already part of that forecast in getBudgetDataset/getAnnualPlan.
-        const available=Number(data.safeToSpend)||0;
+        // v2.53: rezerva = rozpočet − už minuté − pravidelné platby, ktoré ešte len prídu − plánované udalosti.
+        // Ušetrené peniaze ju zvyšujú, nadmerné míňanie znižuje. Starý údaj (rozpočet − odhad) ostáva
+        // iba ako náhrada, ak plán nie je k dispozícii.
+        const hasFree=Number.isFinite(Number(data.freeToSpend));
+        const available=hasFree?Number(data.freeToSpend):(Number(data.safeToSpend)||0);
         const days=Math.max(1,Number(meta.remaining)||Number(meta.daysInclusive)||1);
         const daily=available>0?available/days:0;
         const sevenDay=available>0?Math.min(available,daily*Math.min(7,days)):0;
-        const ratio=data.totalRecommended>0?available/data.totalRecommended:0;
+        const budgetBase=hasFree&&data.freeBreakdown?Number(data.freeBreakdown.budget)||0:data.totalRecommended;
+        const ratio=budgetBase>0?available/budgetBase:0;
+        const projectedMargin=Number(data.safeToSpend)||0; // rozpočet − odhad na koniec mesiaca (zohľadňuje tempo)
         const status=available<0
-            ? {tone:'danger',label:'Treba ubrať',text:'Odhad výdavkov je už nad rozpočtom.'}
-            : ratio<0.08
-                ? {tone:'warn',label:'Pozor na tempo',text:'Rezerva do rozpočtu je už malá.'}
-                : {tone:'good',label:'V pohode',text:'Podľa dnešného odhadu zostáva priestor v rozpočte.'};
-        return {available,daily,sevenDay,days,status};
+            ? {tone:'danger',label:'Treba ubrať',text:'Rozpočet je už vyčerpaný, vrátane platieb, ktoré ešte prídu.'}
+            : projectedMargin<0
+                ? {tone:'warn',label:'Pozor na tempo',text:'Pri súčasnom tempe rozpočet do konca mesiaca nevyjde.'}
+                : ratio<0.08
+                    ? {tone:'warn',label:'Rezerva je malá',text:'Do rozpočtu ostáva už len malý priestor.'}
+                    : {tone:'good',label:'V pohode',text:'Podľa doterajšieho tempa zostáva priestor v rozpočte.'};
+        return {available,daily,sevenDay,days,status,breakdown:hasFree?data.freeBreakdown:null};
     }
-    function renderFinancialCockpit(){
+    function renderFinancialCockpitNow(){
         const root=document.getElementById('financial-cockpit');
         if(!root||typeof getBudgetDataset!=='function')return;
         if(!Array.isArray(selectedMonths)||selectedMonths.length!==1){
@@ -46,18 +51,20 @@
           <div class="cockpit-hero ${signedClass(projectedBalance)}"><span>${primaryLabel}</span><strong>${formatCurrency(projectedBalance)}</strong><small>očakávaný príjem mínus odhad výdavkov</small></div>
           <div class="cockpit-glance cockpit-glance-two">
             <div><span>Minuté</span><strong>${formatCurrency(data.totalSpent)}</strong><small>${budgetUsage}% z rozpočtu</small></div>
-            <div><span>Odhad výdavkov</span><strong>${formatCurrency(data.totalForecast)}</strong><small>do konca mesiaca</small></div>
+            <div><span>Odhad výdavkov</span><strong>${formatCurrency(data.totalForecast)}</strong><small>${data.forecastRange&&meta.isCurrent?`typicky ${formatCurrency(data.forecastRange.low)} – ${formatCurrency(data.forecastRange.high)}`:'do konca mesiaca'}</small></div>
           </div>
           <div class="cockpit-progress-row"><div><span>Čerpanie rozpočtu</span><b>${budgetUsage}%</b></div><div class="cockpit-progress"><i style="width:${progressWidth}%"></i></div></div>
           ${safe?`<section class="safe-spend-card tone-${safe.status.tone}" aria-label="Koľko ešte môžem minúť">
             <div class="safe-spend-head"><div><span>Koľko ešte môžem minúť?</span><small>${safe.status.text}</small></div><span class="safe-spend-status tone-${safe.status.tone}">${safe.status.label}</span></div>
             <div class="safe-spend-main ${signedClass(safe.available)}"><strong>${formatCurrency(safe.available)}</strong><span>${safe.available>=0?`≈ ${formatCurrency(safe.daily)} denne do konca mesiaca`:'Rozpočet už podľa odhadu nestačí'}</span></div>
             <details class="safe-spend-details"><summary>Ako sme k tomu prišli? <i data-lucide="chevron-down"></i></summary><div class="safe-spend-breakdown">
-              <div><span>Rozpočet na mesiac</span><b>${formatCurrency(data.totalRecommended)}</b></div>
-              <div><span>Minuté doteraz</span><b>${formatCurrency(data.totalSpent)}</b></div>
-              <div><span>Odhad výdavkov do konca</span><b>${formatCurrency(data.totalForecast)}</b></div>
-              <div class="safe-spend-result"><span>Rezerva podľa dnešného odhadu</span><b class="${signedClass(safe.available)}">${formatCurrency(safe.available)}</b></div>
-            </div><p>V odhade sú zahrnuté aj pravidelné a naplánované výdavky, ktoré Flow pozná.</p></details>
+              ${safe.breakdown?`<div><span>Rozpočet kategórií</span><b>${formatCurrency(safe.breakdown.budget)}</b></div>
+              <div><span>Minuté doteraz</span><b>− ${formatCurrency(safe.breakdown.spent)}</b></div>
+              <div><span>Pravidelné platby, ktoré ešte prídu</span><b>− ${formatCurrency(safe.breakdown.remainingRecurring)}</b></div>
+              <div><span>Plánované udalosti</span><b>− ${formatCurrency(safe.breakdown.pendingEvents)}</b></div>`:`<div><span>Rozpočet na mesiac</span><b>${formatCurrency(data.totalRecommended)}</b></div>
+              <div><span>Odhad výdavkov do konca</span><b>${formatCurrency(data.totalForecast)}</b></div>`}
+              <div class="safe-spend-result"><span>Môžeš ešte minúť</span><b class="${signedClass(safe.available)}">${formatCurrency(safe.available)}</b></div>
+            </div><p>Stav „Pozor na tempo“ vychádza z odhadu na koniec mesiaca: zohľadňuje, koľko doteraz míňaš v porovnaní s obvyklým tempom.</p></details>
           </section>`:''}
           ${insights.length?`<section class="smart-insights" aria-label="Čo je dobré vedieť">
             <div class="smart-insights-head"><div><span>Čo je dobré vedieť</span><small>Najdôležitejšie veci pre tento mesiac</small></div><span class="smart-insights-count">${insights.length}</span></div>
@@ -71,7 +78,36 @@
         </section>`;
         if(window.lucide)lucide.createIcons();
     }
+    // v2.53: karta sa prekreslí, kedykoľvek sa zmenia dáta (nová transakcia, sync, úprava plánu),
+    // nielen pri prepnutí obrazovky. Podpis je lacný, takže ho renderList() smie kontrolovať často.
+    let lastCockpitSignature='';
+    function hashText(text){let h=5381;for(let i=0;i<text.length;i++)h=((h<<5)+h+text.charCodeAt(i))|0;return h;}
+    function cockpitSignature(){
+        const parts=[
+            Array.isArray(selectedMonths)?selectedMonths.join(','):'',
+            document.getElementById('filter-year')?.value||'',
+            typeof getForecastIndexSignature==='function'?getForecastIndexSignature():'',
+            Array.isArray(categories)?categories.length:0,
+            new Date().toDateString()
+        ];
+        try{
+            parts.push(hashText(JSON.stringify([
+                typeof flowRecurringPlans!=='undefined'?flowRecurringPlans:[],
+                typeof flowPlannedEvents!=='undefined'?flowPlannedEvents:[],
+                typeof flowBudgetOverrides!=='undefined'?flowBudgetOverrides:[]
+            ])));
+        }catch(_){}
+        return parts.join('|');
+    }
+    function renderFinancialCockpit(){
+        renderFinancialCockpitNow();
+        lastCockpitSignature=cockpitSignature();
+    }
+    function refreshFinancialCockpitIfChanged(){
+        if(cockpitSignature()!==lastCockpitSignature)renderFinancialCockpit();
+    }
     window.renderFinancialCockpit=renderFinancialCockpit;
+    window.refreshFinancialCockpitIfChanged=refreshFinancialCockpitIfChanged;
     document.addEventListener('click',e=>{if(e.target.closest('#filter-months-container'))setTimeout(renderFinancialCockpit,0);});
     document.addEventListener('change',e=>{if(e.target?.id==='filter-year')setTimeout(renderFinancialCockpit,0);});
 })();
