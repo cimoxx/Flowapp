@@ -17,6 +17,7 @@ Vyžaduje Node 22 alebo novší.
 | `quick-picks.test.js` | pravidlá návrhov Často používané (30 dní, vylúčenia, radenie) |
 | `champion-backtest.test.js` | porovnanie šampiónov s jednoduchým modelom |
 | `escape.test.js` | escapovanie textu do HTML a inline handlerov |
+| `cockpit-card.test.js` | karta „Koľko ešte môžem minúť?“: riadok „Z príjmu mesiaca ostáva“ a jeho rozpis, bez sekcie „Čo je dobré vedieť“ |
 | `month-snapshots.test.js` | trvalé snímky porovnania odhad vs. skutočnosť: vytvoriť, refresh, nové zariadenie, nemennosť, výpadok siete, poškodený archív, časové zóny |
 | `gas-snapshots.test.js` | Google Apps Script (`.gs`) so simulovaným Sheets: mesiac ako text, snímky, oprava archívu |
 
