@@ -1845,7 +1845,13 @@ function getAnnualPlan(year) {
             const remainingRecurring = categoryRows.reduce((s,r) => s + (r.remainingRecurring || 0), 0);
             if (isCurrent) {
                 freeToSpend = round2(coreBudget - coreSpent - remainingRecurring - eventExpense);
-                freeBreakdown = { budget: round2(coreBudget), spent: round2(coreSpent), remainingRecurring: round2(remainingRecurring), pendingEvents: round2(eventExpense) };
+                // „Z príjmu mesiaca ostáva“: očakávaný príjem mesiaca (už prijatý + ešte očakávaný) mínus výdavky, ktoré sú už
+                // zapísané alebo isté. Ide o inú otázku než rezerva v rozpočte: príjem nie je strop výdavkov.
+                freeBreakdown = {
+                    budget: round2(coreBudget), spent: round2(coreSpent), remainingRecurring: round2(remainingRecurring), pendingEvents: round2(eventExpense),
+                    income: round2(plannedIncome),
+                    incomeLeft: round2(plannedIncome - coreSpent - remainingRecurring - eventExpense)
+                };
             }
             const sigma = combineForecastSigmas(categoryRows.map(r => r.forecastSigma || 0));
             if (sigma > 0) {

@@ -3,6 +3,14 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.55.0",
+    "title": "Z príjmu mesiaca ostáva, bez sekcie Čo je dobré vedieť",
+    "items": [
+      "Karta „Koľko ešte môžem minúť?“ má pod číslom nový riadok „Z príjmu mesiaca ostáva“: očakávaný príjem mesiaca mínus už minuté, mínus pravidelné platby, ktoré ešte prídu, mínus plánované udalosti. Je to iná otázka než rezerva v rozpočte (príjem nie je strop výdavkov), preto sú čísla vedľa seba. Rozpis je pod „Ako sme k tomu prišli?“.",
+      "Zo začiatku domovskej obrazovky zmizla sekcia „Čo je dobré vedieť“."
+    ]
+  },
+  {
     "version": "2.54.2",
     "title": "Zrozumiteľné chyby pri prihlásení a rýchlejší zápis archívu",
     "items": [

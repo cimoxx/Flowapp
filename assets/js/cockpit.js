@@ -30,7 +30,9 @@
                 : ratio<0.08
                     ? {tone:'warn',label:'Rezerva je malá',text:'Do rozpočtu ostáva už len malý priestor.'}
                     : {tone:'good',label:'V pohode',text:'Podľa doterajšieho tempa zostáva priestor v rozpočte.'};
-        return {available,daily,sevenDay,days,status,breakdown:hasFree?data.freeBreakdown:null};
+        const breakdown=hasFree?data.freeBreakdown:null;
+        const incomeLeft=breakdown&&Number.isFinite(Number(breakdown.incomeLeft))?Number(breakdown.incomeLeft):null;
+        return {available,daily,sevenDay,days,status,breakdown,incomeLeft};
     }
     function renderFinancialCockpitNow(){
         const root=document.getElementById('financial-cockpit');
@@ -43,7 +45,6 @@
         const projectedBalance=Number.isFinite(Number(data.plannedBalance))?Number(data.plannedBalance):(Number(data.totalIncome)||0)-(Number(data.totalForecast)||0);
         const budgetUsage=data.totalRecommended>0?Math.round((data.totalSpent/data.totalRecommended)*100):0;
         const progressWidth=Math.max(0,Math.min(100,budgetUsage));
-        const insights=typeof buildBudgetInsights==='function'?buildBudgetInsights(data).slice(0,3):[];
         const safe=buildSafeToSpend(data,meta);
         const primaryLabel=meta.isCurrent?'Očakávaný zostatok':'Odhadovaný zostatok';
         root.innerHTML=`<section class="cockpit-shell cockpit-simple" aria-label="Finančný prehľad pre ${esc(meta.label)}">
@@ -57,6 +58,7 @@
           ${safe?`<section class="safe-spend-card tone-${safe.status.tone}" aria-label="Koľko ešte môžem minúť">
             <div class="safe-spend-head"><div><span>Koľko ešte môžem minúť?</span><small>${safe.status.text}</small></div><span class="safe-spend-status tone-${safe.status.tone}">${safe.status.label}</span></div>
             <div class="safe-spend-main ${signedClass(safe.available)}"><strong>${formatCurrency(safe.available)}</strong><span>${safe.available>=0?`≈ ${formatCurrency(safe.daily)} denne do konca mesiaca`:'Rozpočet už podľa odhadu nestačí'}</span></div>
+            ${safe.incomeLeft!==null?`<div class="safe-spend-income ${signedClass(safe.incomeLeft)}"><span>Z príjmu mesiaca ostáva</span><b>${formatCurrency(safe.incomeLeft)}</b></div>`:''}
             <details class="safe-spend-details"><summary>Ako sme k tomu prišli? <i data-lucide="chevron-down"></i></summary><div class="safe-spend-breakdown">
               ${safe.breakdown?`<div><span>Rozpočet kategórií</span><b>${formatCurrency(safe.breakdown.budget)}</b></div>
               <div><span>Minuté doteraz</span><b>− ${formatCurrency(safe.breakdown.spent)}</b></div>
@@ -64,11 +66,13 @@
               <div><span>Plánované udalosti</span><b>− ${formatCurrency(safe.breakdown.pendingEvents)}</b></div>`:`<div><span>Rozpočet na mesiac</span><b>${formatCurrency(data.totalRecommended)}</b></div>
               <div><span>Odhad výdavkov do konca</span><b>${formatCurrency(data.totalForecast)}</b></div>`}
               <div class="safe-spend-result"><span>Môžeš ešte minúť</span><b class="${signedClass(safe.available)}">${formatCurrency(safe.available)}</b></div>
-            </div><p>Stav „Pozor na tempo“ vychádza z odhadu na koniec mesiaca: zohľadňuje, koľko doteraz míňaš v porovnaní s obvyklým tempom.</p></details>
-          </section>`:''}
-          ${insights.length?`<section class="smart-insights" aria-label="Čo je dobré vedieť">
-            <div class="smart-insights-head"><div><span>Čo je dobré vedieť</span><small>Najdôležitejšie veci pre tento mesiac</small></div><span class="smart-insights-count">${insights.length}</span></div>
-            <div class="smart-insights-list">${insights.map((item,index)=>`<article class="smart-insight tone-${esc(item.tone)} ${index===0?'is-primary':''}"><div class="smart-insight-icon"><i data-lucide="${esc(item.icon)}"></i></div><div class="smart-insight-copy"><strong>${esc(item.title)}</strong><span>${esc(item.text)}</span></div></article>`).join('')}</div>
+              ${safe.breakdown&&safe.incomeLeft!==null?`<div class="safe-spend-subhead">Z príjmu mesiaca</div>
+              <div><span>Očakávaný príjem mesiaca</span><b>${formatCurrency(safe.breakdown.income)}</b></div>
+              <div><span>Minuté doteraz</span><b>− ${formatCurrency(safe.breakdown.spent)}</b></div>
+              <div><span>Pravidelné platby, ktoré ešte prídu</span><b>− ${formatCurrency(safe.breakdown.remainingRecurring)}</b></div>
+              <div><span>Plánované udalosti</span><b>− ${formatCurrency(safe.breakdown.pendingEvents)}</b></div>
+              <div class="safe-spend-result"><span>Z príjmu mesiaca ostáva</span><b class="${signedClass(safe.incomeLeft)}">${formatCurrency(safe.incomeLeft)}</b></div>`:''}
+            </div><p>Stav „Pozor na tempo“ vychádza z odhadu na koniec mesiaca: zohľadňuje, koľko doteraz míňaš v porovnaní s obvyklým tempom. „Z príjmu mesiaca ostáva“ je ešte pred ďalšími bežnými výdavkami: rozpočet je strop na výdavky, príjem ukazuje, koľko peňazí mesiac celkovo prinesie.</p></details>
           </section>`:''}
           <details class="cockpit-more"><summary>Ďalšie údaje <i data-lucide="chevron-down"></i></summary><div class="cockpit-more-grid">
             <div><span>Rozpočet</span><strong>${formatCurrency(data.totalRecommended)}</strong></div>

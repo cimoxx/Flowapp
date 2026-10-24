@@ -1,3 +1,3 @@
 /* Jediný zdroj verzie aplikácie. Mení sa iba cez tools/bump_version.py.
  * Číta ho aplikácia (nastavenia, changelog) aj service worker (názov cache). */
-const APP_VERSION = '2.54.2';
+const APP_VERSION = '2.55.0';

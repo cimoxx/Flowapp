@@ -1,5 +1,10 @@
 # Flow changelog
 
+## v2.55.0 – Z príjmu mesiaca ostáva, bez sekcie Čo je dobré vedieť
+
+- Karta „Koľko ešte môžem minúť?“ má pod číslom nový riadok „Z príjmu mesiaca ostáva“: očakávaný príjem mesiaca mínus už minuté, mínus pravidelné platby, ktoré ešte prídu, mínus plánované udalosti. Je to iná otázka než rezerva v rozpočte (príjem nie je strop výdavkov), preto sú čísla vedľa seba. Rozpis je pod „Ako sme k tomu prišli?“.
+- Zo začiatku domovskej obrazovky zmizla sekcia „Čo je dobré vedieť“.
+
 ## v2.54.2 – Zrozumiteľné chyby pri prihlásení a rýchlejší zápis archívu
 
 - Prihlasovacia obrazovka už neukazuje zavádzajúce „Backend ešte nemá prihlásenie“ pri každej chybe. Zobrazí skutočnú príčinu: chyba servera s textom, zaneprázdnený server, nepovolený účet, alebo odporúčanie skontrolovať nasadenie Apps Scriptu.
