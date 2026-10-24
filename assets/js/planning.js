@@ -2573,7 +2573,14 @@ async function refreshArchiveEvaluations() {
         row.actualAmount=actual; row.errorAmount=error; row.absoluteError=abs; row.errorPct=pct; row.evaluatedAt=new Date().toISOString();
         changed.push(row);
     });
-    if(changed.length){ planningPersist(); try{ await planningPost({action:'archiveForecasts',rows:changed}); }catch(e){console.warn('Archive evaluation sync failed',e);} }
+    if(changed.length){
+        planningPersist();
+        // v2.54.2: v dávkach po 100, aby jedna požiadavka nedržala zámok scriptu dlho.
+        for(let i=0;i<changed.length;i+=100){
+            try{ await planningPost({action:'archiveForecasts',rows:changed.slice(i,i+100)}); }
+            catch(e){ console.warn('Archive evaluation sync failed',e); break; }
+        }
+    }
 }
 
 async function runForecastBackfill() {

@@ -27,7 +27,7 @@ function sheetsMidnight(year, month1) {
 }
 
 class Sheet {
-    constructor(name) { this.name = name; this.rows = []; this.formats = new Map(); this.maxRows = 1000; this.maxCols = 30; }
+    constructor(name) { this.name = name; this.rows = []; this.formats = new Map(); this.maxRows = 20000; this.maxCols = 30; this.calls = 0; }
     getLastRow() { let n = 0; this.rows.forEach((r, i) => { if (r && r.some(v => v !== '' && v !== undefined && v !== null)) n = i + 1; }); return n; }
     getMaxRows() { return this.maxRows; }
     getMaxColumns() { return this.maxCols; }
@@ -46,6 +46,7 @@ class Sheet {
         const sheet = this;
         return {
             getValues() {
+                sheet.calls++;
                 const out = [];
                 for (let i = 0; i < numRows; i++) {
                     const r = sheet.rows[row - 1 + i] || [];
@@ -54,6 +55,7 @@ class Sheet {
                 return out;
             },
             setValues(values) {
+                sheet.calls++;
                 values.forEach((vals, i) => {
                     const r = sheet.rows[row - 1 + i] || (sheet.rows[row - 1 + i] = []);
                     vals.forEach((v, j) => { r[col - 1 + j] = sheet._convert(row + i, col + j, v); });
@@ -62,6 +64,7 @@ class Sheet {
             setValue(v) { this.setValues([[v]]); },
             getValue() { return this.getValues()[0][0]; },
             setNumberFormat(format) {
+                sheet.calls++;
                 for (let i = 0; i < numRows; i++) for (let j = 0; j < numCols; j++) sheet.formats.set(`${row + i}:${col + j}`, format);
             },
             getNumberFormat() { return sheet.formats.get(`${row}:${col}`) || 'General'; }
@@ -70,7 +73,7 @@ class Sheet {
     getDataRange() { return this.getRange(1, 1, Math.max(1, this.getLastRow()), this.rows.reduce((m, r) => Math.max(m, (r || []).length), 1)); }
 }
 
-function createGas(file = 'Flowapp-Google-Apps-Script-v2.54.1.gs') {
+function createGas(file = 'Flowapp-Google-Apps-Script-v2.54.2.gs') {
     const code = fs.readFileSync(path.join(GAS_DIR, file), 'utf8');
     const sheets = {};
     const ss = {
@@ -108,6 +111,9 @@ function createGas(file = 'Flowapp-Google-Apps-Script-v2.54.1.gs') {
 
     return {
         ctx, sheets, ss, token,
+        /** Počet volaní Sheets od posledného resetu (v skutočnom Apps Script je každé pomalé, rádovo 0,05 až 0,3 s). */
+        apiCalls: () => Object.values(sheets).reduce((n, sh) => n + sh.calls, 0),
+        resetApiCalls: () => Object.values(sheets).forEach(sh => (sh.calls = 0)),
         get: parameter => ctx.doGet({ parameter: { token, ...parameter } }),
         post: body => ctx.doPost({ postData: { contents: JSON.stringify({ token, ...body }) } }),
         run: expr => vm.runInContext(expr, ctx)

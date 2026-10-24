@@ -1,5 +1,11 @@
 # Flow changelog
 
+## v2.54.2 – Zrozumiteľné chyby pri prihlásení a rýchlejší zápis archívu
+
+- Prihlasovacia obrazovka už neukazuje zavádzajúce „Backend ešte nemá prihlásenie“ pri každej chybe. Zobrazí skutočnú príčinu: chyba servera s textom, zaneprázdnený server, nepovolený účet, alebo odporúčanie skontrolovať nasadenie Apps Scriptu.
+- Oprava možnej príčiny pádu prihlásenia: zápis archívu odhadov do Google Sheets robil dve volania na každý riadok, takže veľká požiadavka držala zámok scriptu minúty a blokovala ostatné (aj prihlásenie). Teraz sa zapisuje celý blok naraz (4 volania namiesto tisícov) a vyhodnotenie archívu ide v dávkach po 100 riadkoch.
+- Apps Script v2.54.2: kódy chýb (server_error, busy, unknown_action) a diagnostický dotaz ?get=ping, ktorý vráti verziu backendu bez tokenu (nič z dát).
+
 ## v2.54.1 – Oprava nadhodnotených porovnaní minulých mesiacov
 
 - Oprava: porovnania minulých mesiacov (plán a odhad) ukazovali približne šesťnásobok skutočnosti. Archív odhadov obsahoval viac kópií toho istého odhadu (z opakovaného prepočtu histórie) a appka ich sčítavala. Teraz sa berie jedna, najnovšia kópia.
