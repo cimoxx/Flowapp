@@ -3,6 +3,14 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.55.2",
+    "title": "Oprava prepínania kategórie po klepnutí na transakciu",
+    "items": [
+      "Oprava: po klepnutí na existujúcu transakciu v prehľade sa pri otvorení úpravy už neprepne kategória na tú, ktorá bola pod prstom, a nezmizne podkategória. Úprava sa otvára až po dokončení klepnutia a formulár krátko po otvorení ignoruje kliky.",
+      "Klepnutie na odškrtávacie kolečko teraz prepne zapísané namiesto otvorenia úpravy."
+    ]
+  },
+  {
     "version": "2.55.1",
     "title": "Pravidelné príjmy: výber kategórie a podkategórie",
     "items": [

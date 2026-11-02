@@ -19,6 +19,7 @@ Vyžaduje Node 22 alebo novší.
 | `escape.test.js` | escapovanie textu do HTML a inline handlerov |
 | `cockpit-card.test.js` | karta „Koľko ešte môžem minúť?“: riadok „Z príjmu mesiaca ostáva“ a jeho rozpis, bez sekcie „Čo je dobré vedieť“ |
 | `recurring-income-form.test.js` | formulár pravidelnej platby: kategória a podkategórie pri príjme, výdavok bez kategórie príjmov |
+| `row-tap.test.js` | klepnutie na transakciu v zozname: úprava sa otvára v kliku, nie pri zdvihnutí prsta, ignorovanie po potiahnutí, poistka proti duchovému kliku |
 | `month-snapshots.test.js` | trvalé snímky porovnania odhad vs. skutočnosť: vytvoriť, refresh, nové zariadenie, nemennosť, výpadok siete, poškodený archív, časové zóny |
 | `gas-snapshots.test.js` | Google Apps Script (`.gs`) so simulovaným Sheets: mesiac ako text, snímky, oprava archívu |
 

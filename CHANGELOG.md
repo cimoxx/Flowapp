@@ -1,5 +1,10 @@
 # Flow changelog
 
+## v2.55.2 – Oprava prepínania kategórie po klepnutí na transakciu
+
+- Oprava: po klepnutí na existujúcu transakciu v prehľade sa pri otvorení úpravy už neprepne kategória na tú, ktorá bola pod prstom, a nezmizne podkategória. Úprava sa otvára až po dokončení klepnutia a formulár krátko po otvorení ignoruje kliky.
+- Klepnutie na odškrtávacie kolečko teraz prepne zapísané namiesto otvorenia úpravy.
+
 ## v2.55.1 – Pravidelné príjmy: výber kategórie a podkategórie
 
 - Oprava: pri pravidelnom príjme sa dá vybrať kategória (Príjmy) aj podkategória (Lukáš, Zdenka, VšZP…). Formulár predtým hľadal kategóriu s názvom Prijem bez diakritiky, takže zoznam bol prázdny.

@@ -181,6 +181,7 @@ function openModal(id = null) {
     const entryIdInput = document.getElementById('entry-id');
 
     overlay.classList.remove('hidden');
+    modalOpenedAt = Date.now();
 
     if (id) {
         setModalMeta(true);
@@ -445,11 +446,37 @@ function handleSwipeEnd(e, id) {
         totalDist = Math.sqrt(totalDiffX * totalDiffX + totalDiffY * totalDiffY);
     }
 
-    if (!isSwiping && Math.abs(translateX) < 5 && totalDist < 8) {
-        openModal(id);
+    // Úprava sa otvára až v kliku (handleRowClick), nie tu. Otvorenie pri zdvihnutí prsta spôsobovalo, že prehliadač
+    // po touchend vyslal ešte klik na to, čo je v tom bode v už otvorenom formulári, a prepol kategóriu.
+    // Po potiahnutí sa klik na riadok krátko ignoruje.
+    if (isSwiping || Math.abs(translateX) >= 5 || totalDist >= 8) {
+        rowClickSuppressedUntil = Date.now() + 450;
     }
 
     isSwiping = false;
+}
+
+let rowClickSuppressedUntil = 0;
+
+function handleRowClick(e, id) {
+    if (Date.now() < rowClickSuppressedUntil) return;
+    if (e?.target?.closest && e.target.closest('.tx-check')) return;   // odškrtávacie kolečko má vlastnú akciu
+    openModal(id);
+}
+
+// Poistka: krátko po otvorení formulára sa kliky vo formulári ignorujú. Chráni pred „duchovým“ klikom, ktorý
+// prehliadač vyšle po dotyku na miesto, kde sa formulár práve objavil (kategória, podkategória, návrhy, tlačidlá).
+const MODAL_GHOST_CLICK_MS = 350;
+let modalOpenedAt = 0;
+
+function shouldSwallowGhostClick(e) {
+    return Date.now() - modalOpenedAt < MODAL_GHOST_CLICK_MS && Boolean(e?.target?.closest && e.target.closest('#modal-overlay'));
+}
+
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('click', e => {
+        if (shouldSwallowGhostClick(e)) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
 }
 
 function toggleMonthSelect(monthIdx) {
@@ -736,6 +763,7 @@ function renderList() {
 
                             <div class="swipe-content tx-row tx-${item.type} p-3.5 flex items-center justify-between ${item.processed ? 'processed' : ''}"
                                  id="item-${escHtml(item.id)}"
+                                 onclick="handleRowClick(event, ${jsArg(item.id)})"
                                  ontouchstart="handleSwipeStart(event, ${jsArg(item.id)})"
                                  ontouchmove="handleSwipeMove(event, ${jsArg(item.id)})"
                                  ontouchend="handleSwipeEnd(event, ${jsArg(item.id)})">
