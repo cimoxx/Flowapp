@@ -1,5 +1,16 @@
 # Flow changelog
 
+## v2.55.2 – Oprava prepínania kategórie po klepnutí na transakciu
+
+- Oprava: po klepnutí na existujúcu transakciu v prehľade sa pri otvorení úpravy už neprepne kategória na tú, ktorá bola pod prstom, a nezmizne podkategória. Úprava sa otvára až po dokončení klepnutia a formulár krátko po otvorení ignoruje kliky.
+- Klepnutie na odškrtávacie kolečko teraz prepne zapísané namiesto otvorenia úpravy.
+
+## v2.55.1 – Pravidelné príjmy: výber kategórie a podkategórie
+
+- Oprava: pri pravidelnom príjme sa dá vybrať kategória (Príjmy) aj podkategória (Lukáš, Zdenka, VšZP…). Formulár predtým hľadal kategóriu s názvom Prijem bez diakritiky, takže zoznam bol prázdny.
+- Kategória príjmov sa pozná podľa názvu bez diakritiky a veľkosti písmen (Prijem, Príjmy, Príjem), prípadne podľa príjmových transakcií. Pri pravidelnom výdavku sa už kategória príjmov nenúka.
+- Pri prepnutí typu Výdavok na Príjem sa podkategória z výdavku neprenáša. Uložená kategória, ktorá už nie je v zozname, sa pri úprave nestratí.
+
 ## v2.55.0 – Z príjmu mesiaca ostáva, bez sekcie Čo je dobré vedieť
 
 - Karta „Koľko ešte môžem minúť?“ má pod číslom nový riadok „Z príjmu mesiaca ostáva“: očakávaný príjem mesiaca mínus už minuté, mínus pravidelné platby, ktoré ešte prídu, mínus plánované udalosti. Je to iná otázka než rezerva v rozpočte (príjem nie je strop výdavkov), preto sú čísla vedľa seba. Rozpis je pod „Ako sme k tomu prišli?“.

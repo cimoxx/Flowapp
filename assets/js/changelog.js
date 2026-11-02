@@ -3,6 +3,23 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.55.2",
+    "title": "Oprava prepínania kategórie po klepnutí na transakciu",
+    "items": [
+      "Oprava: po klepnutí na existujúcu transakciu v prehľade sa pri otvorení úpravy už neprepne kategória na tú, ktorá bola pod prstom, a nezmizne podkategória. Úprava sa otvára až po dokončení klepnutia a formulár krátko po otvorení ignoruje kliky.",
+      "Klepnutie na odškrtávacie kolečko teraz prepne zapísané namiesto otvorenia úpravy."
+    ]
+  },
+  {
+    "version": "2.55.1",
+    "title": "Pravidelné príjmy: výber kategórie a podkategórie",
+    "items": [
+      "Oprava: pri pravidelnom príjme sa dá vybrať kategória (Príjmy) aj podkategória (Lukáš, Zdenka, VšZP…). Formulár predtým hľadal kategóriu s názvom Prijem bez diakritiky, takže zoznam bol prázdny.",
+      "Kategória príjmov sa pozná podľa názvu bez diakritiky a veľkosti písmen (Prijem, Príjmy, Príjem), prípadne podľa príjmových transakcií. Pri pravidelnom výdavku sa už kategória príjmov nenúka.",
+      "Pri prepnutí typu Výdavok na Príjem sa podkategória z výdavku neprenáša. Uložená kategória, ktorá už nie je v zozname, sa pri úprave nestratí."
+    ]
+  },
+  {
     "version": "2.55.0",
     "title": "Z príjmu mesiaca ostáva, bez sekcie Čo je dobré vedieť",
     "items": [
