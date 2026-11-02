@@ -2971,8 +2971,31 @@ function showPlanningModal(title, kicker, html) {
     if (window.lucide) lucide.createIcons();
 }
 
+// v2.55.1: kategória príjmov sa pozná podľa názvu bez diakritiky a veľkosti písmen (Prijem, Príjmy, Príjem, Prijmy…).
+// Predtým formulár pravidelnej platby hľadal presne `Prijem`, takže pri kategórii `Príjmy` bol zoznam kategórií
+// aj podkategórií pri pravidelnom príjme prázdny.
+function isIncomeCategoryName(id) {
+    return /^prij[em]/.test(normalizeForecastCategory(id));
+}
+
+function getIncomeCategoriesForRecurring() {
+    const byName = categories.filter(c => isIncomeCategoryName(c.id));
+    if (byName.length) return byName;
+    // Vlastný názov: kategória, v ktorej sú príjmové transakcie.
+    const withIncome = new Set((Array.isArray(db) ? db : []).filter(t => t && !t.deleted && t.type === 'income').map(t => String(t.category)));
+    const byData = categories.filter(c => withIncome.has(String(c.id)));
+    return byData.length ? byData : categories.slice();   // zoznam nikdy nie je prázdny
+}
+
+function getRecurringFormCategories(type) {
+    if (type === 'income') return getIncomeCategoriesForRecurring();
+    return categories.filter(c => !isIncomeCategoryName(c.id));
+}
+
 function recurringCategoryOptions(type, selected) {
-    const list = type==='income' ? categories.filter(c=>c.id==='Prijem') : categories.filter(c=>c.id!=='Prijem');
+    const list = getRecurringFormCategories(type).slice();
+    // Uložená kategória, ktorá už v zozname nie je (napr. stará `Prijem`), sa pri úprave nestratí.
+    if (selected && !list.some(c => String(c.id) === String(selected))) list.push({ id: selected });
     return list.map(c=>`<option value="${escPlanning(c.id)}" ${String(selected)===String(c.id)?'selected':''}>${escPlanning(c.id)}</option>`).join('');
 }
 
@@ -2992,11 +3015,13 @@ function refreshRecurringPlanFormFields() {
     const type=typeEl.value;
     const previousCat=catEl.value;
     const previousSub=subEl.value;
-    const allowed = type==='income' ? categories.filter(c=>c.id==='Prijem') : categories.filter(c=>c.id!=='Prijem');
+    const allowed = getRecurringFormCategories(type);
     const nextCat = allowed.some(c=>String(c.id)===String(previousCat)) ? previousCat : (allowed[0]?.id || '');
     catEl.innerHTML=recurringCategoryOptions(type,nextCat);
     catEl.value=nextCat;
-    subEl.innerHTML=recurringSubOptions(nextCat, type==='income' ? (previousSub || 'Vyplata') : previousSub, type);
+    // Podkategória z inej kategórie (napr. po prepnutí Výdavok → Príjem) sa neprenáša.
+    const carriedSub = nextCat === previousCat ? previousSub : '';
+    subEl.innerHTML=recurringSubOptions(nextCat, type==='income' ? (carriedSub || 'Vyplata') : carriedSub, type);
 }
 
 function refreshRecurringSubField() {
@@ -3234,7 +3259,7 @@ async function saveRecurringHistoryMatches(planId, btn) {
 function openRecurringPlanModal(id=null) {
     const p = id ? flowRecurringPlans.find(x=>String(x.id)===String(id)) : null;
     const type = p?.type || 'expense';
-    const defaultCategory = type==='income' ? 'Prijem' : (p?.category || categories.find(c=>c.id!=='Prijem')?.id || '');
+    const defaultCategory = p?.category || getRecurringFormCategories(type)[0]?.id || '';
     showPlanningModal(p ? 'Upraviť pravidelnú položku' : 'Nová pravidelná položka', 'Pravidelné', `
       <form id="recurring-plan-form" class="space-y-4" onsubmit="submitRecurringPlanForm(event, '${p?.id || ''}')">
         <div><label class="planning-form-label">Názov</label><input id="rp-name" required class="planning-form-input" value="${escPlanning(p?.name || '')}" placeholder="${type==='income'?'Výplata':'Elektrina'}"></div>
