@@ -153,7 +153,7 @@ h2, .font-bold, #display-balance {
     transition: all 0.18s ease;
     border: 1px solid var(--border);
     cursor: pointer;
-    min-height: 64px;
+    min-height: 56px;
     background: var(--bg-card);
     color: var(--text-dim);
     border-radius: 16px;
@@ -745,28 +745,8 @@ input, select, textarea {
     flex-shrink: 0;
 }
 
-.modal-helper-card {
-    padding: 12px 14px;
-    border-radius: 16px;
-    background: rgba(59, 130, 246, 0.06);
-    border: 1px solid rgba(59, 130, 246, 0.14);
-}
-
-.modal-helper-title {
-    font-size: 10px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #3b82f6;
-    margin-bottom: 4px;
-}
-
-.modal-helper-text {
-    font-size: 11px;
-    line-height: 1.45;
-    color: var(--text-dim);
-    font-weight: 700;
-}
+/* v2.56: formulár Nová transakcia je nižší, aby sa poznámka, dátum a Uložiť zmestili na obrazovku bez posúvania. */
+#modal-subtitle { display: none; }
 
 .summary-insight-card {
     border: 1px solid var(--border);

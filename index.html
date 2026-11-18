@@ -329,7 +329,7 @@
 
 <div id="modal-overlay" class="fixed inset-0 bg-slate-900/90 z-[40] hidden backdrop-blur-sm flex items-end desktop-modal-overlay">
     <div class="bg-white dark:bg-slate-900 w-full max-w-md mx-auto rounded-t-[2.5rem] p-5 shadow-2xl max-h-[92vh] overflow-y-auto desktop-modal-sheet">
-        <div class="flex justify-between items-center mb-4 sticky top-0 bg-white dark:bg-slate-900 pb-2 z-10">
+        <div class="flex justify-between items-center mb-2 sticky top-0 bg-white dark:bg-slate-900 pb-1 z-10">
             <div>
                 <div id="modal-title" class="text-sm font-black uppercase tracking-[0.12em] text-emerald-500">Nová transakcia</div>
                 <div id="modal-subtitle" class="text-[11px] font-bold text-slate-400 mt-0.5">Rýchle pridanie novej položky do prehľadu.</div>
@@ -340,11 +340,11 @@
             </div>
         </div>
 
-        <form id="entry-form" onsubmit="handleSave(event)" class="space-y-5">
+        <form id="entry-form" onsubmit="handleSave(event)" class="space-y-3">
             <input type="submit" id="save-trigger" class="hidden">
             <input type="hidden" id="entry-id">
 
-            <input type="number" id="f-amount" inputmode="decimal" step="0.01" placeholder="0.00" class="w-full text-center text-5xl font-extrabold py-2 outline-none border-none bg-transparent !p-0" required>
+            <input type="number" id="f-amount" inputmode="decimal" step="0.01" placeholder="0.00" class="w-full text-center text-4xl font-extrabold py-1 outline-none border-none bg-transparent !p-0" required>
 
             <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                 <button type="button" id="t-ex" onclick="setType('expense')" class="flex-1 py-2 rounded-lg text-[10px] font-black">VÝDAVOK</button>
@@ -366,17 +366,12 @@
                 <div id="sub-grid" class="flex flex-wrap gap-1.5"></div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input type="text" id="f-note" placeholder="Poznámka..." class="p-3.5 text-sm outline-none">
-                <input type="date" id="f-date" class="p-3.5 text-sm outline-none">
+            <div class="grid grid-cols-[1.35fr_1fr] gap-2">
+                <input type="text" id="f-note" placeholder="Poznámka..." class="min-w-0 w-full p-3.5 text-sm outline-none">
+                <input type="date" id="f-date" class="min-w-0 w-full p-3.5 text-sm outline-none" aria-label="Dátum">
             </div>
 
-            <div class="modal-helper-card">
-                <div class="modal-helper-title">Predvolené hodnoty</div>
-                <div class="modal-helper-text">Aplikácia si pamätá naposledy použitý typ, kategóriu a podkategóriu. Dátum novej transakcie sa vždy nastaví na dnešný deň.</div>
-            </div>
-
-            <div class="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+            <div id="recurring-card" class="px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
                 <div class="flex justify-between items-center">
                     <div class="flex items-center gap-2">
                         <i data-lucide="repeat" class="w-4 h-4 text-emerald-500"></i>
@@ -388,11 +383,10 @@
                     </label>
                 </div>
 
-                <div class="text-[11px] font-semibold text-slate-400 leading-relaxed">
-                    Ak je táto platba pravidelná, aplikácia ju vie automaticky preniesť aj do ďalších období.
-                </div>
-
                 <div id="recurring-options" class="hidden space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                    <div class="text-[11px] font-semibold text-slate-400 leading-relaxed">
+                        Ak je táto platba pravidelná, aplikácia ju vie automaticky preniesť aj do ďalších období.
+                    </div>
                     <label class="text-[9px] font-black text-slate-400 uppercase block px-1 tracking-wider">Frekvencia opakovania</label>
                     <select id="f-frequency" class="w-full p-2.5 text-sm outline-none">
                         <option value="weekly">Týždenne</option>
