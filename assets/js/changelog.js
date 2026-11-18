@@ -3,6 +3,14 @@
  * (skript zároveň prepíše assets/js/version.js a CHANGELOG.md). */
 const FLOW_CHANGELOG = /*ENTRIES*/[
   {
+    "version": "2.56.0",
+    "title": "Kompaktnejší formulár Nová transakcia",
+    "items": [
+      "Formulár Nová transakcia je o tretinu nižší. Poznámka aj dátum sú vedľa seba a vidno ich bez posúvania, kartu Predvolené hodnoty a podnadpis som odstránil, dlaždice kategórií a pole sumy sú o niečo nižšie.",
+      "Pravidelná platba je jeden riadok s prepínačom. Vysvetlenie a frekvencia sa ukážu až po zapnutí."
+    ]
+  },
+  {
     "version": "2.55.2",
     "title": "Oprava prepínania kategórie po klepnutí na transakciu",
     "items": [

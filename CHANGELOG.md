@@ -1,5 +1,10 @@
 # Flow changelog
 
+## v2.56.0 – Kompaktnejší formulár Nová transakcia
+
+- Formulár Nová transakcia je o tretinu nižší. Poznámka aj dátum sú vedľa seba a vidno ich bez posúvania, kartu Predvolené hodnoty a podnadpis som odstránil, dlaždice kategórií a pole sumy sú o niečo nižšie.
+- Pravidelná platba je jeden riadok s prepínačom. Vysvetlenie a frekvencia sa ukážu až po zapnutí.
+
 ## v2.55.2 – Oprava prepínania kategórie po klepnutí na transakciu
 
 - Oprava: po klepnutí na existujúcu transakciu v prehľade sa pri otvorení úpravy už neprepne kategória na tú, ktorá bola pod prstom, a nezmizne podkategória. Úprava sa otvára až po dokončení klepnutia a formulár krátko po otvorení ignoruje kliky.
